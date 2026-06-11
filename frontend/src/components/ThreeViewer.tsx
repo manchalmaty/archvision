@@ -1,13 +1,6 @@
-import { useRef, useEffect } from "react";
+import { useRef, useEffect, type ElementRef } from "react";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
-import {
-  OrbitControls,
-  Grid,
-  Text,
-  Box,
-  Cylinder,
-  PerspectiveCamera,
-} from "@react-three/drei";
+import { OrbitControls, Grid, Text, Box, Cylinder, PerspectiveCamera } from "@react-three/drei";
 import * as THREE from "three";
 import { useStore } from "../store/useStore";
 import { ROOM_COLORS } from "./roomColors";
@@ -34,7 +27,10 @@ function RoomMesh({
   return (
     <group
       position={[room.x + room.width / 2, z + SLAB_H / 2, room.y + room.depth / 2]}
-      onClick={(e) => { e.stopPropagation(); onClick(); }}
+      onClick={(e) => {
+        e.stopPropagation();
+        onClick();
+      }}
     >
       {/* Floor slab */}
       <Box args={[room.width, SLAB_H, room.depth]}>
@@ -47,20 +43,52 @@ function RoomMesh({
 
       {/* 4 wall panels — open top so floor plan is visible from above */}
       {/* South wall */}
-      <Box args={[room.width, WALL_HEIGHT, wt]} position={[0, WALL_HEIGHT / 2, -room.depth / 2 + wt / 2]}>
-        <meshStandardMaterial color={color} roughness={0.85} metalness={0.05} side={THREE.DoubleSide} />
+      <Box
+        args={[room.width, WALL_HEIGHT, wt]}
+        position={[0, WALL_HEIGHT / 2, -room.depth / 2 + wt / 2]}
+      >
+        <meshStandardMaterial
+          color={color}
+          roughness={0.85}
+          metalness={0.05}
+          side={THREE.DoubleSide}
+        />
       </Box>
       {/* North wall */}
-      <Box args={[room.width, WALL_HEIGHT, wt]} position={[0, WALL_HEIGHT / 2, room.depth / 2 - wt / 2]}>
-        <meshStandardMaterial color={color} roughness={0.85} metalness={0.05} side={THREE.DoubleSide} />
+      <Box
+        args={[room.width, WALL_HEIGHT, wt]}
+        position={[0, WALL_HEIGHT / 2, room.depth / 2 - wt / 2]}
+      >
+        <meshStandardMaterial
+          color={color}
+          roughness={0.85}
+          metalness={0.05}
+          side={THREE.DoubleSide}
+        />
       </Box>
       {/* West wall */}
-      <Box args={[wt, WALL_HEIGHT, room.depth - wt * 2]} position={[-room.width / 2 + wt / 2, WALL_HEIGHT / 2, 0]}>
-        <meshStandardMaterial color={color} roughness={0.85} metalness={0.05} side={THREE.DoubleSide} />
+      <Box
+        args={[wt, WALL_HEIGHT, room.depth - wt * 2]}
+        position={[-room.width / 2 + wt / 2, WALL_HEIGHT / 2, 0]}
+      >
+        <meshStandardMaterial
+          color={color}
+          roughness={0.85}
+          metalness={0.05}
+          side={THREE.DoubleSide}
+        />
       </Box>
       {/* East wall */}
-      <Box args={[wt, WALL_HEIGHT, room.depth - wt * 2]} position={[room.width / 2 - wt / 2, WALL_HEIGHT / 2, 0]}>
-        <meshStandardMaterial color={color} roughness={0.85} metalness={0.05} side={THREE.DoubleSide} />
+      <Box
+        args={[wt, WALL_HEIGHT, room.depth - wt * 2]}
+        position={[room.width / 2 - wt / 2, WALL_HEIGHT / 2, 0]}
+      >
+        <meshStandardMaterial
+          color={color}
+          roughness={0.85}
+          metalness={0.05}
+          side={THREE.DoubleSide}
+        />
       </Box>
 
       {/* Doors */}
@@ -89,7 +117,15 @@ function RoomMesh({
   );
 }
 
-function DoorVisual({ door, roomWidth, roomDepth }: { door: DoorSpec; roomWidth: number; roomDepth: number }) {
+function DoorVisual({
+  door,
+  roomWidth,
+  roomDepth,
+}: {
+  door: DoorSpec;
+  roomWidth: number;
+  roomDepth: number;
+}) {
   const dh = door.height ?? 2.0;
   const dt = 0.12;
   const cy = SLAB_H / 2 + dh / 2; // center height above group origin
@@ -117,7 +153,15 @@ function DoorVisual({ door, roomWidth, roomDepth }: { door: DoorSpec; roomWidth:
   );
 }
 
-function WindowVisual({ win, roomWidth, roomDepth }: { win: WindowSpec; roomWidth: number; roomDepth: number }) {
+function WindowVisual({
+  win,
+  roomWidth,
+  roomDepth,
+}: {
+  win: WindowSpec;
+  roomWidth: number;
+  roomDepth: number;
+}) {
   const dt = 0.08;
   const cy = SLAB_H / 2 + win.sill + win.height / 2;
   const ww = win.width;
@@ -149,7 +193,13 @@ function WindowVisual({ win, roomWidth, roomDepth }: { win: WindowSpec; roomWidt
         <meshStandardMaterial color="#e8e8e8" roughness={0.3} />
       </Box>
       <Box args={glassArgs}>
-        <meshStandardMaterial color="#87CEEB" transparent opacity={0.4} metalness={0.1} roughness={0.05} />
+        <meshStandardMaterial
+          color="#87CEEB"
+          transparent
+          opacity={0.4}
+          metalness={0.1}
+          roughness={0.05}
+        />
       </Box>
     </group>
   );
@@ -174,12 +224,7 @@ function HumanMannequin({ position }: { position: [number, number, number] }) {
         <meshStandardMaterial color="#94a3b8" roughness={0.7} />
       </Cylinder>
       {/* Height label */}
-      <Text
-        position={[0.5, 1.0, 0]}
-        fontSize={0.2}
-        color="#64748b"
-        anchorX="left"
-      >
+      <Text position={[0.5, 1.0, 0]} fontSize={0.2} color="#64748b" anchorX="left">
         1.8m
       </Text>
     </group>
@@ -203,14 +248,20 @@ function ConflictMarker({ conflict }: { conflict: MEPConflict }) {
       position={[conflict.location_x, conflict.location_z + 0.5, conflict.location_y]}
     >
       <sphereGeometry args={[0.25, 8, 8]} />
-      <meshStandardMaterial color={color} transparent opacity={0.8} emissive={color} emissiveIntensity={0.5} />
+      <meshStandardMaterial
+        color={color}
+        transparent
+        opacity={0.8}
+        emissive={color}
+        emissiveIntensity={0.5}
+      />
     </mesh>
   );
 }
 
 // Moves orbit target and camera to the centroid of the current floor on each generation
 function CameraRig() {
-  const controlsRef = useRef<any>(null);
+  const controlsRef = useRef<ElementRef<typeof OrbitControls>>(null);
   const { camera } = useThree();
   const { result, activeFloor } = useStore();
 
@@ -232,6 +283,9 @@ function CameraRig() {
     controlsRef.current.target.set(cx, fy, cz);
     camera.position.set(cx + dist, fy + dist * 0.7, cz + dist);
     controlsRef.current.update();
+    // Recenter only on a new generation (project_id) or floor change — not on
+    // every camera move, so the user's manual orbit/zoom is preserved.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [result?.project_id, activeFloor]);
 
   return (
@@ -278,15 +332,15 @@ function Scene() {
 
       <HumanMannequin position={[cx, cz, cy]} />
 
-      {showMEP && result.mep_conflicts.map((c) => (
-        <ConflictMarker key={c.conflict_id} conflict={c} />
-      ))}
+      {showMEP &&
+        result.mep_conflicts.map((c) => <ConflictMarker key={c.conflict_id} conflict={c} />)}
     </>
   );
 }
 
 export function ThreeViewer() {
-  const { result, activeFloor, setActiveFloor, showMEP, toggleMEP, viewMode, setViewMode } = useStore();
+  const { result, activeFloor, setActiveFloor, showMEP, toggleMEP, viewMode, setViewMode } =
+    useStore();
   const maxFloor = result ? Math.max(...result.rooms.map((r) => r.floor)) : 1;
 
   return (
@@ -325,12 +379,10 @@ export function ThreeViewer() {
       {/* 2D / 3D view toggle */}
       {result && (
         <div className="absolute top-4 left-1/2 -translate-x-1/2 flex bg-surface-card border border-surface-border rounded-lg p-0.5 shadow-lg z-10">
-          {(
-            [
-              { mode: "3d" as const, label: "3D" },
-              { mode: "2d" as const, label: "2D План" },
-            ]
-          ).map(({ mode, label }) => (
+          {[
+            { mode: "3d" as const, label: "3D" },
+            { mode: "2d" as const, label: "2D План" },
+          ].map(({ mode, label }) => (
             <button
               key={mode}
               onClick={() => setViewMode(mode)}

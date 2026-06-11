@@ -21,14 +21,18 @@ function loadParams(): BuildingParams {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (raw) return { ...DEFAULT_PARAMS, ...JSON.parse(raw) };
-  } catch {}
+  } catch {
+    /* corrupt or unavailable storage — fall back to defaults */
+  }
   return DEFAULT_PARAMS;
 }
 
 function saveParams(params: BuildingParams) {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(params));
-  } catch {}
+  } catch {
+    /* storage unavailable (private mode / quota) — non-fatal */
+  }
 }
 
 export type ViewMode = "3d" | "2d";
@@ -63,18 +67,20 @@ export const useStore = create<AppState>((set) => ({
   selectedRoomId: null,
   viewMode: "3d",
 
+  // Any change to params invalidates the current result, so clear it
+  // (and the room selection, which points into the now-stale layout).
   setParams: (p) =>
     set((s) => {
       const params = { ...s.params, ...p };
       saveParams(params);
-      return { params };
+      return { params, result: null, selectedRoomId: null };
     }),
 
   addRoom: (r) =>
     set((s) => {
       const params = { ...s.params, rooms: [...s.params.rooms, r] };
       saveParams(params);
-      return { params };
+      return { params, result: null, selectedRoomId: null };
     }),
 
   updateRoom: (index, r) =>
@@ -83,7 +89,7 @@ export const useStore = create<AppState>((set) => ({
       rooms[index] = { ...rooms[index], ...r };
       const params = { ...s.params, rooms };
       saveParams(params);
-      return { params };
+      return { params, result: null, selectedRoomId: null };
     }),
 
   removeRoom: (index) =>
@@ -93,7 +99,7 @@ export const useStore = create<AppState>((set) => ({
         rooms: s.params.rooms.filter((_, i) => i !== index),
       };
       saveParams(params);
-      return { params };
+      return { params, result: null, selectedRoomId: null };
     }),
 
   setResult: (r) => set({ result: r }),

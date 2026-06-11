@@ -2,10 +2,14 @@
   "name": "archvision-frontend",
   "version": "0.1.0",
   "private": true,
+  "type": "module",
   "scripts": {
     "dev": "vite --host 0.0.0.0 --port 3000",
     "build": "tsc && vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "lint": "eslint .",
+    "format": "prettier --write \"src/**/*.{ts,tsx,css}\"",
+    "format:check": "prettier --check \"src/**/*.{ts,tsx,css}\""
   },
   "dependencies": {
     "react": "^18.3.1",
@@ -15,13 +19,7 @@
     "three": "^0.169.0",
     "zustand": "^5.0.0",
     "axios": "^1.7.7",
-    "react-hook-form": "^7.53.0",
-    "react-hot-toast": "^2.4.1",
-    "lucide-react": "^0.462.0",
-    "@radix-ui/react-select": "^2.1.2",
-    "@radix-ui/react-tooltip": "^1.1.4",
-    "clsx": "^2.1.1",
-    "tailwind-merge": "^2.5.4"
+    "react-hot-toast": "^2.4.1"
   },
   "devDependencies": {
     "@types/react": "^18.3.12",
@@ -32,6 +30,14 @@
     "vite": "^5.4.10",
     "tailwindcss": "^3.4.14",
     "postcss": "^8.4.47",
-    "autoprefixer": "^10.4.20"
+    "autoprefixer": "^10.4.20",
+    "eslint": "^9.13.0",
+    "@eslint/js": "^9.13.0",
+    "typescript-eslint": "^8.11.0",
+    "eslint-plugin-react-hooks": "^5.0.0",
+    "eslint-plugin-react-refresh": "^0.4.14",
+    "eslint-config-prettier": "^9.1.0",
+    "globals": "^15.11.0",
+    "prettier": "^3.3.3"
   }
 }
