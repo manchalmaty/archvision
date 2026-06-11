@@ -11,7 +11,17 @@ const MEP_FIX_HINTS: Record<string, string> = {
     "Standard practice — add a pipe sleeve (conduit) at each wall penetration. This is always required and is not a design defect.",
 };
 
-function planQualityScore(result: import("../types").GenerationResult): { score: number; label: string; color: string } {
+// Backend currently emits only the two types above, but new conflict types may
+// appear as MEP routing expands (HVAC, electrical). Always show actionable guidance.
+const MEP_FIX_HINT_DEFAULT =
+  "Review the clearance around this conflict. Either reroute one of the runs or " +
+  "increase separation between services; consult an MEP engineer if it persists.";
+
+function planQualityScore(result: import("../types").GenerationResult): {
+  score: number;
+  label: string;
+  color: string;
+} {
   let score = 100;
   const high = result.mep_conflicts.filter((c) => c.severity === "HIGH").length;
   const med = result.mep_conflicts.filter((c) => c.severity === "MEDIUM").length;
@@ -53,7 +63,14 @@ function Accordion({
           color: "#94a3b8",
         }}
       >
-        <span style={{ fontSize: 11, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em" }}>
+        <span
+          style={{
+            fontSize: 11,
+            fontWeight: 600,
+            textTransform: "uppercase",
+            letterSpacing: "0.08em",
+          }}
+        >
           {title}
         </span>
         <span
@@ -90,7 +107,9 @@ function GeoCard() {
         {items.map(({ label, value }) => (
           <div key={label} style={{ background: "#161b27", borderRadius: 8, padding: "8px 10px" }}>
             <p style={{ fontSize: 11, color: "#64748b", marginBottom: 3 }}>{label}</p>
-            <p style={{ fontSize: 14, fontFamily: "monospace", color: "#e2e8f0", fontWeight: 600 }}>{value}</p>
+            <p style={{ fontSize: 14, fontFamily: "monospace", color: "#e2e8f0", fontWeight: 600 }}>
+              {value}
+            </p>
           </div>
         ))}
       </div>
@@ -108,8 +127,24 @@ function CostCard() {
   const c = result.cost_estimate;
   return (
     <div>
-      <div style={{ textAlign: "center", marginBottom: 10, padding: "12px", background: "#161b27", borderRadius: 8 }}>
-        <p style={{ fontSize: 30, fontWeight: 700, color: "#fff", fontFamily: "monospace", lineHeight: 1.1 }}>
+      <div
+        style={{
+          textAlign: "center",
+          marginBottom: 10,
+          padding: "12px",
+          background: "#161b27",
+          borderRadius: 8,
+        }}
+      >
+        <p
+          style={{
+            fontSize: 30,
+            fontWeight: 700,
+            color: "#fff",
+            fontFamily: "monospace",
+            lineHeight: 1.1,
+          }}
+        >
           ${c.total_cost_usd.toLocaleString()}
         </p>
         <p style={{ fontSize: 13, color: "#94a3b8", marginTop: 4 }}>
@@ -131,7 +166,9 @@ function CostCard() {
             <span style={{ fontSize: 13, color: "#94a3b8", textTransform: "capitalize" }}>
               {k.replace("_usd", "").replace(/_/g, " ")}
             </span>
-            <span style={{ fontSize: 13, fontFamily: "monospace", color: "#cbd5e1", fontWeight: 600 }}>
+            <span
+              style={{ fontSize: 13, fontFamily: "monospace", color: "#cbd5e1", fontWeight: 600 }}
+            >
               ${(v as number).toLocaleString()}
             </span>
           </div>
@@ -143,7 +180,15 @@ function CostCard() {
           { label: "Brick", value: `${c.brick_m3} m³` },
           { label: "Insulation", value: `${c.insulation_m2} m²` },
         ].map(({ label, value }) => (
-          <div key={label} style={{ background: "#161b27", borderRadius: 6, padding: "7px 4px", textAlign: "center" }}>
+          <div
+            key={label}
+            style={{
+              background: "#161b27",
+              borderRadius: 6,
+              padding: "7px 4px",
+              textAlign: "center",
+            }}
+          >
             <p style={{ fontSize: 10, color: "#64748b", marginBottom: 3 }}>{label}</p>
             <p style={{ fontSize: 12, fontFamily: "monospace", color: "#e2e8f0" }}>{value}</p>
           </div>
@@ -160,7 +205,19 @@ function ComplianceCard() {
 
   if (issues.length === 0) {
     return (
-      <div style={{ display: "inline-flex", alignItems: "center", gap: 6, background: "#052e16", border: "1px solid #166534", borderRadius: 20, padding: "4px 12px", fontSize: 13, color: "#6ee7b7" }}>
+      <div
+        style={{
+          display: "inline-flex",
+          alignItems: "center",
+          gap: 6,
+          background: "#052e16",
+          border: "1px solid #166534",
+          borderRadius: 20,
+          padding: "4px 12px",
+          fontSize: 13,
+          color: "#6ee7b7",
+        }}
+      >
         ✓ All rules passed
       </div>
     );
@@ -169,7 +226,10 @@ function ComplianceCard() {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
       {issues.map((issue) => (
-        <div key={issue.rule_id} style={{ background: "#161b27", borderRadius: 8, padding: "8px 10px" }}>
+        <div
+          key={issue.rule_id}
+          style={{ background: "#161b27", borderRadius: 8, padding: "8px 10px" }}
+        >
           <span
             style={{
               display: "inline-flex",
@@ -203,7 +263,9 @@ function WarningsSection() {
     <Accordion title={`Warnings (${result.warnings.length})`} defaultOpen>
       <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
         {result.warnings.map((w, i) => (
-          <p key={i} style={{ fontSize: 13, color: "#fbbf24" }}>⚠ {w}</p>
+          <p key={i} style={{ fontSize: 13, color: "#fbbf24" }}>
+            ⚠ {w}
+          </p>
         ))}
       </div>
     </Accordion>
@@ -229,8 +291,10 @@ function MEPTab() {
   const low = conflicts.filter((c) => !["HIGH", "MEDIUM"].includes(c.severity)).length;
 
   const chipStyle = (sev: string) => {
-    if (sev === "HIGH") return { background: "#450a0a", border: "1px solid #dc2626", color: "#fca5a5" };
-    if (sev === "MEDIUM") return { background: "#431407", border: "1px solid #ea580c", color: "#fdba74" };
+    if (sev === "HIGH")
+      return { background: "#450a0a", border: "1px solid #dc2626", color: "#fca5a5" };
+    if (sev === "MEDIUM")
+      return { background: "#431407", border: "1px solid #ea580c", color: "#fdba74" };
     return { background: "#422006", border: "1px solid #ca8a04", color: "#fde047" };
   };
 
@@ -239,17 +303,41 @@ function MEPTab() {
       {/* Summary chips */}
       <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 6 }}>
         {high > 0 && (
-          <span style={{ ...chipStyle("HIGH"), borderRadius: 12, padding: "3px 10px", fontSize: 12, fontWeight: 600 }}>
+          <span
+            style={{
+              ...chipStyle("HIGH"),
+              borderRadius: 12,
+              padding: "3px 10px",
+              fontSize: 12,
+              fontWeight: 600,
+            }}
+          >
             HIGH: {high}
           </span>
         )}
         {med > 0 && (
-          <span style={{ ...chipStyle("MEDIUM"), borderRadius: 12, padding: "3px 10px", fontSize: 12, fontWeight: 600 }}>
+          <span
+            style={{
+              ...chipStyle("MEDIUM"),
+              borderRadius: 12,
+              padding: "3px 10px",
+              fontSize: 12,
+              fontWeight: 600,
+            }}
+          >
             MEDIUM: {med}
           </span>
         )}
         {low > 0 && (
-          <span style={{ ...chipStyle("LOW"), borderRadius: 12, padding: "3px 10px", fontSize: 12, fontWeight: 600 }}>
+          <span
+            style={{
+              ...chipStyle("LOW"),
+              borderRadius: 12,
+              padding: "3px 10px",
+              fontSize: 12,
+              fontWeight: 600,
+            }}
+          >
             LOW: {low}
           </span>
         )}
@@ -260,14 +348,28 @@ function MEPTab() {
 
       {/* Conflict list */}
       {conflicts.map((c) => {
-        const hint = MEP_FIX_HINTS[c.conflict_type];
+        const hint = MEP_FIX_HINTS[c.conflict_type] ?? MEP_FIX_HINT_DEFAULT;
         return (
           <div
             key={c.conflict_id}
             style={{ ...chipStyle(c.severity), borderRadius: 8, padding: "8px 10px" }}
           >
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
-              <span style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em" }}>
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                marginBottom: 4,
+              }}
+            >
+              <span
+                style={{
+                  fontSize: 11,
+                  fontWeight: 700,
+                  textTransform: "uppercase",
+                  letterSpacing: "0.05em",
+                }}
+              >
                 {c.severity}
               </span>
               <span style={{ fontSize: 11, fontFamily: "monospace", opacity: 0.6 }}>
@@ -277,10 +379,14 @@ function MEPTab() {
             <p style={{ fontSize: 13 }}>{c.description}</p>
             {hint && (
               <details style={{ marginTop: 6 }}>
-                <summary style={{ fontSize: 11, color: "#94a3b8", cursor: "pointer", userSelect: "none" }}>
+                <summary
+                  style={{ fontSize: 11, color: "#94a3b8", cursor: "pointer", userSelect: "none" }}
+                >
                   How to fix?
                 </summary>
-                <p style={{ fontSize: 12, color: "#cbd5e1", marginTop: 4, lineHeight: 1.5 }}>{hint}</p>
+                <p style={{ fontSize: 12, color: "#cbd5e1", marginTop: 4, lineHeight: 1.5 }}>
+                  {hint}
+                </p>
               </details>
             )}
           </div>
@@ -331,7 +437,10 @@ export function ResultsPanel({ onClose }: Props) {
 
   const tabs: { id: Tab; label: string }[] = [
     { id: "ANALYSIS", label: "Analysis" },
-    { id: "MEP", label: `MEP${result.mep_conflicts.length > 0 ? ` (${result.mep_conflicts.length})` : ""}` },
+    {
+      id: "MEP",
+      label: `MEP${result.mep_conflicts.length > 0 ? ` (${result.mep_conflicts.length})` : ""}`,
+    },
     { id: "EXPORT", label: "Export" },
   ];
 
@@ -339,19 +448,40 @@ export function ResultsPanel({ onClose }: Props) {
     <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
       {/* Panel header */}
       <div style={{ flexShrink: 0, borderBottom: "1px solid #1e2330", background: "#0b0e16" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 16px 0" }}>
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            padding: "10px 16px 0",
+          }}
+        >
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <span style={{ fontSize: 11, fontWeight: 600, color: "#475569", textTransform: "uppercase", letterSpacing: "0.1em" }}>
+            <span
+              style={{
+                fontSize: 11,
+                fontWeight: 600,
+                color: "#475569",
+                textTransform: "uppercase",
+                letterSpacing: "0.1em",
+              }}
+            >
               Analysis Results
             </span>
             {(() => {
               const q = planQualityScore(result);
               return (
-                <span style={{
-                  fontSize: 11, fontWeight: 700, color: q.color,
-                  border: `1px solid ${q.color}40`, borderRadius: 10,
-                  padding: "1px 8px", background: `${q.color}15`,
-                }}>
+                <span
+                  style={{
+                    fontSize: 11,
+                    fontWeight: 700,
+                    color: q.color,
+                    border: `1px solid ${q.color}40`,
+                    borderRadius: 10,
+                    padding: "1px 8px",
+                    background: `${q.color}15`,
+                  }}
+                >
                   {q.label} {q.score}
                 </span>
               );

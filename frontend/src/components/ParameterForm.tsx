@@ -6,7 +6,14 @@ const SHAPES: { id: BuildingShape; label: string; icon: JSX.Element }[] = [
     id: "rectangular",
     label: "Прямоуг.",
     icon: (
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinejoin="round" className="w-full h-full">
+      <svg
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth={2.5}
+        strokeLinejoin="round"
+        className="w-full h-full"
+      >
         <rect x="1" y="5" width="22" height="14" />
       </svg>
     ),
@@ -15,7 +22,14 @@ const SHAPES: { id: BuildingShape; label: string; icon: JSX.Element }[] = [
     id: "square",
     label: "Квадрат.",
     icon: (
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinejoin="round" className="w-full h-full">
+      <svg
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth={2.5}
+        strokeLinejoin="round"
+        className="w-full h-full"
+      >
         <rect x="3" y="3" width="18" height="18" />
       </svg>
     ),
@@ -24,7 +38,14 @@ const SHAPES: { id: BuildingShape; label: string; icon: JSX.Element }[] = [
     id: "l_shape",
     label: "Г-образн.",
     icon: (
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinejoin="round" className="w-full h-full">
+      <svg
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth={2.5}
+        strokeLinejoin="round"
+        className="w-full h-full"
+      >
         <polygon points="1,1 23,1 23,23 13,23 13,11 1,11" />
       </svg>
     ),
@@ -33,7 +54,14 @@ const SHAPES: { id: BuildingShape; label: string; icon: JSX.Element }[] = [
     id: "u_shape",
     label: "П-образн.",
     icon: (
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinejoin="round" className="w-full h-full">
+      <svg
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth={2.5}
+        strokeLinejoin="round"
+        className="w-full h-full"
+      >
         <polygon points="1,1 7,1 7,17 17,17 17,1 23,1 23,23 1,23" />
       </svg>
     ),
@@ -42,7 +70,14 @@ const SHAPES: { id: BuildingShape; label: string; icon: JSX.Element }[] = [
     id: "t_shape",
     label: "Т-образн.",
     icon: (
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinejoin="round" className="w-full h-full">
+      <svg
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth={2.5}
+        strokeLinejoin="round"
+        className="w-full h-full"
+      >
         <polygon points="1,1 23,1 23,9 15,9 15,23 9,23 9,9 1,9" />
       </svg>
     ),
@@ -76,9 +111,7 @@ interface Props {
 }
 
 export function ParameterForm({ onGenerate }: Props) {
-  const {
-    params, setParams, addRoom, updateRoom, removeRoom, isGenerating
-  } = useStore();
+  const { params, setParams, addRoom, updateRoom, removeRoom, isGenerating } = useStore();
 
   const totalArea = params.rooms.reduce((s, r) => s + r.area_m2, 0);
 
@@ -121,7 +154,9 @@ export function ParameterForm({ onGenerate }: Props) {
               onChange={(e) => setParams({ country: e.target.value as CountryCode })}
             >
               {COUNTRIES.map((c) => (
-                <option key={c.value} value={c.value}>{c.label}</option>
+                <option key={c.value} value={c.value}>
+                  {c.label}
+                </option>
               ))}
             </select>
           </div>
@@ -176,7 +211,9 @@ export function ParameterForm({ onGenerate }: Props) {
                   onChange={(e) => updateRoom(idx, { room_type: e.target.value as RoomType })}
                 >
                   {ROOM_TYPES.map((rt) => (
-                    <option key={rt.value} value={rt.value}>{rt.label}</option>
+                    <option key={rt.value} value={rt.value}>
+                      {rt.label}
+                    </option>
                   ))}
                 </select>
                 <button
@@ -211,13 +248,15 @@ export function ParameterForm({ onGenerate }: Props) {
         </div>
       </div>
 
-      <div style={{
-        position: "sticky",
-        bottom: 0,
-        background: "linear-gradient(to bottom, transparent, #0b0e16 30%)",
-        paddingTop: 16,
-        marginTop: 4,
-      }}>
+      <div
+        style={{
+          position: "sticky",
+          bottom: 0,
+          background: "linear-gradient(to bottom, transparent, #0b0e16 30%)",
+          paddingTop: 16,
+          marginTop: 4,
+        }}
+      >
         <button
           onClick={onGenerate}
           disabled={isGenerating || params.rooms.length === 0}

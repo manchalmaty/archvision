@@ -3,7 +3,7 @@ import { ParameterForm } from "./components/ParameterForm";
 import { ThreeViewer } from "./components/ThreeViewer";
 import { ResultsPanel } from "./components/ResultsPanel";
 import { useStore } from "./store/useStore";
-import { generatePlan } from "./api/client";
+import { generatePlan, getErrorMessage } from "./api/client";
 import toast from "react-hot-toast";
 
 export default function App() {
@@ -20,8 +20,8 @@ export default function App() {
       const r = await generatePlan(params);
       setResult(r);
       toast.success("Plan generated successfully!");
-    } catch (e: any) {
-      toast.error(e?.response?.data?.detail || "Generation failed");
+    } catch (e) {
+      toast.error(getErrorMessage(e, "Generation failed"));
     } finally {
       setGenerating(false);
     }
@@ -52,19 +52,20 @@ export default function App() {
 
       {/* Workspace */}
       <div style={{ display: "flex", flex: 1, overflow: "hidden", position: "relative" }}>
-
         {/* Left panel — fixed 280px, never moves */}
-        <aside style={{
-          width: 280,
-          flexShrink: 0,
-          overflowY: "auto",
-          borderRight: "1px solid #1e2330",
-          padding: "16px",
-          display: "flex",
-          flexDirection: "column",
-          gap: "12px",
-          background: "#0b0e16",
-        }}>
+        <aside
+          style={{
+            width: 280,
+            flexShrink: 0,
+            overflowY: "auto",
+            borderRight: "1px solid #1e2330",
+            padding: "16px",
+            display: "flex",
+            flexDirection: "column",
+            gap: "12px",
+            background: "#0b0e16",
+          }}
+        >
           <ParameterForm onGenerate={handleGenerate} />
         </aside>
 
@@ -90,13 +91,26 @@ export default function App() {
                     ["2", "Press Generate Plan"],
                     ["3", "Explore the 2D plan, 3D model and analysis"],
                   ].map(([n, text]) => (
-                    <div key={n} style={{ display: "flex", alignItems: "center", gap: 10, color: "#475569" }}>
-                      <span style={{
-                        width: 22, height: 22, borderRadius: "50%",
-                        border: "1px solid #2a2e3a", display: "flex",
-                        alignItems: "center", justifyContent: "center",
-                        fontSize: 11, fontWeight: 700, flexShrink: 0,
-                      }}>{n}</span>
+                    <div
+                      key={n}
+                      style={{ display: "flex", alignItems: "center", gap: 10, color: "#475569" }}
+                    >
+                      <span
+                        style={{
+                          width: 22,
+                          height: 22,
+                          borderRadius: "50%",
+                          border: "1px solid #2a2e3a",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          fontSize: 11,
+                          fontWeight: 700,
+                          flexShrink: 0,
+                        }}
+                      >
+                        {n}
+                      </span>
                       <span style={{ fontSize: 13, textAlign: "left" }}>{text}</span>
                     </div>
                   ))}
@@ -139,18 +153,20 @@ export default function App() {
 
         {/* Right panel — absolutely positioned, overlays center, does NOT shift flex layout */}
         {result && rightOpen && (
-          <aside style={{
-            position: "absolute",
-            right: 0,
-            top: 0,
-            bottom: 0,
-            width: 320,
-            background: "#0b0e16",
-            borderLeft: "1px solid #1e2330",
-            zIndex: 10,
-            display: "flex",
-            flexDirection: "column",
-          }}>
+          <aside
+            style={{
+              position: "absolute",
+              right: 0,
+              top: 0,
+              bottom: 0,
+              width: 320,
+              background: "#0b0e16",
+              borderLeft: "1px solid #1e2330",
+              zIndex: 10,
+              display: "flex",
+              flexDirection: "column",
+            }}
+          >
             <ResultsPanel onClose={() => setRightOpen(false)} />
           </aside>
         )}
@@ -159,9 +175,9 @@ export default function App() {
       {/* Footer */}
       <footer className="border-t border-surface-border px-6 py-2 text-center flex-shrink-0">
         <p className="text-xs text-slate-600">
-          Эскизный проект для предварительной оценки. Требует заверения лицензированным архитектором.
-          {" "}|{" "}
-          Schematic design for preliminary assessment. Requires certification by a licensed architect.
+          Эскизный проект для предварительной оценки. Требует заверения лицензированным
+          архитектором. | Schematic design for preliminary assessment. Requires certification by a
+          licensed architect.
         </p>
       </footer>
     </div>

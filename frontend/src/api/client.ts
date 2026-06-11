@@ -1,5 +1,5 @@
 import axios from "axios";
-import type { BuildingParams, GenerationResult, ComplianceIssue, MEPConflict } from "../types";
+import type { BuildingParams, GenerationResult } from "../types";
 
 const api = axios.create({
   baseURL: "/api/v1",
@@ -11,32 +11,15 @@ export async function generatePlan(params: BuildingParams): Promise<GenerationRe
   return data;
 }
 
-export async function checkCompliance(
-  country: string,
-  rooms: BuildingParams["rooms"],
-  floors: number
-): Promise<ComplianceIssue[]> {
-  const { data } = await api.post<ComplianceIssue[]>("/compliance-check", {
-    country,
-    rooms,
-    floors,
-  });
-  return data;
-}
-
-export async function routeMEP(
-  projectId: string,
-  rooms: GenerationResult["rooms"],
-  floors: number
-): Promise<MEPConflict[]> {
-  const { data } = await api.post<MEPConflict[]>("/mep-routing", {
-    project_id: projectId,
-    rooms,
-    floors,
-  });
-  return data;
-}
-
 export function ifcDownloadUrl(projectId: string): string {
   return `/api/v1/download/${projectId}`;
+}
+
+/** Extract a human-readable message from an unknown error (axios or otherwise). */
+export function getErrorMessage(e: unknown, fallback = "Request failed"): string {
+  if (axios.isAxiosError(e)) {
+    return e.response?.data?.detail || e.message || fallback;
+  }
+  if (e instanceof Error) return e.message || fallback;
+  return fallback;
 }

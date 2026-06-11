@@ -114,14 +114,35 @@ function RoomLabel({ room, fy }: { room: RoomLayout; fy: FlipFn }) {
 
   return (
     <g pointerEvents="none" style={{ userSelect: "none" }}>
-      <text x={cx} y={cy - fs * 0.35} fontSize={fs} fill="#dbe4ee" fontWeight={600} textAnchor="middle">
+      <text
+        x={cx}
+        y={cy - fs * 0.35}
+        fontSize={fs}
+        fill="#dbe4ee"
+        fontWeight={600}
+        textAnchor="middle"
+      >
         {name}
       </text>
-      <text x={cx} y={cy + fs * 0.85} fontSize={fs * 0.78} fill="#7c8aa0" textAnchor="middle" className="font-mono">
+      <text
+        x={cx}
+        y={cy + fs * 0.85}
+        fontSize={fs * 0.78}
+        fill="#7c8aa0"
+        textAnchor="middle"
+        className="font-mono"
+      >
         {room.area_m2.toFixed(1)} m²
       </text>
       {showDims && (
-        <text x={cx} y={cy + fs * 1.95} fontSize={fs * 0.62} fill="#55637a" textAnchor="middle" className="font-mono">
+        <text
+          x={cx}
+          y={cy + fs * 1.95}
+          fontSize={fs * 0.62}
+          fill="#55637a"
+          textAnchor="middle"
+          className="font-mono"
+        >
           {room.width.toFixed(1)} × {room.depth.toFixed(1)}
         </text>
       )}
@@ -253,8 +274,21 @@ const PlanSheet = memo(function PlanSheet({
       ))}
 
       {/* Overall dimensions */}
-      <DimLine x1={minX} y1={minY - 1.4} x2={maxX} y2={minY - 1.4} label={`${(maxX - minX).toFixed(1)} m`} />
-      <DimLine x1={minX - 1.4} y1={maxY} x2={minX - 1.4} y2={minY} label={`${(maxY - minY).toFixed(1)} m`} vertical />
+      <DimLine
+        x1={minX}
+        y1={minY - 1.4}
+        x2={maxX}
+        y2={minY - 1.4}
+        label={`${(maxX - minX).toFixed(1)} m`}
+      />
+      <DimLine
+        x1={minX - 1.4}
+        y1={maxY}
+        x2={minX - 1.4}
+        y2={minY}
+        label={`${(maxY - minY).toFixed(1)} m`}
+        vertical
+      />
       {/* Extension lines */}
       <g stroke="#2b3a50" strokeWidth={0.02} pointerEvents="none">
         <line x1={minX} y1={minY - 0.2} x2={minX} y2={minY - 1.55} />
@@ -295,13 +329,27 @@ const PlanSheet = memo(function PlanSheet({
         <text x={0} y={0.62} fontSize={0.34} fill="#55637a" className="font-mono">
           0
         </text>
-        <text x={scaleSegments} y={0.62} fontSize={0.34} fill="#55637a" textAnchor="end" className="font-mono">
+        <text
+          x={scaleSegments}
+          y={0.62}
+          fontSize={0.34}
+          fill="#55637a"
+          textAnchor="end"
+          className="font-mono"
+        >
           {scaleSegments} m
         </text>
       </g>
 
       {/* Floor caption */}
-      <text x={maxX} y={maxY + 1.7} fontSize={0.4} fill="#7c8aa0" textAnchor="end" pointerEvents="none">
+      <text
+        x={maxX}
+        y={maxY + 1.7}
+        fontSize={0.4}
+        fill="#7c8aa0"
+        textAnchor="end"
+        pointerEvents="none"
+      >
         Этаж {activeFloor} · {floorArea.toFixed(1)} m²
       </text>
 
@@ -310,11 +358,20 @@ const PlanSheet = memo(function PlanSheet({
         conflicts.map((c) => {
           const color = SEVERITY_COLORS[c.severity] ?? SEVERITY_COLORS.MEDIUM;
           return (
-            <g key={c.conflict_id} transform={`translate(${c.location_x} ${fy(c.location_y)})`} pointerEvents="none">
+            <g
+              key={c.conflict_id}
+              transform={`translate(${c.location_x} ${fy(c.location_y)})`}
+              pointerEvents="none"
+            >
               <circle r={0.16} fill={color} />
               <circle r={0.16} fill="none" stroke={color} strokeWidth={0.05}>
                 <animate attributeName="r" values="0.16;0.6" dur="1.6s" repeatCount="indefinite" />
-                <animate attributeName="opacity" values="0.8;0" dur="1.6s" repeatCount="indefinite" />
+                <animate
+                  attributeName="opacity"
+                  values="0.8;0"
+                  dur="1.6s"
+                  repeatCount="indefinite"
+                />
               </circle>
             </g>
           );
