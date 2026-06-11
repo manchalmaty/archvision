@@ -1,0 +1,17 @@
+# Normalize line endings: store as LF in the repo, check out native.
+# Keeps diffs clean across Windows/Linux (dev + CI).
+* text=auto eol=lf
+
+# Windows-only scripts stay CRLF on checkout
+*.ps1 text eol=crlf
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
+# Binary assets — never normalize
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.pdf binary
+*.ifc binary

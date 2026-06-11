@@ -1,0 +1,35 @@
+# Environment — NEVER commit real keys (.env.example templates are OK)
+backend/.env
+backend/.env.local
+frontend/.env
+frontend/.env.local
+.env
+.env.local
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+*.egg-info/
+dist/
+build/
+
+# Generated IFC files
+backend/generated/
+
+# Node
+frontend/node_modules/
+frontend/dist/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Separate plugin repo (own git history, not part of ArchVision)
+agent-skills/
