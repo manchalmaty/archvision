@@ -1,31 +1,46 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
+import { useTranslation } from "react-i18next";
 import { ParameterForm } from "./components/ParameterForm";
 import { ThreeViewer } from "./components/ThreeViewer";
 import { ResultsPanel } from "./components/ResultsPanel";
 import { useStore } from "./store/useStore";
-import { generatePlan, getErrorMessage } from "./api/client";
+import { generatePlan, getErrorMessage, isCancelError } from "./api/client";
+import { LANGUAGES } from "./i18n";
 import toast from "react-hot-toast";
 
 export default function App() {
-  const { params, setResult, setGenerating, isGenerating, result } = useStore();
+  const { t, i18n } = useTranslation();
+  const { params, setResult, setGenerating, isGenerating, result, error, setError } = useStore();
   const [rightOpen, setRightOpen] = useState(false);
+  const abortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
     if (result) setRightOpen(true);
   }, [result]);
 
   const handleGenerate = async () => {
+    abortRef.current = new AbortController();
     setGenerating(true);
+    setError(null);
     try {
-      const r = await generatePlan(params);
+      const r = await generatePlan(params, abortRef.current.signal);
       setResult(r);
-      toast.success("Plan generated successfully!");
+      toast.success(t("app.genSuccess"));
     } catch (e) {
-      toast.error(getErrorMessage(e, "Generation failed"));
+      if (isCancelError(e)) {
+        toast(t("app.cancelled"));
+      } else {
+        const msg = getErrorMessage(e, t("app.genFailed"));
+        setError(msg);
+        toast.error(msg);
+      }
     } finally {
       setGenerating(false);
+      abortRef.current = null;
     }
   };
+
+  const handleCancel = () => abortRef.current?.abort();
 
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100vh", overflow: "hidden" }}>
@@ -40,10 +55,26 @@ export default function App() {
           </div>
           <div>
             <h1 className="text-lg font-bold text-white">ArchVision AI</h1>
-            <p className="text-xs text-slate-500">Architectural Draft Generator</p>
+            <p className="text-xs text-slate-500">{t("app.subtitle")}</p>
           </div>
         </div>
         <div className="flex items-center gap-2">
+          {/* Language switcher */}
+          <div className="flex bg-surface-card border border-surface-border rounded-lg p-0.5">
+            {LANGUAGES.map(({ code, label }) => (
+              <button
+                key={code}
+                onClick={() => i18n.changeLanguage(code)}
+                className={`px-2 py-1 text-xs font-semibold rounded-md transition-all ${
+                  i18n.resolvedLanguage === code
+                    ? "bg-brand-600 text-white"
+                    : "text-slate-400 hover:text-slate-200"
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
           <span className="text-xs text-slate-500 border border-surface-border rounded px-2 py-1">
             Beta
           </span>
@@ -87,9 +118,9 @@ export default function App() {
                 </svg>
                 <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                   {[
-                    ["1", "Add rooms in the left panel"],
-                    ["2", "Press Generate Plan"],
-                    ["3", "Explore the 2D plan, 3D model and analysis"],
+                    ["1", t("app.step1")],
+                    ["2", t("app.step2")],
+                    ["3", t("app.step3")],
                   ].map(([n, text]) => (
                     <div
                       key={n}
@@ -122,9 +153,62 @@ export default function App() {
             <div className="absolute inset-0 flex items-center justify-center bg-slate-950/80">
               <div className="text-center">
                 <div className="w-12 h-12 border-2 border-brand-500 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
-                <p className="text-sm text-slate-400">Generating architectural plan…</p>
-                <p className="text-xs text-slate-600 mt-1">Running geoclimate + MEP routing</p>
+                <p className="text-sm text-slate-400">{t("app.generating")}</p>
+                <p className="text-xs text-slate-600 mt-1">{t("app.generatingSub")}</p>
+                <button
+                  onClick={handleCancel}
+                  style={{
+                    marginTop: 16,
+                    background: "transparent",
+                    border: "1px solid #2a2e3a",
+                    borderRadius: 8,
+                    color: "#94a3b8",
+                    fontSize: 13,
+                    fontWeight: 600,
+                    padding: "7px 18px",
+                    cursor: "pointer",
+                  }}
+                >
+                  {t("app.cancel")}
+                </button>
               </div>
+            </div>
+          )}
+          {/* Error banner — persists until the next generation attempt */}
+          {error && !isGenerating && (
+            <div
+              style={{
+                position: "absolute",
+                top: 16,
+                left: "50%",
+                transform: "translateX(-50%)",
+                maxWidth: 420,
+                background: "#2d1216",
+                border: "1px solid #7f1d1d",
+                borderRadius: 8,
+                padding: "10px 14px",
+                zIndex: 6,
+                display: "flex",
+                alignItems: "flex-start",
+                gap: 10,
+              }}
+            >
+              <span style={{ fontSize: 13, color: "#fca5a5", lineHeight: 1.4 }}>{error}</span>
+              <button
+                onClick={() => setError(null)}
+                aria-label={t("app.dismissError")}
+                style={{
+                  background: "none",
+                  border: "none",
+                  color: "#7f1d1d",
+                  cursor: "pointer",
+                  fontSize: 16,
+                  lineHeight: 1,
+                  padding: 0,
+                }}
+              >
+                ×
+              </button>
             </div>
           )}
           {/* Toggle button when panel is closed after first generation */}
@@ -146,7 +230,7 @@ export default function App() {
                 zIndex: 5,
               }}
             >
-              Show Results →
+              {t("app.showResults")}
             </button>
           )}
         </main>
@@ -174,11 +258,7 @@ export default function App() {
 
       {/* Footer */}
       <footer className="border-t border-surface-border px-6 py-2 text-center flex-shrink-0">
-        <p className="text-xs text-slate-600">
-          Эскизный проект для предварительной оценки. Требует заверения лицензированным
-          архитектором. | Schematic design for preliminary assessment. Requires certification by a
-          licensed architect.
-        </p>
+        <p className="text-xs text-slate-600">{t("app.disclaimer")}</p>
       </footer>
     </div>
   );

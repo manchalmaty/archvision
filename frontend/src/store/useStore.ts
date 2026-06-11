@@ -41,6 +41,8 @@ interface AppState {
   params: BuildingParams;
   result: GenerationResult | null;
   isGenerating: boolean;
+  /** Last generation error, shown in the workspace until the next attempt. */
+  error: string | null;
   activeFloor: number;
   showMEP: boolean;
   selectedRoomId: string | null;
@@ -52,6 +54,7 @@ interface AppState {
   removeRoom: (index: number) => void;
   setResult: (r: GenerationResult | null) => void;
   setGenerating: (v: boolean) => void;
+  setError: (msg: string | null) => void;
   setActiveFloor: (f: number) => void;
   toggleMEP: () => void;
   setSelectedRoom: (id: string | null) => void;
@@ -62,6 +65,7 @@ export const useStore = create<AppState>((set) => ({
   params: loadParams(),
   result: null,
   isGenerating: false,
+  error: null,
   activeFloor: 1,
   showMEP: true,
   selectedRoomId: null,
@@ -104,6 +108,7 @@ export const useStore = create<AppState>((set) => ({
 
   setResult: (r) => set({ result: r }),
   setGenerating: (v) => set({ isGenerating: v }),
+  setError: (msg) => set({ error: msg }),
   setActiveFloor: (f) => set({ activeFloor: f }),
   toggleMEP: () => set((s) => ({ showMEP: !s.showMEP })),
   setSelectedRoom: (id) => set({ selectedRoomId: id }),

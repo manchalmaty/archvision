@@ -1,10 +1,10 @@
+import { useTranslation } from "react-i18next";
 import { useStore } from "../store/useStore";
 import type { RoomType, CountryCode, BuildingShape } from "../types";
 
-const SHAPES: { id: BuildingShape; label: string; icon: JSX.Element }[] = [
+const SHAPES: { id: BuildingShape; icon: JSX.Element }[] = [
   {
     id: "rectangular",
-    label: "Прямоуг.",
     icon: (
       <svg
         viewBox="0 0 24 24"
@@ -20,7 +20,7 @@ const SHAPES: { id: BuildingShape; label: string; icon: JSX.Element }[] = [
   },
   {
     id: "square",
-    label: "Квадрат.",
+
     icon: (
       <svg
         viewBox="0 0 24 24"
@@ -36,7 +36,7 @@ const SHAPES: { id: BuildingShape; label: string; icon: JSX.Element }[] = [
   },
   {
     id: "l_shape",
-    label: "Г-образн.",
+
     icon: (
       <svg
         viewBox="0 0 24 24"
@@ -52,7 +52,7 @@ const SHAPES: { id: BuildingShape; label: string; icon: JSX.Element }[] = [
   },
   {
     id: "u_shape",
-    label: "П-образн.",
+
     icon: (
       <svg
         viewBox="0 0 24 24"
@@ -68,7 +68,7 @@ const SHAPES: { id: BuildingShape; label: string; icon: JSX.Element }[] = [
   },
   {
     id: "t_shape",
-    label: "Т-образн.",
+
     icon: (
       <svg
         viewBox="0 0 24 24"
@@ -84,47 +84,44 @@ const SHAPES: { id: BuildingShape; label: string; icon: JSX.Element }[] = [
   },
 ];
 
-const ROOM_TYPES: { value: RoomType; label: string }[] = [
-  { value: "living_room", label: "Living Room" },
-  { value: "bedroom", label: "Bedroom" },
-  { value: "kitchen", label: "Kitchen" },
-  { value: "bathroom", label: "Bathroom" },
-  { value: "toilet", label: "Toilet" },
-  { value: "hallway", label: "Hallway" },
-  { value: "utility", label: "Utility Room" },
-  { value: "garage", label: "Garage" },
+const ROOM_TYPES: RoomType[] = [
+  "living_room",
+  "bedroom",
+  "kitchen",
+  "bathroom",
+  "toilet",
+  "hallway",
+  "utility",
+  "garage",
 ];
 
-const COUNTRIES: { value: CountryCode; label: string }[] = [
-  { value: "RU", label: "Russia" },
-  { value: "KZ", label: "Kazakhstan" },
-  { value: "UA", label: "Ukraine" },
-  { value: "BY", label: "Belarus" },
-  { value: "UZ", label: "Uzbekistan" },
-  { value: "DE", label: "Germany" },
-  { value: "US", label: "USA" },
-  { value: "OTHER", label: "Other" },
-];
+const COUNTRIES: CountryCode[] = ["RU", "KZ", "UA", "BY", "UZ", "DE", "US", "OTHER"];
 
 interface Props {
   onGenerate: () => void;
 }
 
 export function ParameterForm({ onGenerate }: Props) {
+  const { t } = useTranslation();
   const { params, setParams, addRoom, updateRoom, removeRoom, isGenerating } = useStore();
 
   const totalArea = params.rooms.reduce((s, r) => s + r.area_m2, 0);
+  // Rough usable capacity: plot footprint × floors (packing always fits less).
+  const plotCapacity =
+    params.plot_width_m && params.plot_depth_m
+      ? params.plot_width_m * params.plot_depth_m * params.floors
+      : null;
 
   return (
     <div className="flex flex-col gap-5">
       <div>
         <h2 className="text-sm font-semibold text-slate-300 uppercase tracking-wider mb-3">
-          Building Parameters
+          {t("form.buildingParams")}
         </h2>
 
         {/* House shape selector */}
         <div className="mb-4">
-          <label className="label mb-1.5">Форма дома</label>
+          <label className="label mb-1.5">{t("form.houseShape")}</label>
           <div className="grid grid-cols-5 gap-1.5">
             {SHAPES.map((shape) => (
               <button
@@ -136,10 +133,12 @@ export function ParameterForm({ onGenerate }: Props) {
                     ? "bg-brand-600/25 border-brand-500 text-brand-400"
                     : "bg-surface-card border-surface-border text-slate-500 hover:border-slate-500 hover:text-slate-300"
                 }`}
-                title={shape.label}
+                title={t(`shapes.${shape.id}`)}
               >
                 <div className="w-7 h-7">{shape.icon}</div>
-                <span className="text-[9px] leading-tight text-center">{shape.label}</span>
+                <span className="text-[9px] leading-tight text-center">
+                  {t(`shapes.${shape.id}`)}
+                </span>
               </button>
             ))}
           </div>
@@ -147,21 +146,21 @@ export function ParameterForm({ onGenerate }: Props) {
 
         <div className="flex gap-3 mb-3">
           <div className="flex-1">
-            <label className="label">Country</label>
+            <label className="label">{t("form.country")}</label>
             <select
               className="input"
               value={params.country}
               onChange={(e) => setParams({ country: e.target.value as CountryCode })}
             >
               {COUNTRIES.map((c) => (
-                <option key={c.value} value={c.value}>
-                  {c.label}
+                <option key={c} value={c}>
+                  {t(`countries.${c}`)}
                 </option>
               ))}
             </select>
           </div>
           <div className="w-24">
-            <label className="label">Floors</label>
+            <label className="label">{t("form.floors")}</label>
             <input
               type="number"
               min={1}
@@ -174,21 +173,58 @@ export function ParameterForm({ onGenerate }: Props) {
         </div>
 
         <div>
-          <label className="label">Region (optional)</label>
+          <label className="label">{t("form.region")}</label>
           <input
             type="text"
             className="input"
-            placeholder="e.g. Алматы, Moscow, California"
+            placeholder={t("form.regionPh")}
             value={params.region || ""}
             onChange={(e) => setParams({ region: e.target.value || undefined })}
           />
+        </div>
+
+        {/* Plot dimensions — optional; constrains the building footprint */}
+        <div className="mt-3">
+          <label className="label">{t("form.plotSize")}</label>
+          <div className="flex items-center gap-2">
+            <input
+              type="number"
+              min={5}
+              max={200}
+              step={0.5}
+              className="input"
+              placeholder={t("form.plotWidth")}
+              value={params.plot_width_m ?? ""}
+              onChange={(e) => setParams({ plot_width_m: parseFloat(e.target.value) || undefined })}
+            />
+            <span className="text-slate-600 text-sm">×</span>
+            <input
+              type="number"
+              min={5}
+              max={200}
+              step={0.5}
+              className="input"
+              placeholder={t("form.plotDepth")}
+              value={params.plot_depth_m ?? ""}
+              onChange={(e) => setParams({ plot_depth_m: parseFloat(e.target.value) || undefined })}
+            />
+          </div>
+          {plotCapacity !== null && totalArea > plotCapacity && (
+            <p className="text-xs text-amber-400 mt-1.5 leading-snug">
+              {t("form.plotWarning", {
+                total: totalArea.toFixed(0),
+                capacity: plotCapacity.toFixed(0),
+                floors: params.floors,
+              })}
+            </p>
+          )}
         </div>
       </div>
 
       <div>
         <div className="flex items-center justify-between mb-2">
           <h2 className="text-sm font-semibold text-slate-300 uppercase tracking-wider">
-            Rooms
+            {t("form.rooms")}
             <span className="ml-2 text-brand-500 font-mono normal-case text-xs">
               {totalArea.toFixed(0)} m²
             </span>
@@ -197,7 +233,7 @@ export function ParameterForm({ onGenerate }: Props) {
             onClick={() => addRoom({ room_type: "bedroom", area_m2: 12 })}
             className="text-xs text-brand-500 hover:text-brand-400 transition-colors"
           >
-            + Add Room
+            {t("form.addRoom")}
           </button>
         </div>
 
@@ -211,15 +247,15 @@ export function ParameterForm({ onGenerate }: Props) {
                   onChange={(e) => updateRoom(idx, { room_type: e.target.value as RoomType })}
                 >
                   {ROOM_TYPES.map((rt) => (
-                    <option key={rt.value} value={rt.value}>
-                      {rt.label}
+                    <option key={rt} value={rt}>
+                      {t(`roomTypes.${rt}`)}
                     </option>
                   ))}
                 </select>
                 <button
                   onClick={() => removeRoom(idx)}
                   className="text-slate-600 hover:text-red-400 transition-colors text-lg leading-none"
-                  title="Remove room"
+                  title={t("form.removeRoom")}
                 >
                   ×
                 </button>
@@ -239,7 +275,7 @@ export function ParameterForm({ onGenerate }: Props) {
               <input
                 type="text"
                 className="input text-sm"
-                placeholder="Custom name (optional)"
+                placeholder={t("form.customName")}
                 value={room.name || ""}
                 onChange={(e) => updateRoom(idx, { name: e.target.value || undefined })}
               />
@@ -265,15 +301,13 @@ export function ParameterForm({ onGenerate }: Props) {
           {isGenerating ? (
             <span className="flex items-center justify-center gap-2">
               <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-              Generating…
+              {t("form.generatingBtn")}
             </span>
           ) : (
-            "Generate Plan"
+            t("form.generate")
           )}
         </button>
-        <p className="text-xs text-slate-600 text-center mt-2 pb-2">
-          IFC · 3D model · MEP routing · cost estimate
-        </p>
+        <p className="text-xs text-slate-600 text-center mt-2 pb-2">{t("form.formFooter")}</p>
       </div>
     </div>
   );

@@ -1,4 +1,5 @@
 import { memo, useEffect, useMemo, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useStore } from "../store/useStore";
 import {
   ROOM_FILL_2D,
@@ -35,6 +36,12 @@ function zoomViewBox(v: VB, k: number, ax: number, ay: number): VB {
 // fy flips plan Y so that north (larger y) points up on screen
 type FlipFn = (y: number) => number;
 
+// Defensive clamp: keep the opening inside its wall even if the backend
+// emitted a position that overflows (possible on very short walls).
+function clampPos(position: number, openingW: number, wallLen: number): number {
+  return Math.max(0, Math.min(position, Math.max(0, wallLen - openingW)));
+}
+
 function DoorSymbol({ room, door, fy }: { room: RoomLayout; door: DoorSpec; fy: FlipFn }) {
   const dw = door.width;
   let gap: { x1: number; y1: number; x2: number; y2: number };
@@ -42,7 +49,7 @@ function DoorSymbol({ room, door, fy }: { room: RoomLayout; door: DoorSpec; fy: 
   let arc: string;
 
   if (door.wall === "S" || door.wall === "N") {
-    const x1 = room.x + door.position;
+    const x1 = room.x + clampPos(door.position, dw, room.width);
     const x2 = x1 + dw;
     const yw = door.wall === "S" ? fy(room.y) : fy(room.y + room.depth);
     const dir = door.wall === "S" ? -1 : 1; // into the room, in SVG y
@@ -51,8 +58,9 @@ function DoorSymbol({ room, door, fy }: { room: RoomLayout; door: DoorSpec; fy: 
     leaf = { x1, y1: yw, x2: x1, y2: yw + dir * dw };
     arc = `M ${x2} ${yw} A ${dw} ${dw} 0 0 ${sweep} ${x1} ${yw + dir * dw}`;
   } else {
-    const yTop = fy(room.y + door.position + dw);
-    const yBot = fy(room.y + door.position);
+    const dpos = clampPos(door.position, dw, room.depth);
+    const yTop = fy(room.y + dpos + dw);
+    const yBot = fy(room.y + dpos);
     const xw = door.wall === "W" ? room.x : room.x + room.width;
     const dir = door.wall === "W" ? 1 : -1; // into the room, in SVG x
     const sweep = door.wall === "W" ? 0 : 1;
@@ -78,7 +86,7 @@ function WindowSymbol({ room, win, fy }: { room: RoomLayout; win: WindowSpec; fy
   let mid: { x1: number; y1: number; x2: number; y2: number };
 
   if (win.wall === "S" || win.wall === "N") {
-    const x1 = room.x + win.position;
+    const x1 = room.x + clampPos(win.position, ww, room.width);
     const yw = win.wall === "S" ? fy(room.y) : fy(room.y + room.depth);
     x = x1;
     y = yw - t / 2;
@@ -86,7 +94,7 @@ function WindowSymbol({ room, win, fy }: { room: RoomLayout; win: WindowSpec; fy
     h = t;
     mid = { x1, y1: yw, x2: x1 + ww, y2: yw };
   } else {
-    const yTop = fy(room.y + win.position + ww);
+    const yTop = fy(room.y + clampPos(win.position, ww, room.depth) + ww);
     const xw = win.wall === "W" ? room.x : room.x + room.width;
     x = xw - t / 2;
     y = yTop;
@@ -104,13 +112,14 @@ function WindowSymbol({ room, win, fy }: { room: RoomLayout; win: WindowSpec; fy
   );
 }
 
-function RoomLabel({ room, fy }: { room: RoomLayout; fy: FlipFn }) {
+function RoomLabel({ room, fy, selected }: { room: RoomLayout; fy: FlipFn; selected: boolean }) {
   const cx = room.x + room.width / 2;
   const cy = fy(room.y + room.depth / 2);
   const fs = Math.min(Math.max(Math.min(room.width, room.depth) * 0.18, 0.24), 0.46);
   const maxChars = Math.max(3, Math.floor((room.width - 0.3) / (fs * 0.6)));
   const name = room.name.length > maxChars ? room.name.slice(0, maxChars - 1) + "…" : room.name;
-  const showDims = Math.min(room.width, room.depth) > 2.4;
+  // Selected room always shows its dimensions; others only when there's space.
+  const showDims = selected || Math.min(room.width, room.depth) > 1.8;
 
   return (
     <g pointerEvents="none" style={{ userSelect: "none" }}>
@@ -212,6 +221,7 @@ const PlanSheet = memo(function PlanSheet({
   setSelectedRoom: (id: string | null) => void;
   movedRef: React.MutableRefObject<boolean>;
 }) {
+  const { t } = useTranslation();
   const { minX, maxX, minY, maxY } = bbox;
   const fy: FlipFn = (y) => minY + maxY - y;
   const floorArea = rooms.reduce((s, r) => s + r.area_m2, 0);
@@ -270,7 +280,12 @@ const PlanSheet = memo(function PlanSheet({
 
       {/* Labels */}
       {rooms.map((r) => (
-        <RoomLabel key={`l-${r.room_id}`} room={r} fy={fy} />
+        <RoomLabel
+          key={`l-${r.room_id}`}
+          room={r}
+          fy={fy}
+          selected={r.room_id === selectedRoomId}
+        />
       ))}
 
       {/* Overall dimensions */}
@@ -326,19 +341,20 @@ const PlanSheet = memo(function PlanSheet({
             strokeWidth={0.025}
           />
         ))}
-        <text x={0} y={0.62} fontSize={0.34} fill="#55637a" className="font-mono">
-          0
-        </text>
-        <text
-          x={scaleSegments}
-          y={0.62}
-          fontSize={0.34}
-          fill="#55637a"
-          textAnchor="end"
-          className="font-mono"
-        >
-          {scaleSegments} m
-        </text>
+        {/* A number under every segment boundary */}
+        {Array.from({ length: scaleSegments + 1 }, (_, i) => (
+          <text
+            key={`t${i}`}
+            x={i}
+            y={0.62}
+            fontSize={0.34}
+            fill="#55637a"
+            textAnchor={i === 0 ? "start" : i === scaleSegments ? "end" : "middle"}
+            className="font-mono"
+          >
+            {i === scaleSegments ? `${i} m` : i}
+          </text>
+        ))}
       </g>
 
       {/* Floor caption */}
@@ -350,7 +366,7 @@ const PlanSheet = memo(function PlanSheet({
         textAnchor="end"
         pointerEvents="none"
       >
-        Этаж {activeFloor} · {floorArea.toFixed(1)} m²
+        {t("viewer.floor")} {activeFloor} · {floorArea.toFixed(1)} m²
       </text>
 
       {/* MEP conflict markers */}
@@ -381,6 +397,7 @@ const PlanSheet = memo(function PlanSheet({
 });
 
 export function PlanView2D() {
+  const { t } = useTranslation();
   const result = useStore((s) => s.result);
   const activeFloor = useStore((s) => s.activeFloor);
   const showMEP = useStore((s) => s.showMEP);
@@ -511,9 +528,9 @@ export function PlanView2D() {
       {/* Zoom controls; bottom-16 clears the "Show Results" button App puts at bottom-4 right-4 */}
       <div className="absolute right-4 bottom-16 flex flex-col gap-1">
         {[
-          { label: "+", action: () => zoomBy(1 / 1.3), title: "Приблизить" },
-          { label: "−", action: () => zoomBy(1.3), title: "Отдалить" },
-          { label: "⤢", action: () => setVb(null), title: "Вписать план (или двойной клик)" },
+          { label: "+", action: () => zoomBy(1 / 1.3), title: t("viewer.zoomIn") },
+          { label: "−", action: () => zoomBy(1.3), title: t("viewer.zoomOut") },
+          { label: "⤢", action: () => setVb(null), title: t("viewer.zoomFit") },
         ].map((b) => (
           <button
             key={b.label}

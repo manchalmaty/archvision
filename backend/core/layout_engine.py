@@ -154,6 +154,9 @@ class LayoutEngine:
     def __init__(self, params: BuildingParams, geo: GeoClimateData):
         self.params = params
         self.geo = geo
+        # Non-blocking issues found during layout (e.g. plot overflow);
+        # the API route merges these into GenerationResult.warnings.
+        self.warnings: list[str] = []
 
     def generate(self) -> List[RoomLayout]:
         rooms = self._ensure_essentials(list(self.params.rooms))
@@ -163,7 +166,26 @@ class LayoutEngine:
             floor_layouts = self._layout_floor(floor_idx + 1, floor_rooms)
             layouts.extend(floor_layouts)
         self._assign_openings(layouts)
+        self._check_plot_fit(layouts)
         return layouts
+
+    def _check_plot_fit(self, layouts: List[RoomLayout]) -> None:
+        """Warn when the packed footprint exceeds the plot dimensions."""
+        pw, pd = self.params.plot_width_m, self.params.plot_depth_m
+        if not layouts or (not pw and not pd):
+            return
+        bw = max(r.x + r.width for r in layouts)
+        bd = max(r.y + r.depth for r in layouts)
+        if pw and bw > pw + 0.01:
+            self.warnings.append(
+                f"Building width {bw:.1f} m exceeds plot width {pw:.1f} m. "
+                f"Reduce room areas, or add floors to shrink the footprint."
+            )
+        if pd and bd > pd + 0.01:
+            self.warnings.append(
+                f"Building depth {bd:.1f} m exceeds plot depth {pd:.1f} m. "
+                f"Reduce room areas, or add floors to shrink the footprint."
+            )
 
     def _assign_openings(self, layouts: List[RoomLayout]) -> None:
         """Place doors and windows on every room based on adjacency."""
@@ -264,6 +286,9 @@ class LayoutEngine:
         total_area = sum(r.area_m2 for r in ordered)
         if target_w is None:
             target_w = round(math.sqrt(total_area * aspect_factor), 2)
+            # Respect the plot: never plan rows wider than the plot itself.
+            if self.params.plot_width_m:
+                target_w = min(target_w, self.params.plot_width_m)
 
         # Pass 1: bin rooms into rows
         raw_rows: list[list[tuple]] = []

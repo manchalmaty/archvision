@@ -1,4 +1,5 @@
 import { useRef, useEffect, type ElementRef } from "react";
+import { useTranslation } from "react-i18next";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { OrbitControls, Grid, Text, Box, Cylinder, PerspectiveCamera } from "@react-three/drei";
 import * as THREE from "three";
@@ -339,6 +340,7 @@ function Scene() {
 }
 
 export function ThreeViewer() {
+  const { t } = useTranslation();
   const { result, activeFloor, setActiveFloor, showMEP, toggleMEP, viewMode, setViewMode } =
     useStore();
   const maxFloor = result ? Math.max(...result.rooms.map((r) => r.floor)) : 1;
@@ -381,7 +383,7 @@ export function ThreeViewer() {
         <div className="absolute top-4 left-1/2 -translate-x-1/2 flex bg-surface-card border border-surface-border rounded-lg p-0.5 shadow-lg z-10">
           {[
             { mode: "3d" as const, label: "3D" },
-            { mode: "2d" as const, label: "2D План" },
+            { mode: "2d" as const, label: t("viewer.plan2d") },
           ].map(({ mode, label }) => (
             <button
               key={mode}
@@ -416,7 +418,7 @@ export function ThreeViewer() {
                 {f}
               </button>
             ))}
-          <span className="text-xs text-slate-600 text-center mt-1">Floor</span>
+          <span className="text-xs text-slate-600 text-center mt-1">{t("viewer.floor")}</span>
         </div>
       )}
 
@@ -431,12 +433,11 @@ export function ThreeViewer() {
                 : "bg-surface-card border-surface-border text-slate-400"
             }`}
           >
-            {showMEP ? "MEP ON" : "MEP OFF"}
+            {showMEP ? t("viewer.mepOn") : t("viewer.mepOff")}
           </button>
           {result.mep_conflicts.length > 0 && showMEP && (
             <span className="text-xs text-red-400 text-center">
-              {result.mep_conflicts.length} clash
-              {result.mep_conflicts.length !== 1 ? "es" : ""}
+              {t("viewer.clashes", { count: result.mep_conflicts.length })}
             </span>
           )}
         </div>
@@ -449,25 +450,25 @@ export function ThreeViewer() {
             <>
               <div className="flex items-center gap-2">
                 <span className="w-3 h-0.5 bg-amber-400 rounded" />
-                <span>Дверь</span>
+                <span>{t("viewer.door")}</span>
               </div>
               <div className="flex items-center gap-2">
                 <span className="w-3 h-0.5 bg-sky-300 rounded" />
-                <span>Окно</span>
+                <span>{t("viewer.window")}</span>
               </div>
             </>
           )}
           <div className="flex items-center gap-2">
             <div className="w-3 h-3 rounded-full bg-red-500" />
-            <span>MEP Clash (HIGH)</span>
+            <span>{t("viewer.clashHigh")}</span>
           </div>
           <div className="flex items-center gap-2">
             <div className="w-3 h-3 rounded-full bg-amber-500" />
-            <span>MEP Clash (MEDIUM)</span>
+            <span>{t("viewer.clashMedium")}</span>
           </div>
           <div className="flex items-center gap-2">
             <div className="w-3 h-3 bg-blue-400 rounded" />
-            <span>Selected Room</span>
+            <span>{t("viewer.selectedRoom")}</span>
           </div>
         </div>
       )}

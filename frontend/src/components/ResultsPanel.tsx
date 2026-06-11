@@ -1,25 +1,17 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useStore } from "../store/useStore";
-import { ifcDownloadUrl } from "../api/client";
+import { ifcDownloadUrl, pdfReportUrl } from "../api/client";
 
 type Tab = "ANALYSIS" | "MEP" | "EXPORT";
 
-const MEP_FIX_HINTS: Record<string, string> = {
-  pipe_pipe_clash:
-    "Place kitchen and bathroom on the same wall to share one riser shaft. Drain and supply pipes need vertical separation (drain at floor level, supply near ceiling).",
-  pipe_wall_penetration:
-    "Standard practice — add a pipe sleeve (conduit) at each wall penetration. This is always required and is not a design defect.",
-};
-
-// Backend currently emits only the two types above, but new conflict types may
-// appear as MEP routing expands (HVAC, electrical). Always show actionable guidance.
-const MEP_FIX_HINT_DEFAULT =
-  "Review the clearance around this conflict. Either reroute one of the runs or " +
-  "increase separation between services; consult an MEP engineer if it persists.";
+// Hints exist for the conflict types the backend emits today; unknown future
+// types (HVAC, electrical) fall back to mepHints.default so guidance is never empty.
+const KNOWN_HINT_TYPES = new Set(["pipe_pipe_clash", "pipe_wall_penetration"]);
 
 function planQualityScore(result: import("../types").GenerationResult): {
   score: number;
-  label: string;
+  labelKey: string;
   color: string;
 } {
   let score = 100;
@@ -32,9 +24,9 @@ function planQualityScore(result: import("../types").GenerationResult): {
   score -= errors * 10;
   score -= warns * 3;
   score = Math.max(0, score);
-  if (score >= 85) return { score, label: "Good", color: "#6ee7b7" };
-  if (score >= 65) return { score, label: "Fair", color: "#fde047" };
-  return { score, label: "Needs review", color: "#f87171" };
+  if (score >= 85) return { score, labelKey: "results.qualityGood", color: "#6ee7b7" };
+  if (score >= 65) return { score, labelKey: "results.qualityFair", color: "#fde047" };
+  return { score, labelKey: "results.qualityReview", color: "#f87171" };
 }
 
 function Accordion({
@@ -90,16 +82,17 @@ function Accordion({
 }
 
 function GeoCard() {
+  const { t } = useTranslation();
   const { result } = useStore();
   if (!result) return null;
   const g = result.geo_climate;
   const items = [
-    { label: "Frost depth", value: `${g.frost_depth_m} m` },
-    { label: "Seismic zone", value: String(g.seismic_zone) },
-    { label: "Wall thickness", value: `${g.wall_thickness_mm} mm` },
-    { label: "Insulation", value: `${g.insulation_thickness_mm} mm` },
-    { label: "Snow load", value: `${g.snow_load_kpa} kPa` },
-    { label: "Wind load", value: `${g.wind_load_kpa} kPa` },
+    { label: t("results.frostDepth"), value: `${g.frost_depth_m} m` },
+    { label: t("results.seismicZone"), value: String(g.seismic_zone) },
+    { label: t("results.wallThickness"), value: `${g.wall_thickness_mm} mm` },
+    { label: t("results.insulationThickness"), value: `${g.insulation_thickness_mm} mm` },
+    { label: t("results.snowLoad"), value: `${g.snow_load_kpa} kPa` },
+    { label: t("results.windLoad"), value: `${g.wind_load_kpa} kPa` },
   ];
   return (
     <div>
@@ -114,7 +107,9 @@ function GeoCard() {
         ))}
       </div>
       <div style={{ background: "#161b27", borderRadius: 8, padding: "8px 10px" }}>
-        <p style={{ fontSize: 11, color: "#64748b", marginBottom: 3 }}>Foundation type</p>
+        <p style={{ fontSize: 11, color: "#64748b", marginBottom: 3 }}>
+          {t("results.foundationType")}
+        </p>
         <p style={{ fontSize: 13, color: "#e2e8f0" }}>{g.foundation_type}</p>
       </div>
     </div>
@@ -122,6 +117,7 @@ function GeoCard() {
 }
 
 function CostCard() {
+  const { t } = useTranslation();
   const { result } = useStore();
   if (!result) return null;
   const c = result.cost_estimate;
@@ -176,9 +172,9 @@ function CostCard() {
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 6 }}>
         {[
-          { label: "Concrete", value: `${c.concrete_m3} m³` },
-          { label: "Brick", value: `${c.brick_m3} m³` },
-          { label: "Insulation", value: `${c.insulation_m2} m²` },
+          { label: t("results.concrete"), value: `${c.concrete_m3} m³` },
+          { label: t("results.brick"), value: `${c.brick_m3} m³` },
+          { label: t("results.insulationArea"), value: `${c.insulation_m2} m²` },
         ].map(({ label, value }) => (
           <div
             key={label}
@@ -199,6 +195,7 @@ function CostCard() {
 }
 
 function ComplianceCard() {
+  const { t } = useTranslation();
   const { result } = useStore();
   if (!result) return null;
   const issues = result.compliance_issues;
@@ -218,7 +215,7 @@ function ComplianceCard() {
           color: "#6ee7b7",
         }}
       >
-        ✓ All rules passed
+        {t("results.allRulesPassed")}
       </div>
     );
   }
@@ -257,10 +254,11 @@ function ComplianceCard() {
 }
 
 function WarningsSection() {
+  const { t } = useTranslation();
   const { result } = useStore();
   if (!result || result.warnings.length === 0) return null;
   return (
-    <Accordion title={`Warnings (${result.warnings.length})`} defaultOpen>
+    <Accordion title={t("results.warnings", { count: result.warnings.length })} defaultOpen>
       <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
         {result.warnings.map((w, i) => (
           <p key={i} style={{ fontSize: 13, color: "#fbbf24" }}>
@@ -273,6 +271,7 @@ function WarningsSection() {
 }
 
 function MEPTab() {
+  const { t } = useTranslation();
   const { result } = useStore();
   if (!result) return null;
   const conflicts = result.mep_conflicts;
@@ -281,7 +280,7 @@ function MEPTab() {
     return (
       <div style={{ padding: "40px 16px", textAlign: "center" }}>
         <p style={{ fontSize: 36, marginBottom: 8 }}>✓</p>
-        <p style={{ fontSize: 14, color: "#6ee7b7" }}>No MEP clashes detected</p>
+        <p style={{ fontSize: 14, color: "#6ee7b7" }}>{t("results.noClashes")}</p>
       </div>
     );
   }
@@ -342,13 +341,15 @@ function MEPTab() {
           </span>
         )}
         <span style={{ fontSize: 12, color: "#64748b", alignSelf: "center" }}>
-          Total: {conflicts.length}
+          {t("results.total")}: {conflicts.length}
         </span>
       </div>
 
       {/* Conflict list */}
       {conflicts.map((c) => {
-        const hint = MEP_FIX_HINTS[c.conflict_type] ?? MEP_FIX_HINT_DEFAULT;
+        const hint = KNOWN_HINT_TYPES.has(c.conflict_type)
+          ? t(`mepHints.${c.conflict_type}`)
+          : t("mepHints.default");
         return (
           <div
             key={c.conflict_id}
@@ -382,7 +383,7 @@ function MEPTab() {
                 <summary
                   style={{ fontSize: 11, color: "#94a3b8", cursor: "pointer", userSelect: "none" }}
                 >
-                  How to fix?
+                  {t("results.howToFix")}
                 </summary>
                 <p style={{ fontSize: 12, color: "#cbd5e1", marginTop: 4, lineHeight: 1.5 }}>
                   {hint}
@@ -397,6 +398,7 @@ function MEPTab() {
 }
 
 function ExportTab() {
+  const { t, i18n } = useTranslation();
   const { result } = useStore();
   if (!result) return null;
   return (
@@ -407,17 +409,18 @@ function ExportTab() {
         className="btn-secondary"
         style={{ textAlign: "center", fontSize: 14, padding: "11px", display: "block" }}
       >
-        ↓ Download IFC
+        {t("results.downloadIfc")}
       </a>
-      <button
+      <a
+        href={pdfReportUrl(result.project_id, i18n.resolvedLanguage)}
+        download={`archvision_${result.project_id.slice(0, 8)}.pdf`}
         className="btn-secondary"
-        style={{ fontSize: 14, padding: "11px", opacity: 0.4, cursor: "not-allowed" }}
-        disabled
+        style={{ textAlign: "center", fontSize: 14, padding: "11px", display: "block" }}
       >
-        Export PDF (coming soon)
-      </button>
+        {t("results.exportPdf")}
+      </a>
       <p style={{ fontSize: 12, color: "#475569", textAlign: "center", marginTop: 8 }}>
-        Project ID:{" "}
+        {t("results.projectId")}{" "}
         <span style={{ fontFamily: "monospace", color: "#64748b" }}>
           {result.project_id.slice(0, 8)}
         </span>
@@ -431,17 +434,18 @@ interface Props {
 }
 
 export function ResultsPanel({ onClose }: Props) {
+  const { t } = useTranslation();
   const [tab, setTab] = useState<Tab>("ANALYSIS");
   const { result } = useStore();
   if (!result) return null;
 
   const tabs: { id: Tab; label: string }[] = [
-    { id: "ANALYSIS", label: "Analysis" },
+    { id: "ANALYSIS", label: t("results.tabAnalysis") },
     {
       id: "MEP",
       label: `MEP${result.mep_conflicts.length > 0 ? ` (${result.mep_conflicts.length})` : ""}`,
     },
-    { id: "EXPORT", label: "Export" },
+    { id: "EXPORT", label: t("results.tabExport") },
   ];
 
   return (
@@ -466,7 +470,7 @@ export function ResultsPanel({ onClose }: Props) {
                 letterSpacing: "0.1em",
               }}
             >
-              Analysis Results
+              {t("results.title")}
             </span>
             {(() => {
               const q = planQualityScore(result);
@@ -482,7 +486,7 @@ export function ResultsPanel({ onClose }: Props) {
                     background: `${q.color}15`,
                   }}
                 >
-                  {q.label} {q.score}
+                  {t(q.labelKey)} {q.score}
                 </span>
               );
             })()}
@@ -501,7 +505,7 @@ export function ResultsPanel({ onClose }: Props) {
             }}
             onMouseEnter={(e) => (e.currentTarget.style.color = "#94a3b8")}
             onMouseLeave={(e) => (e.currentTarget.style.color = "#475569")}
-            title="Close panel"
+            title={t("results.closePanel")}
           >
             ×
           </button>
@@ -536,14 +540,14 @@ export function ResultsPanel({ onClose }: Props) {
         {tab === "ANALYSIS" && (
           <div>
             <WarningsSection />
-            <Accordion title="Geo-Climate Data" defaultOpen>
+            <Accordion title={t("results.geoClimate")} defaultOpen>
               <GeoCard />
             </Accordion>
-            <Accordion title="Cost Estimate" defaultOpen>
+            <Accordion title={t("results.costEstimate")} defaultOpen>
               <CostCard />
             </Accordion>
             <Accordion
-              title={`Compliance (${result.compliance_issues.length})`}
+              title={t("results.compliance", { count: result.compliance_issues.length })}
               defaultOpen={result.compliance_issues.length > 0}
             >
               <ComplianceCard />

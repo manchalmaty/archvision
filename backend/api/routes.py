@@ -1,5 +1,5 @@
-from fastapi import APIRouter, HTTPException, BackgroundTasks
-from fastapi.responses import FileResponse
+from fastapi import APIRouter, HTTPException, BackgroundTasks, Query
+from fastapi.responses import FileResponse, Response
 import uuid
 import os
 
@@ -43,6 +43,7 @@ async def generate_plan(params: BuildingParams):
     # 3. Generate 2D/3D layout
     layout_engine = LayoutEngine(params, geo_data)
     rooms = layout_engine.generate()
+    warnings.extend(layout_engine.warnings)
 
     # 4. MEP routing and clash detection
     pipe_router = PipeRouter(rooms, params.floors, geo_data)
@@ -62,7 +63,7 @@ async def generate_plan(params: BuildingParams):
     estimator = CostEstimator(rooms, geo_data, params.country)
     cost = estimator.estimate()
 
-    return GenerationResult(
+    result = GenerationResult(
         project_id=project_id,
         rooms=rooms,
         geo_climate=geo_data,
@@ -72,6 +73,17 @@ async def generate_plan(params: BuildingParams):
         ifc_file_url=ifc_url,
         warnings=warnings,
     )
+
+    # Persist the result next to the IFC so /report/{id} (and later project
+    # history) can re-read it without a database.
+    try:
+        result_path = os.path.join(settings.IFC_OUTPUT_DIR, f"{project_id}.json")
+        with open(result_path, "w", encoding="utf-8") as f:
+            f.write(result.model_dump_json())
+    except OSError:
+        pass  # report export degrades gracefully; generation itself succeeded
+
+    return result
 
 
 @router.post("/compliance-check", response_model=list[ComplianceIssue])
@@ -104,6 +116,27 @@ async def download_ifc(project_id: str):
         ifc_path,
         media_type="application/octet-stream",
         filename=f"archvision_{project_id}.ifc",
+    )
+
+
+@router.get("/report/{project_id}")
+async def pdf_report(project_id: str, lang: str = Query("en", pattern="^(en|ru|kk)$")):
+    """Localized PDF report for a previously generated project."""
+    from core.pdf_generator import generate_pdf
+
+    result_path = os.path.join(settings.IFC_OUTPUT_DIR, f"{project_id}.json")
+    if not os.path.exists(result_path):
+        raise HTTPException(status_code=404, detail="Project not found")
+    with open(result_path, encoding="utf-8") as f:
+        result = GenerationResult.model_validate_json(f.read())
+
+    pdf_bytes = generate_pdf(result, lang)
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": f'attachment; filename="archvision_{project_id[:8]}.pdf"'
+        },
     )
 
 
