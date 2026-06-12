@@ -1,10 +1,18 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+import logging
 import os
 
 from api.routes import router
 from config import settings
+
+# Structured-ish logging: timestamp, level, logger, message. Uvicorn keeps its
+# own access log; this covers app loggers (routes, pdf_generator, ...).
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+)
 
 app = FastAPI(
     title="ArchVision AI",

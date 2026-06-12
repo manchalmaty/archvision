@@ -33,3 +33,6 @@ Thumbs.db
 
 # Separate plugin repo (own git history, not part of ArchVision)
 agent-skills/
+
+# Externally cloned skills (ui-ux-pro-max, llm-council) — not part of ArchVision
+.skills-external/

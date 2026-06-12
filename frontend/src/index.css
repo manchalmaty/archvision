@@ -8,6 +8,38 @@
     font-size: 13px;
   }
 
+  /* Tabular figures for all monospaced data (costs, areas, dimensions, loads):
+     fixed-width digits prevent horizontal jitter as values change — the
+     number-tabular guideline for data-dense tools. */
+  .font-mono {
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: "tnum";
+  }
+
+  /* Visible keyboard-focus ring on every interactive element. Mouse clicks
+     don't trigger :focus-visible, so this is unobtrusive but a11y-complete. */
+  a:focus-visible,
+  button:focus-visible,
+  select:focus-visible,
+  [role="button"]:focus-visible,
+  summary:focus-visible {
+    outline: 2px solid theme("colors.brand.500");
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+
+  /* Respect the OS "reduce motion" setting: spinners, the pulsing MEP markers,
+     and all transitions collapse to near-instant. */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.001ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.001ms !important;
+    }
+  }
+
   ::-webkit-scrollbar {
     width: 6px;
     height: 6px;

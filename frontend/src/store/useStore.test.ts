@@ -1,0 +1,103 @@
+import { beforeEach, afterEach, describe, expect, it, vi } from "vitest";
+import { useStore } from "./useStore";
+import type { GenerationResult } from "../types";
+
+const fakeResult = { project_id: "test-id", rooms: [] } as unknown as GenerationResult;
+
+// Environment-independent localStorage stub (the jsdom global lacks methods
+// under this vitest version, and the store only needs get/set).
+const backing = new Map<string, string>();
+const setItemSpy = vi.fn((k: string, v: string) => void backing.set(k, v));
+vi.stubGlobal("localStorage", {
+  getItem: (k: string) => backing.get(k) ?? null,
+  setItem: setItemSpy,
+  removeItem: (k: string) => void backing.delete(k),
+});
+
+// Snapshot of the pristine store (state + actions) to restore between tests.
+const initialState = useStore.getState();
+
+beforeEach(() => {
+  useStore.setState(initialState, true);
+  backing.clear();
+  setItemSpy.mockClear();
+});
+
+describe("param mutators", () => {
+  it("addRoom appends a room", () => {
+    const before = useStore.getState().params.rooms.length;
+    useStore.getState().addRoom({ room_type: "garage", area_m2: 18 });
+    const rooms = useStore.getState().params.rooms;
+    expect(rooms).toHaveLength(before + 1);
+    expect(rooms[rooms.length - 1].room_type).toBe("garage");
+  });
+
+  it("updateRoom merges fields", () => {
+    useStore.getState().updateRoom(0, { area_m2: 33 });
+    expect(useStore.getState().params.rooms[0].area_m2).toBe(33);
+  });
+
+  it("removeRoom deletes by index", () => {
+    const before = useStore.getState().params.rooms.length;
+    useStore.getState().removeRoom(0);
+    expect(useStore.getState().params.rooms).toHaveLength(before - 1);
+  });
+
+  it("setParams merges partial params", () => {
+    useStore.getState().setParams({ floors: 3, plot_width_m: 12 });
+    const { params } = useStore.getState();
+    expect(params.floors).toBe(3);
+    expect(params.plot_width_m).toBe(12);
+  });
+});
+
+describe("stale-result tracking", () => {
+  it("does not mark stale when there is no result", () => {
+    useStore.getState().setParams({ floors: 2 });
+    expect(useStore.getState().resultStale).toBe(false);
+  });
+
+  it("keeps result visible but marks it stale on any param change", () => {
+    useStore.getState().setResult(fakeResult);
+    useStore.getState().updateRoom(0, { name: "X" });
+    const s = useStore.getState();
+    expect(s.result).toBe(fakeResult); // result must NOT be wiped
+    expect(s.resultStale).toBe(true);
+  });
+
+  it("setResult clears staleness and room selection", () => {
+    useStore.getState().setResult(fakeResult);
+    useStore.getState().setSelectedRoom("room-1");
+    useStore.getState().setParams({ floors: 2 });
+    useStore.getState().setResult(fakeResult);
+    const s = useStore.getState();
+    expect(s.resultStale).toBe(false);
+    expect(s.selectedRoomId).toBeNull();
+  });
+});
+
+describe("localStorage persistence", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("debounces writes: nothing immediately, saved after 300ms", () => {
+    vi.useFakeTimers();
+    useStore.getState().setParams({ floors: 4 });
+    expect(localStorage.getItem("archvision_params_v1")).toBeNull();
+
+    vi.advanceTimersByTime(350);
+    const saved = JSON.parse(localStorage.getItem("archvision_params_v1")!);
+    expect(saved.floors).toBe(4);
+  });
+
+  it("collapses rapid keystrokes into one write", () => {
+    vi.useFakeTimers();
+    for (let i = 0; i < 10; i++) {
+      useStore.getState().updateRoom(0, { name: "Room".slice(0, (i % 4) + 1) });
+      vi.advanceTimersByTime(50); // faster than the 300ms debounce
+    }
+    vi.advanceTimersByTime(350);
+    expect(setItemSpy).toHaveBeenCalledTimes(1);
+  });
+});

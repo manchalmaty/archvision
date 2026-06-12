@@ -1,5 +1,7 @@
 from fastapi import APIRouter, HTTPException, BackgroundTasks, Path, Query
 from fastapi.responses import FileResponse, Response
+from pydantic import ValidationError
+from datetime import datetime, timezone
 import logging
 import uuid
 import os
@@ -128,22 +130,14 @@ async def download_ifc(project_id: str = UUID_PATH):
     )
 
 
-@router.get("/report/{project_id}")
-async def pdf_report(
-    project_id: str = UUID_PATH,
-    lang: str = Query("en", pattern="^(en|ru|kk)$"),
-):
-    """Localized PDF report for a previously generated project."""
-    from pydantic import ValidationError
-
-    from core.pdf_generator import generate_pdf
-
+def _load_result(project_id: str) -> GenerationResult:
+    """Load a persisted GenerationResult or raise the right HTTP error."""
     result_path = os.path.join(settings.IFC_OUTPUT_DIR, f"{project_id}.json")
     if not os.path.exists(result_path):
         raise HTTPException(status_code=404, detail="Project not found")
     try:
         with open(result_path, encoding="utf-8") as f:
-            result = GenerationResult.model_validate_json(f.read())
+            return GenerationResult.model_validate_json(f.read())
     except ValidationError:
         # File was written by an older schema version — regeneration required.
         raise HTTPException(
@@ -151,6 +145,55 @@ async def pdf_report(
             detail="Stored project data is incompatible with the current version; regenerate the plan",
         )
 
+
+@router.get("/projects")
+async def list_projects(limit: int = Query(20, ge=1, le=100)):
+    """Recent projects (newest first) — backs the history UI and share links."""
+    try:
+        files = [f for f in os.listdir(settings.IFC_OUTPUT_DIR) if f.endswith(".json")]
+    except OSError:
+        return []
+
+    def mtime(name: str) -> float:
+        try:
+            return os.path.getmtime(os.path.join(settings.IFC_OUTPUT_DIR, name))
+        except OSError:
+            return 0.0
+
+    files.sort(key=mtime, reverse=True)
+    entries = []
+    for fname in files[:limit]:
+        project_id = fname[:-5]
+        try:
+            result = _load_result(project_id)
+        except HTTPException:
+            continue  # skip unreadable/outdated entries rather than failing the list
+        entries.append({
+            "project_id": project_id,
+            "created_at": datetime.fromtimestamp(mtime(fname), tz=timezone.utc).isoformat(),
+            "rooms": len(result.rooms),
+            "floors": max((r.floor for r in result.rooms), default=1),
+            "total_area_m2": round(sum(r.area_m2 for r in result.rooms), 1),
+            "country_currency": result.cost_estimate.currency,
+        })
+    return entries
+
+
+@router.get("/projects/{project_id}", response_model=GenerationResult)
+async def get_project(project_id: str = UUID_PATH):
+    """Full stored result — used by share-by-link on the frontend."""
+    return _load_result(project_id)
+
+
+@router.get("/report/{project_id}")
+async def pdf_report(
+    project_id: str = UUID_PATH,
+    lang: str = Query("en", pattern="^(en|ru|kk)$"),
+):
+    """Localized PDF report for a previously generated project."""
+    from core.pdf_generator import generate_pdf
+
+    result = _load_result(project_id)
     pdf_bytes = generate_pdf(result, lang)
     return Response(
         content=pdf_bytes,
