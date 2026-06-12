@@ -13,7 +13,8 @@ extend-exclude = ["generated", ".venv"]
 # pyupgrade (UP), flake8-bugbear (B), comprehensions (C4).
 select = ["E", "W", "F", "I", "UP", "B", "C4"]
 ignore = [
-  "E501", # line length is handled by the formatter
+  "E501",   # line length is handled by the formatter
+  "UP042",  # keep (str, Enum) base — StrEnum changes str()/serialization semantics
 ]
 
 [tool.ruff.format]

@@ -1,6 +1,7 @@
 """
 Celery async tasks for long-running generation jobs.
 """
+
 from core.celery_app import celery_app
 
 
@@ -11,15 +12,18 @@ def generate_plan_async(self, params_dict: dict) -> dict:
     Mirrors the sync generate-plan endpoint but runs in worker.
     """
     import asyncio
-    from models import BuildingParams
-    from core.geo_calculator import GeoClimateCalculator
-    from core.layout_engine import LayoutEngine
-    from core.ifc_generator import IFCGenerator
-    from core.cost_estimator import CostEstimator
-    from mep.pipe_router import PipeRouter
-    from mep.clash_detector import ClashDetector
-    from ai.rag_engine import ComplianceChecker
+    import os
     import uuid
+
+    from ai.rag_engine import ComplianceChecker
+    from config import settings
+    from core.cost_estimator import CostEstimator
+    from core.geo_calculator import GeoClimateCalculator
+    from core.ifc_generator import IFCGenerator
+    from core.layout_engine import LayoutEngine
+    from mep.clash_detector import ClashDetector
+    from mep.pipe_router import PipeRouter
+    from models import BuildingParams, GenerationResult
 
     try:
         params = BuildingParams(**params_dict)
@@ -41,10 +45,27 @@ def generate_plan_async(self, params_dict: dict) -> dict:
         estimator = CostEstimator(rooms, geo_data, params.country)
         cost = estimator.estimate()
 
+        result = GenerationResult(
+            project_id=project_id,
+            rooms=rooms,
+            geo_climate=geo_data,
+            mep_conflicts=conflicts,
+            compliance_issues=compliance_issues,
+            cost_estimate=cost,
+            ifc_file_url=f"/files/{os.path.basename(ifc_path)}",
+            warnings=layout_engine.warnings,
+        )
+
+        # Persist alongside the IFC so the project-history endpoints can re-read
+        # it without a database, mirroring the sync generate-plan path.
+        result_path = os.path.join(settings.IFC_OUTPUT_DIR, f"{project_id}.json")
+        with open(result_path, "w", encoding="utf-8") as f:
+            f.write(result.model_dump_json())
+
         return {
             "project_id": project_id,
             "status": "completed",
             "ifc_path": ifc_path,
         }
     except Exception as exc:
-        raise self.retry(exc=exc, countdown=5)
+        raise self.retry(exc=exc, countdown=5) from exc

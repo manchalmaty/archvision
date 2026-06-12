@@ -33,8 +33,14 @@ def generated():
 class TestGenerate:
     def test_response_shape(self, generated):
         for key in (
-            "project_id", "rooms", "geo_climate", "mep_conflicts",
-            "compliance_issues", "cost_estimate", "ifc_file_url", "warnings",
+            "project_id",
+            "rooms",
+            "geo_climate",
+            "mep_conflicts",
+            "compliance_issues",
+            "cost_estimate",
+            "ifc_file_url",
+            "warnings",
         ):
             assert key in generated
 

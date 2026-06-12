@@ -1,6 +1,6 @@
-from pydantic import BaseModel, Field
-from typing import List, Optional
 from enum import Enum
+
+from pydantic import BaseModel, Field
 
 
 class CountryCode(str, Enum):
@@ -28,16 +28,16 @@ class RoomType(str, Enum):
 class RoomInput(BaseModel):
     room_type: RoomType
     area_m2: float = Field(gt=0, le=200)
-    name: Optional[str] = None
+    name: str | None = None
 
 
 class BuildingParams(BaseModel):
-    rooms: List[RoomInput] = Field(min_length=1, max_length=30)
+    rooms: list[RoomInput] = Field(min_length=1, max_length=30)
     country: CountryCode
-    region: Optional[str] = None
+    region: str | None = None
     floors: int = Field(ge=1, le=5)
-    plot_width_m: Optional[float] = Field(default=None, gt=0)
-    plot_depth_m: Optional[float] = Field(default=None, gt=0)
+    plot_width_m: float | None = Field(default=None, gt=0)
+    plot_depth_m: float | None = Field(default=None, gt=0)
     building_shape: str = "rectangular"  # rectangular|square|l_shape|u_shape|t_shape
 
 
@@ -53,7 +53,7 @@ class GeoClimateData(BaseModel):
 
 
 class DoorSpec(BaseModel):
-    wall: str        # 'N' | 'S' | 'E' | 'W'
+    wall: str  # 'N' | 'S' | 'E' | 'W'
     position: float  # offset from west/south corner (m)
     width: float = 0.8
     height: float = 2.0
@@ -77,8 +77,8 @@ class RoomLayout(BaseModel):
     width: float
     depth: float
     area_m2: float
-    doors: List[DoorSpec] = []
-    windows: List[WindowSpec] = []
+    doors: list[DoorSpec] = []
+    windows: list[WindowSpec] = []
 
 
 class MEPConflict(BaseModel):
@@ -95,8 +95,8 @@ class ComplianceIssue(BaseModel):
     rule_id: str
     description: str
     severity: str
-    room_id: Optional[str] = None
-    suggested_fix: Optional[str] = None
+    room_id: str | None = None
+    suggested_fix: str | None = None
 
 
 class CostEstimate(BaseModel):
@@ -111,22 +111,22 @@ class CostEstimate(BaseModel):
 
 class GenerationResult(BaseModel):
     project_id: str
-    rooms: List[RoomLayout]
+    rooms: list[RoomLayout]
     geo_climate: GeoClimateData
-    mep_conflicts: List[MEPConflict]
-    compliance_issues: List[ComplianceIssue]
+    mep_conflicts: list[MEPConflict]
+    compliance_issues: list[ComplianceIssue]
     cost_estimate: CostEstimate
     ifc_file_url: str
-    warnings: List[str]
+    warnings: list[str]
 
 
 class ComplianceRequest(BaseModel):
     country: CountryCode
-    rooms: List[RoomInput]
+    rooms: list[RoomInput]
     floors: int
 
 
 class MEPRoutingRequest(BaseModel):
     project_id: str
-    rooms: List[RoomLayout]
+    rooms: list[RoomLayout]
     floors: int

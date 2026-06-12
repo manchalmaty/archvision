@@ -48,9 +48,7 @@ class TestCostEstimator:
         for code, (currency, rate) in CURRENCY_INFO.items():
             cost = CostEstimator(layouts, geo, CountryCode(code)).estimate()
             assert cost.currency == currency
-            assert cost.total_cost_local == pytest.approx(
-                cost.total_cost_usd * rate, rel=0.01
-            )
+            assert cost.total_cost_local == pytest.approx(cost.total_cost_usd * rate, rel=0.01)
 
     def test_breakdown_sums_to_total(self, layouts):
         cost = CostEstimator(layouts, geo, CountryCode.US).estimate()

@@ -2,18 +2,21 @@
 RAG-based compliance checker against building codes (СНиП/СП/DIN/IBC).
 Rule-based core with optional Groq LLM enrichment.
 """
+
+import logging
 import math
 import uuid
-import logging
-from typing import List
 
 from openai import OpenAI
 
-from models import (
-    BuildingParams, RoomLayout, RoomType,
-    ComplianceIssue, ComplianceRequest, CountryCode
-)
 from config import settings
+from models import (
+    BuildingParams,
+    ComplianceIssue,
+    ComplianceRequest,
+    RoomLayout,
+    RoomType,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -29,6 +32,7 @@ def _get_groq() -> OpenAI | None:
             base_url="https://api.groq.com/openai/v1",
         )
     return _groq_client
+
 
 # Hardcoded rules as fallback when RAG index is empty (MVP cold start)
 MIN_AREAS: dict[str, dict[RoomType, float]] = {
@@ -86,9 +90,7 @@ class ComplianceChecker:
     MVP: rule-based fallback with same interface.
     """
 
-    async def check(
-        self, params: BuildingParams, rooms: List[RoomLayout]
-    ) -> List[ComplianceIssue]:
+    async def check(self, params: BuildingParams, rooms: list[RoomLayout]) -> list[ComplianceIssue]:
         issues = []
         country = params.country.value
         rules = MIN_AREAS.get(country, MIN_AREAS.get("RU", {}))
@@ -97,31 +99,37 @@ class ComplianceChecker:
         for room in rooms:
             min_area = rules.get(room.room_type)
             if min_area and room.area_m2 < min_area:
-                issues.append(ComplianceIssue(
-                    rule_id=f"{country}-MIN-AREA-{room.room_type.value.upper()}",
-                    description=(
-                        f"{room.name}: area {room.area_m2:.1f} m² is below minimum "
-                        f"{min_area:.1f} m² per {source}"
-                    ),
-                    severity="ERROR",
-                    room_id=room.room_id,
-                    suggested_fix=f"Increase {room.name} to at least {min_area} m²",
-                ))
+                issues.append(
+                    ComplianceIssue(
+                        rule_id=f"{country}-MIN-AREA-{room.room_type.value.upper()}",
+                        description=(
+                            f"{room.name}: area {room.area_m2:.1f} m² is below minimum "
+                            f"{min_area:.1f} m² per {source}"
+                        ),
+                        severity="ERROR",
+                        room_id=room.room_id,
+                        suggested_fix=f"Increase {room.name} to at least {min_area} m²",
+                    )
+                )
 
         # Minimum one bathroom per 4 bedrooms
         bedroom_count = sum(1 for r in rooms if r.room_type == RoomType.BEDROOM)
-        bathroom_count = sum(1 for r in rooms if r.room_type in {RoomType.BATHROOM, RoomType.TOILET})
+        bathroom_count = sum(
+            1 for r in rooms if r.room_type in {RoomType.BATHROOM, RoomType.TOILET}
+        )
         required_baths = max(1, math.ceil(bedroom_count / 4))
         if bathroom_count < required_baths:
-            issues.append(ComplianceIssue(
-                rule_id=f"{country}-BATH-RATIO",
-                description=(
-                    f"Only {bathroom_count} bathroom(s) for {bedroom_count} bedroom(s). "
-                    f"Minimum required: {required_baths} per {source}"
-                ),
-                severity="WARNING",
-                suggested_fix=f"Add {required_baths - bathroom_count} more bathroom(s)",
-            ))
+            issues.append(
+                ComplianceIssue(
+                    rule_id=f"{country}-BATH-RATIO",
+                    description=(
+                        f"Only {bathroom_count} bathroom(s) for {bedroom_count} bedroom(s). "
+                        f"Minimum required: {required_baths} per {source}"
+                    ),
+                    severity="WARNING",
+                    suggested_fix=f"Add {required_baths - bathroom_count} more bathroom(s)",
+                )
+            )
 
         # Optional: enrich with Groq LLM if configured
         groq = _get_groq()
@@ -142,8 +150,9 @@ class ComplianceChecker:
                     temperature=0.2,
                 )
                 import json
+
                 recs = json.loads(resp.choices[0].message.content)
-                for issue, rec in zip(issues, recs):
+                for issue, rec in zip(issues, recs, strict=False):
                     if issue.suggested_fix:
                         issue.suggested_fix += f" {rec}"
                     else:
@@ -153,15 +162,19 @@ class ComplianceChecker:
 
         return issues
 
-    async def check_standalone(self, req: ComplianceRequest) -> List[ComplianceIssue]:
+    async def check_standalone(self, req: ComplianceRequest) -> list[ComplianceIssue]:
         from models import RoomLayout
+
         mock_rooms = [
             RoomLayout(
                 room_id=str(uuid.uuid4()),
                 room_type=r.room_type,
                 name=r.name or r.room_type.value,
-                x=0, y=0, floor=1,
-                width=1.0, depth=r.area_m2,
+                x=0,
+                y=0,
+                floor=1,
+                width=1.0,
+                depth=r.area_m2,
                 area_m2=r.area_m2,
             )
             for r in req.rooms

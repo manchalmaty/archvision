@@ -2,13 +2,14 @@
 3D A* pipe routing for MEP (plumbing).
 Routes pipes from wet zones to a central riser shaft.
 """
+
 import heapq
 import math
 import uuid
-from typing import List, Optional, Tuple
 from dataclasses import dataclass, field
+from typing import Optional
 
-from models import RoomLayout, RoomType, GeoClimateData
+from models import GeoClimateData, RoomLayout, RoomType
 
 WET_ZONES = {RoomType.KITCHEN, RoomType.BATHROOM, RoomType.TOILET}
 GRID_STEP = 0.5  # metres per grid cell
@@ -18,7 +19,7 @@ GRID_STEP = 0.5  # metres per grid cell
 class Pipe:
     pipe_id: str
     pipe_type: str  # "supply" | "drain" | "vent"
-    points: List[Tuple[float, float, float]]
+    points: list[tuple[float, float, float]]
     diameter_mm: int
     from_room_id: str
     to_room_id: str
@@ -28,19 +29,19 @@ class Pipe:
 class Node:
     f: float
     g: float = field(compare=False)
-    pos: Tuple[int, int, int] = field(compare=False)
+    pos: tuple[int, int, int] = field(compare=False)
     parent: Optional["Node"] = field(compare=False, default=None)
 
 
-def heuristic(a: Tuple[int, int, int], b: Tuple[int, int, int]) -> float:
-    return math.sqrt((a[0]-b[0])**2 + (a[1]-b[1])**2 + (a[2]-b[2])**2)
+def heuristic(a: tuple[int, int, int], b: tuple[int, int, int]) -> float:
+    return math.sqrt((a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2 + (a[2] - b[2]) ** 2)
 
 
 def astar_3d(
-    start: Tuple[int, int, int],
-    goal: Tuple[int, int, int],
+    start: tuple[int, int, int],
+    goal: tuple[int, int, int],
     obstacles: set,
-) -> List[Tuple[int, int, int]]:
+) -> list[tuple[int, int, int]]:
     open_heap: list = []
     h = heuristic(start, goal)
     start_node = Node(f=h, g=0, pos=start)
@@ -48,7 +49,7 @@ def astar_3d(
     came_from: dict = {start: None}
     g_score: dict = {start: 0}
 
-    DIRS = [(1,0,0),(-1,0,0),(0,1,0),(0,-1,0),(0,0,1),(0,0,-1)]
+    DIRS = [(1, 0, 0), (-1, 0, 0), (0, 1, 0), (0, -1, 0), (0, 0, 1), (0, 0, -1)]
 
     while open_heap:
         current = heapq.heappop(open_heap)
@@ -61,7 +62,7 @@ def astar_3d(
             return list(reversed(path))
 
         for dx, dy, dz in DIRS:
-            nb = (current.pos[0]+dx, current.pos[1]+dy, current.pos[2]+dz)
+            nb = (current.pos[0] + dx, current.pos[1] + dy, current.pos[2] + dz)
             if nb in obstacles:
                 continue
             # Prefer horizontal routing (penalise vertical)
@@ -77,21 +78,21 @@ def astar_3d(
     return []  # no path found
 
 
-def world_to_grid(x: float, y: float, z: float) -> Tuple[int, int, int]:
+def world_to_grid(x: float, y: float, z: float) -> tuple[int, int, int]:
     return (round(x / GRID_STEP), round(y / GRID_STEP), round(z / GRID_STEP))
 
 
-def grid_to_world(gx: int, gy: int, gz: int) -> Tuple[float, float, float]:
+def grid_to_world(gx: int, gy: int, gz: int) -> tuple[float, float, float]:
     return (gx * GRID_STEP, gy * GRID_STEP, gz * GRID_STEP)
 
 
 class PipeRouter:
-    def __init__(self, rooms: List[RoomLayout], floors: int, geo: Optional[GeoClimateData]):
+    def __init__(self, rooms: list[RoomLayout], floors: int, geo: GeoClimateData | None):
         self.rooms = rooms
         self.floors = floors
         self.geo = geo
 
-    def route(self) -> List[Pipe]:
+    def route(self) -> list[Pipe]:
         wet_rooms = [r for r in self.rooms if r.room_type in WET_ZONES]
         if not wet_rooms:
             return []
@@ -116,14 +117,16 @@ class PipeRouter:
             if not path_drain:
                 path_drain = [start_drain, goal_drain]
 
-            pipes.append(Pipe(
-                pipe_id=str(uuid.uuid4()),
-                pipe_type="drain",
-                points=[grid_to_world(*p) for p in path_drain],
-                diameter_mm=110,
-                from_room_id=room.room_id,
-                to_room_id="riser",
-            ))
+            pipes.append(
+                Pipe(
+                    pipe_id=str(uuid.uuid4()),
+                    pipe_type="drain",
+                    points=[grid_to_world(*p) for p in path_drain],
+                    diameter_mm=110,
+                    from_room_id=room.room_id,
+                    to_room_id="riser",
+                )
+            )
 
             # Supply: pressurised cold water, runs near ceiling (2.2m above slab)
             rz_supply = floor_base + 2.2
@@ -133,14 +136,16 @@ class PipeRouter:
             if not path_supply:
                 path_supply = [start_supply, goal_supply]
 
-            pipes.append(Pipe(
-                pipe_id=str(uuid.uuid4()),
-                pipe_type="supply",
-                points=[grid_to_world(*p) for p in path_supply],
-                diameter_mm=25,
-                from_room_id="supply_main",
-                to_room_id=room.room_id,
-            ))
+            pipes.append(
+                Pipe(
+                    pipe_id=str(uuid.uuid4()),
+                    pipe_type="supply",
+                    points=[grid_to_world(*p) for p in path_supply],
+                    diameter_mm=25,
+                    from_room_id="supply_main",
+                    to_room_id=room.room_id,
+                )
+            )
 
         return pipes
 

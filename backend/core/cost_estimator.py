@@ -1,17 +1,18 @@
 """
 Bill of materials and cost estimation from room layouts.
 """
+
 import math
-from typing import List
-from models import RoomLayout, GeoClimateData, CostEstimate, CountryCode
+
+from models import CostEstimate, CountryCode, GeoClimateData, RoomLayout
 
 FLOOR_HEIGHT = 3.0
 SLAB_THICKNESS = 0.2
 
 # Material unit costs USD/m3 or USD/m2
 MATERIAL_COSTS_USD = {
-    "concrete": 120,   # USD/m3
-    "brick": 180,      # USD/m3
+    "concrete": 120,  # USD/m3
+    "brick": 180,  # USD/m3
     "insulation": 15,  # USD/m2
     "steel_rebar": 900,  # USD/tonne (approx 80 kg/m3 concrete → 0.08 t/m3)
     "labor_factor": 0.5,  # 50% of materials for labor
@@ -31,14 +32,13 @@ CURRENCY_INFO = {
 
 
 class CostEstimator:
-    def __init__(self, rooms: List[RoomLayout], geo: GeoClimateData, country: CountryCode):
+    def __init__(self, rooms: list[RoomLayout], geo: GeoClimateData, country: CountryCode):
         self.rooms = rooms
         self.geo = geo
         self.country = country
 
     def estimate(self) -> CostEstimate:
         wall_t = self.geo.wall_thickness_mm / 1000.0
-        insul_t = self.geo.insulation_thickness_mm / 1000.0
 
         total_wall_area = 0.0
         total_slab_area = 0.0

@@ -2,22 +2,21 @@
 IFC file generation via IfcOpenShell.
 Generates walls, slabs, openings and MEP placeholders.
 """
-import os
+
 import math
-import uuid
-from datetime import datetime
-from typing import List, Optional
+import os
 
 try:
     import ifcopenshell
     import ifcopenshell.api
     import ifcopenshell.util.element
+
     IFC_AVAILABLE = True
 except ImportError:
     IFC_AVAILABLE = False
 
-from models import BuildingParams, GeoClimateData, RoomLayout, RoomType, DoorSpec, WindowSpec
 from config import settings  # noqa: E402
+from models import BuildingParams, DoorSpec, GeoClimateData, RoomLayout, WindowSpec
 
 FLOOR_HEIGHT = 3.0  # metres per storey
 
@@ -27,7 +26,7 @@ class IFCGenerator:
         self,
         project_id: str,
         params: BuildingParams,
-        rooms: List[RoomLayout],
+        rooms: list[RoomLayout],
         pipes: list,
         geo: GeoClimateData,
     ):
@@ -50,9 +49,7 @@ class IFCGenerator:
             "unit.assign_unit", self.ifc, length={"is_metric": True, "raw": "METRES"}
         )
 
-        context = ifcopenshell.api.run(
-            "context.add_context", self.ifc, context_type="Model"
-        )
+        context = ifcopenshell.api.run("context.add_context", self.ifc, context_type="Model")
         body = ifcopenshell.api.run(
             "context.add_context",
             self.ifc,
@@ -76,7 +73,7 @@ class IFCGenerator:
         )
 
         # Group rooms by floor
-        floors: dict[int, List[RoomLayout]] = {}
+        floors: dict[int, list[RoomLayout]] = {}
         for room in self.rooms:
             floors.setdefault(room.floor, []).append(room)
 
@@ -161,9 +158,7 @@ class IFCGenerator:
         self._add_slab(storey, body, room, elevation)
 
     def _add_wall(self, storey, body, x, y, elevation, dx, dy, thickness):
-        wall = ifcopenshell.api.run(
-            "root.create_entity", self.ifc, ifc_class="IfcWall"
-        )
+        wall = ifcopenshell.api.run("root.create_entity", self.ifc, ifc_class="IfcWall")
         ifcopenshell.api.run(
             "spatial.assign_container", self.ifc, relating_structure=storey, products=[wall]
         )
@@ -184,30 +179,23 @@ class IFCGenerator:
 
         # Shape: rectangular profile extruded
         profile = self.ifc.createIfcRectangleProfileDef(
-            "AREA", None,
-            self.ifc.createIfcAxis2Placement2D(
-                self.ifc.createIfcCartesianPoint([0.0, 0.0])
-            ),
+            "AREA",
+            None,
+            self.ifc.createIfcAxis2Placement2D(self.ifc.createIfcCartesianPoint([0.0, 0.0])),
             length,
             thickness,
         )
         extruded = self.ifc.createIfcExtrudedAreaSolid(
             profile,
-            self.ifc.createIfcAxis2Placement3D(
-                self.ifc.createIfcCartesianPoint([0.0, 0.0, 0.0])
-            ),
+            self.ifc.createIfcAxis2Placement3D(self.ifc.createIfcCartesianPoint([0.0, 0.0, 0.0])),
             self.ifc.createIfcDirection([0.0, 0.0, 1.0]),
             FLOOR_HEIGHT,
         )
-        shape = self.ifc.createIfcShapeRepresentation(
-            body, "Body", "SweptSolid", [extruded]
-        )
+        shape = self.ifc.createIfcShapeRepresentation(body, "Body", "SweptSolid", [extruded])
         wall.Representation = self.ifc.createIfcProductDefinitionShape(None, None, [shape])
 
     def _add_slab(self, storey, body, room: RoomLayout, elevation: float):
-        slab = ifcopenshell.api.run(
-            "root.create_entity", self.ifc, ifc_class="IfcSlab"
-        )
+        slab = ifcopenshell.api.run("root.create_entity", self.ifc, ifc_class="IfcSlab")
         ifcopenshell.api.run(
             "spatial.assign_container", self.ifc, relating_structure=storey, products=[slab]
         )
@@ -219,18 +207,15 @@ class IFCGenerator:
         )
         slab.ObjectPlacement = placement
         profile = self.ifc.createIfcRectangleProfileDef(
-            "AREA", None,
-            self.ifc.createIfcAxis2Placement2D(
-                self.ifc.createIfcCartesianPoint([0.0, 0.0])
-            ),
+            "AREA",
+            None,
+            self.ifc.createIfcAxis2Placement2D(self.ifc.createIfcCartesianPoint([0.0, 0.0])),
             room.width,
             room.depth,
         )
         extruded = self.ifc.createIfcExtrudedAreaSolid(
             profile,
-            self.ifc.createIfcAxis2Placement3D(
-                self.ifc.createIfcCartesianPoint([0.0, 0.0, 0.0])
-            ),
+            self.ifc.createIfcAxis2Placement3D(self.ifc.createIfcCartesianPoint([0.0, 0.0, 0.0])),
             self.ifc.createIfcDirection([0.0, 0.0, 1.0]),
             0.2,  # 200mm slab
         )
@@ -253,7 +238,9 @@ class IFCGenerator:
             return
         ox, oy, dx, dy = self._wall_origin(room, door, elevation)
         entity = ifcopenshell.api.run("root.create_entity", self.ifc, ifc_class="IfcDoor")
-        ifcopenshell.api.run("spatial.assign_container", self.ifc, relating_structure=storey, products=[entity])
+        ifcopenshell.api.run(
+            "spatial.assign_container", self.ifc, relating_structure=storey, products=[entity]
+        )
         placement = self.ifc.createIfcLocalPlacement(
             None,
             self.ifc.createIfcAxis2Placement3D(
@@ -264,7 +251,9 @@ class IFCGenerator:
         )
         entity.ObjectPlacement = placement
         ifcopenshell.api.run(
-            "attribute.edit_attributes", self.ifc, product=entity,
+            "attribute.edit_attributes",
+            self.ifc,
+            product=entity,
             attributes={"OverallWidth": door.width, "OverallHeight": 2.1},
         )
 
@@ -273,7 +262,9 @@ class IFCGenerator:
             return
         ox, oy, dx, dy = self._wall_origin(room, win, elevation)
         entity = ifcopenshell.api.run("root.create_entity", self.ifc, ifc_class="IfcWindow")
-        ifcopenshell.api.run("spatial.assign_container", self.ifc, relating_structure=storey, products=[entity])
+        ifcopenshell.api.run(
+            "spatial.assign_container", self.ifc, relating_structure=storey, products=[entity]
+        )
         placement = self.ifc.createIfcLocalPlacement(
             None,
             self.ifc.createIfcAxis2Placement3D(
@@ -284,11 +275,15 @@ class IFCGenerator:
         )
         entity.ObjectPlacement = placement
         ifcopenshell.api.run(
-            "attribute.edit_attributes", self.ifc, product=entity,
+            "attribute.edit_attributes",
+            self.ifc,
+            product=entity,
             attributes={"OverallWidth": win.width, "OverallHeight": win.height},
         )
 
-    def _add_foundation_slab(self, storey, body, rooms: List[RoomLayout], elevation: float, wall_t: float):
+    def _add_foundation_slab(
+        self, storey, body, rooms: list[RoomLayout], elevation: float, wall_t: float
+    ):
         if not rooms:
             return
         min_x = min(r.x for r in rooms)
@@ -298,9 +293,7 @@ class IFCGenerator:
         width = max_x - min_x + wall_t * 2
         depth = max_y - min_y + wall_t * 2
 
-        foundation = ifcopenshell.api.run(
-            "root.create_entity", self.ifc, ifc_class="IfcFooting"
-        )
+        foundation = ifcopenshell.api.run("root.create_entity", self.ifc, ifc_class="IfcFooting")
         ifcopenshell.api.run(
             "spatial.assign_container", self.ifc, relating_structure=storey, products=[foundation]
         )
@@ -314,18 +307,15 @@ class IFCGenerator:
         )
         foundation.ObjectPlacement = placement
         profile = self.ifc.createIfcRectangleProfileDef(
-            "AREA", None,
-            self.ifc.createIfcAxis2Placement2D(
-                self.ifc.createIfcCartesianPoint([0.0, 0.0])
-            ),
+            "AREA",
+            None,
+            self.ifc.createIfcAxis2Placement2D(self.ifc.createIfcCartesianPoint([0.0, 0.0])),
             width,
             depth,
         )
         extruded = self.ifc.createIfcExtrudedAreaSolid(
             profile,
-            self.ifc.createIfcAxis2Placement3D(
-                self.ifc.createIfcCartesianPoint([0.0, 0.0, 0.0])
-            ),
+            self.ifc.createIfcAxis2Placement3D(self.ifc.createIfcCartesianPoint([0.0, 0.0, 0.0])),
             self.ifc.createIfcDirection([0.0, 0.0, 1.0]),
             0.4,
         )

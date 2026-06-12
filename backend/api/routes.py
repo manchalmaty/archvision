@@ -1,23 +1,28 @@
-from fastapi import APIRouter, HTTPException, BackgroundTasks, Path, Query
+import logging
+import os
+import uuid
+from datetime import UTC, datetime
+
+from fastapi import APIRouter, HTTPException, Path, Query
 from fastapi.responses import FileResponse, Response
 from pydantic import ValidationError
-from datetime import datetime, timezone
-import logging
-import uuid
-import os
 
-from models import (
-    BuildingParams, GenerationResult, ComplianceRequest,
-    MEPRoutingRequest, ComplianceIssue, MEPConflict
-)
-from core.ifc_generator import IFCGenerator
-from core.geo_calculator import GeoClimateCalculator
-from core.cost_estimator import CostEstimator
-from core.layout_engine import LayoutEngine
-from mep.pipe_router import PipeRouter
-from mep.clash_detector import ClashDetector
 from ai.rag_engine import ComplianceChecker
 from config import settings
+from core.cost_estimator import CostEstimator
+from core.geo_calculator import GeoClimateCalculator
+from core.ifc_generator import IFCGenerator
+from core.layout_engine import LayoutEngine
+from mep.clash_detector import ClashDetector
+from mep.pipe_router import PipeRouter
+from models import (
+    BuildingParams,
+    ComplianceIssue,
+    ComplianceRequest,
+    GenerationResult,
+    MEPConflict,
+    MEPRoutingRequest,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -28,7 +33,9 @@ rag_checker = ComplianceChecker()
 
 # project_id is always a uuid4 we generated; rejecting anything else closes
 # the path-traversal door on every file-serving endpoint below.
-UUID_PATH = Path(pattern=r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$")
+UUID_PATH = Path(
+    pattern=r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+)
 
 
 @router.post("/generate-plan", response_model=GenerationResult)
@@ -143,7 +150,7 @@ def _load_result(project_id: str) -> GenerationResult:
         raise HTTPException(
             status_code=410,
             detail="Stored project data is incompatible with the current version; regenerate the plan",
-        )
+        ) from None
 
 
 @router.get("/projects")
@@ -168,14 +175,16 @@ async def list_projects(limit: int = Query(20, ge=1, le=100)):
             result = _load_result(project_id)
         except HTTPException:
             continue  # skip unreadable/outdated entries rather than failing the list
-        entries.append({
-            "project_id": project_id,
-            "created_at": datetime.fromtimestamp(mtime(fname), tz=timezone.utc).isoformat(),
-            "rooms": len(result.rooms),
-            "floors": max((r.floor for r in result.rooms), default=1),
-            "total_area_m2": round(sum(r.area_m2 for r in result.rooms), 1),
-            "country_currency": result.cost_estimate.currency,
-        })
+        entries.append(
+            {
+                "project_id": project_id,
+                "created_at": datetime.fromtimestamp(mtime(fname), tz=UTC).isoformat(),
+                "rooms": len(result.rooms),
+                "floors": max((r.floor for r in result.rooms), default=1),
+                "total_area_m2": round(sum(r.area_m2 for r in result.rooms), 1),
+                "country_currency": result.cost_estimate.currency,
+            }
+        )
     return entries
 
 
@@ -198,9 +207,7 @@ async def pdf_report(
     return Response(
         content=pdf_bytes,
         media_type="application/pdf",
-        headers={
-            "Content-Disposition": f'attachment; filename="archvision_{project_id[:8]}.pdf"'
-        },
+        headers={"Content-Disposition": f'attachment; filename="archvision_{project_id[:8]}.pdf"'},
     )
 
 

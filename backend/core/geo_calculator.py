@@ -2,9 +2,10 @@
 Geoclimate calculations for foundation design and structural limits.
 Uses Air Freezing Index (AFI) method for frost depth.
 """
+
 import math
-from typing import Optional
-from models import GeoClimateData, CountryCode
+
+from models import CountryCode, GeoClimateData
 
 # AFI values by country (degree-days Celsius, approximate annual averages)
 # Source: climate data aggregated from ASHRAE and national standards
@@ -49,6 +50,7 @@ AFI_BY_COUNTRY: dict[str, dict] = {
 # Seismic zone → max allowed floors without special engineering
 SEISMIC_FLOOR_LIMITS = {1: 5, 2: 4, 3: 3, 4: 2}
 
+
 # Wall thickness rules by frost depth (mm)
 def wall_thickness_by_frost(frost_depth_m: float) -> int:
     if frost_depth_m < 0.5:
@@ -86,9 +88,7 @@ def foundation_type_by_frost(frost_depth_m: float, seismic_zone: int) -> str:
 
 
 class GeoClimateCalculator:
-    def calculate(
-        self, country: CountryCode, region: Optional[str], floors: int
-    ) -> GeoClimateData:
+    def calculate(self, country: CountryCode, region: str | None, floors: int) -> GeoClimateData:
         country_data = AFI_BY_COUNTRY.get(country.value, AFI_BY_COUNTRY["OTHER"])
 
         climate = country_data.get("default", {})

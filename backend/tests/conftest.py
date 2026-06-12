@@ -2,6 +2,7 @@
 Shared pytest fixtures. Environment is pinned BEFORE any app import:
 config.Settings is cached at module import, so these must run first.
 """
+
 import os
 import sys
 import tempfile

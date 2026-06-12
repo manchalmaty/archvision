@@ -13,8 +13,8 @@ SHAPES = ["rectangular", "square", "l_shape", "u_shape", "t_shape"]
 
 
 def make_params(**overrides) -> BuildingParams:
-    base = dict(
-        rooms=[
+    base = {
+        "rooms": [
             RoomInput(room_type=RoomType.LIVING_ROOM, area_m2=20),
             RoomInput(room_type=RoomType.BEDROOM, area_m2=14),
             RoomInput(room_type=RoomType.BEDROOM, area_m2=12),
@@ -24,19 +24,17 @@ def make_params(**overrides) -> BuildingParams:
             RoomInput(room_type=RoomType.HALLWAY, area_m2=6),
             RoomInput(room_type=RoomType.GARAGE, area_m2=18),
         ],
-        country=CountryCode.KZ,
-        floors=1,
-        building_shape="rectangular",
-    )
+        "country": CountryCode.KZ,
+        "floors": 1,
+        "building_shape": "rectangular",
+    }
     base.update(overrides)
     return BuildingParams(**base)
 
 
 class TestEssentials:
     def test_hallway_and_toilet_injected(self):
-        params = make_params(
-            rooms=[RoomInput(room_type=RoomType.BEDROOM, area_m2=15)]
-        )
+        params = make_params(rooms=[RoomInput(room_type=RoomType.BEDROOM, area_m2=15)])
         layouts = LayoutEngine(params, geo).generate()
         types = {r.room_type for r in layouts}
         assert RoomType.HALLWAY in types
@@ -144,9 +142,9 @@ class TestOpenings:
         for room in layouts:
             same_floor = [r for r in layouts if r.floor == room.floor]
             for win in room.windows:
-                assert not _adjacent_rooms(room, win.wall, same_floor), (
-                    f"{room.name}: window on internal wall {win.wall}"
-                )
+                assert not _adjacent_rooms(
+                    room, win.wall, same_floor
+                ), f"{room.name}: window on internal wall {win.wall}"
 
 
 class TestAreaPreserved:
@@ -156,6 +154,6 @@ class TestAreaPreserved:
         params = make_params()
         layouts = LayoutEngine(params, geo).generate()
         for room in layouts:
-            assert room.width * room.depth >= room.area_m2 * 0.95, (
-                f"{room.name}: {room.width}x{room.depth} < requested {room.area_m2}"
-            )
+            assert (
+                room.width * room.depth >= room.area_m2 * 0.95
+            ), f"{room.name}: {room.width}x{room.depth} < requested {room.area_m2}"

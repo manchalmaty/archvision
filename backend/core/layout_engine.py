@@ -2,10 +2,19 @@
 2D floor plan layout engine.
 Packs rooms using a greedy strip algorithm, groups wet zones together.
 """
+
 import math
 import uuid
-from typing import List, Optional
-from models import BuildingParams, GeoClimateData, RoomLayout, RoomType, RoomInput, DoorSpec, WindowSpec
+
+from models import (
+    BuildingParams,
+    DoorSpec,
+    GeoClimateData,
+    RoomInput,
+    RoomLayout,
+    RoomType,
+    WindowSpec,
+)
 
 WET_ZONES = {RoomType.KITCHEN, RoomType.BATHROOM, RoomType.TOILET}
 
@@ -58,7 +67,7 @@ MIN_DIMS: dict[RoomType, tuple[float, float]] = {
 }
 
 
-OPEN_TOL = 0.08   # adjacency tolerance (m)
+OPEN_TOL = 0.08  # adjacency tolerance (m)
 MIN_CORNER = 0.3  # min clearance from wall corner to opening edge (m)
 
 # Number of windows per room type (0 = none)
@@ -75,21 +84,21 @@ WINDOW_COUNTS: dict[RoomType, int] = {
 
 # Window specs (width, height, sill) in metres — GOST 23166
 WIN_SPECS: dict[RoomType, tuple[float, float, float]] = {
-    RoomType.LIVING_ROOM: (1.5, 1.5, 0.85),   # 1500×1500, широкое
-    RoomType.BEDROOM:     (1.3, 1.4, 0.85),    # 1300×1400, стандарт
-    RoomType.KITCHEN:     (1.2, 1.4, 0.85),    # 1200×1400, кухонное
-    RoomType.BATHROOM:    (0.6, 0.9, 0.80),    # 600×900, маленькое
-    RoomType.TOILET:      (0.6, 0.9, 0.80),    # 600×900
-    RoomType.UTILITY:     (0.7, 1.1, 0.85),    # 700×1100, среднее
-    RoomType.GARAGE:      (1.0, 1.0, 1.00),    # гараж
+    RoomType.LIVING_ROOM: (1.5, 1.5, 0.85),  # 1500×1500, широкое
+    RoomType.BEDROOM: (1.3, 1.4, 0.85),  # 1300×1400, стандарт
+    RoomType.KITCHEN: (1.2, 1.4, 0.85),  # 1200×1400, кухонное
+    RoomType.BATHROOM: (0.6, 0.9, 0.80),  # 600×900, маленькое
+    RoomType.TOILET: (0.6, 0.9, 0.80),  # 600×900
+    RoomType.UTILITY: (0.7, 1.1, 0.85),  # 700×1100, среднее
+    RoomType.GARAGE: (1.0, 1.0, 1.00),  # гараж
 }
 
 # Door specs (width, height) in metres — ГОСТ / СП 54
 DOOR_SPECS: dict[RoomType, tuple[float, float]] = {
-    RoomType.HALLWAY:  (0.9, 2.05),  # входная дверь
-    RoomType.BATHROOM: (0.7, 2.0),   # дверь в ванную
-    RoomType.TOILET:   (0.7, 2.0),   # дверь в туалет
-    RoomType.GARAGE:   (2.4, 2.1),   # ворота гаража
+    RoomType.HALLWAY: (0.9, 2.05),  # входная дверь
+    RoomType.BATHROOM: (0.7, 2.0),  # дверь в ванную
+    RoomType.TOILET: (0.7, 2.0),  # дверь в туалет
+    RoomType.GARAGE: (2.4, 2.1),  # ворота гаража
 }
 DEFAULT_DOOR = (0.8, 2.0)  # межкомнатная
 
@@ -106,19 +115,31 @@ def _adjacent_rooms(room: RoomLayout, wall: str, all_rooms: list) -> list:
             continue
         if wall == "S":
             if abs(other.y + other.depth - room.y) < OPEN_TOL:
-                if other.x < room.x + room.width - OPEN_TOL and other.x + other.width > room.x + OPEN_TOL:
+                if (
+                    other.x < room.x + room.width - OPEN_TOL
+                    and other.x + other.width > room.x + OPEN_TOL
+                ):
                     result.append(other)
         elif wall == "N":
             if abs(other.y - (room.y + room.depth)) < OPEN_TOL:
-                if other.x < room.x + room.width - OPEN_TOL and other.x + other.width > room.x + OPEN_TOL:
+                if (
+                    other.x < room.x + room.width - OPEN_TOL
+                    and other.x + other.width > room.x + OPEN_TOL
+                ):
                     result.append(other)
         elif wall == "W":
             if abs(other.x + other.width - room.x) < OPEN_TOL:
-                if other.y < room.y + room.depth - OPEN_TOL and other.y + other.depth > room.y + OPEN_TOL:
+                if (
+                    other.y < room.y + room.depth - OPEN_TOL
+                    and other.y + other.depth > room.y + OPEN_TOL
+                ):
                     result.append(other)
         elif wall == "E":
             if abs(other.x - (room.x + room.width)) < OPEN_TOL:
-                if other.y < room.y + room.depth - OPEN_TOL and other.y + other.depth > room.y + OPEN_TOL:
+                if (
+                    other.y < room.y + room.depth - OPEN_TOL
+                    and other.y + other.depth > room.y + OPEN_TOL
+                ):
                     result.append(other)
     return result
 
@@ -163,7 +184,7 @@ class LayoutEngine:
         # the API route merges these into GenerationResult.warnings.
         self.warnings: list[str] = []
 
-    def generate(self) -> List[RoomLayout]:
+    def generate(self) -> list[RoomLayout]:
         rooms = self._ensure_essentials(list(self.params.rooms))
         rooms_per_floor = self._distribute_floors(rooms)
         layouts = []
@@ -174,7 +195,7 @@ class LayoutEngine:
         self._check_plot_fit(layouts)
         return layouts
 
-    def _check_plot_fit(self, layouts: List[RoomLayout]) -> None:
+    def _check_plot_fit(self, layouts: list[RoomLayout]) -> None:
         """Warn when the packed footprint exceeds the plot dimensions."""
         pw, pd = self.params.plot_width_m, self.params.plot_depth_m
         if not layouts or (not pw and not pd):
@@ -192,7 +213,7 @@ class LayoutEngine:
                 f"Reduce room areas, or add floors to shrink the footprint."
             )
 
-    def _assign_openings(self, layouts: List[RoomLayout]) -> None:
+    def _assign_openings(self, layouts: list[RoomLayout]) -> None:
         """Place doors and windows on every room based on adjacency."""
         WALLS = ("S", "N", "W", "E")
 
@@ -211,13 +232,21 @@ class LayoutEngine:
                 # Hallway: one door per internal wall (connects every neighbour)
                 for w in internal:
                     wlen = _wall_len(room, w)
-                    room.doors.append(DoorSpec(wall=w, position=_place_opening(wlen, dw), width=dw, height=dh))
+                    room.doors.append(
+                        DoorSpec(wall=w, position=_place_opening(wlen, dw), width=dw, height=dh)
+                    )
             else:
-                hallway_walls = [w for w in internal if any(r.room_type == RoomType.HALLWAY for r in adj[w])]
+                hallway_walls = [
+                    w for w in internal if any(r.room_type == RoomType.HALLWAY for r in adj[w])
+                ]
                 door_wall = (hallway_walls or internal or external or [None])[0]
                 if door_wall:
                     wlen = _wall_len(room, door_wall)
-                    room.doors.append(DoorSpec(wall=door_wall, position=_place_opening(wlen, dw), width=dw, height=dh))
+                    room.doors.append(
+                        DoorSpec(
+                            wall=door_wall, position=_place_opening(wlen, dw), width=dw, height=dh
+                        )
+                    )
 
             # ── Windows — ГОСТ 23166 ─────────────────────────────────────────
             needed = WINDOW_COUNTS.get(room.room_type, 1)
@@ -229,7 +258,11 @@ class LayoutEngine:
                 wlen = _wall_len(room, w)
                 if wlen < ww + 2 * MIN_CORNER:
                     continue
-                room.windows.append(WindowSpec(wall=w, position=_place_opening(wlen, ww), width=ww, height=wh, sill=sill))
+                room.windows.append(
+                    WindowSpec(
+                        wall=w, position=_place_opening(wlen, ww), width=ww, height=wh, sill=sill
+                    )
+                )
                 placed += 1
 
     def _ensure_essentials(self, rooms: list) -> list:
@@ -261,7 +294,7 @@ class LayoutEngine:
 
         return per_floor
 
-    def _layout_floor(self, floor: int, rooms) -> List[RoomLayout]:
+    def _layout_floor(self, floor: int, rooms) -> list[RoomLayout]:
         shape = getattr(self.params, "building_shape", "rectangular")
         if shape == "l_shape":
             return self._layout_l(floor, rooms)
@@ -274,10 +307,14 @@ class LayoutEngine:
         return self._layout_strip(floor, rooms, aspect_factor=1.2)
 
     def _layout_strip(
-        self, floor: int, rooms,
-        offset_x: float = 0.0, offset_y: float = 0.0,
-        target_w: Optional[float] = None, aspect_factor: float = 1.2,
-    ) -> List[RoomLayout]:
+        self,
+        floor: int,
+        rooms,
+        offset_x: float = 0.0,
+        offset_y: float = 0.0,
+        target_w: float | None = None,
+        aspect_factor: float = 1.2,
+    ) -> list[RoomLayout]:
         if not rooms:
             return []
 
@@ -329,32 +366,39 @@ class LayoutEngine:
                 row_min_rf = max(row_min_rf, math.sqrt(cur_asp / max_asp))
             rf = max(row_min_rf, min(ideal_scale, row_max_rf))
             scaled = []
-            for room, w, d in row:
+            for room, w, _d in row:
                 fw = max(round(w * rf, 3), 0.5)
                 fd = round(room.area_m2 / fw, 3)
                 scaled.append((room, fw, fd))
             row_depth = round(max(fd for _, _, fd in scaled), 3)
             cursor_x = offset_x
-            for room, fw, fd in scaled:
-                layouts.append(RoomLayout(
-                    room_id=str(uuid.uuid4()),
-                    room_type=room.room_type,
-                    name=room.name or room.room_type.value.replace("_", " ").title(),
-                    x=round(cursor_x, 3),
-                    y=round(cursor_y, 3),
-                    floor=floor,
-                    width=fw,
-                    depth=row_depth,
-                    area_m2=room.area_m2,
-                ))
+            for room, fw, _fd in scaled:
+                layouts.append(
+                    RoomLayout(
+                        room_id=str(uuid.uuid4()),
+                        room_type=room.room_type,
+                        name=room.name or room.room_type.value.replace("_", " ").title(),
+                        x=round(cursor_x, 3),
+                        y=round(cursor_y, 3),
+                        floor=floor,
+                        width=fw,
+                        depth=row_depth,
+                        area_m2=room.area_m2,
+                    )
+                )
                 cursor_x += fw
             cursor_y += row_depth
         return layouts
 
-    def _layout_l(self, floor: int, rooms) -> List[RoomLayout]:
+    def _layout_l(self, floor: int, rooms) -> list[RoomLayout]:
         """Г-образный: service core (main body) + private wing extending down-right."""
-        MAIN_TYPES = {RoomType.HALLWAY, RoomType.BATHROOM, RoomType.TOILET,
-                      RoomType.KITCHEN, RoomType.LIVING_ROOM}
+        MAIN_TYPES = {
+            RoomType.HALLWAY,
+            RoomType.BATHROOM,
+            RoomType.TOILET,
+            RoomType.KITCHEN,
+            RoomType.LIVING_ROOM,
+        }
         main_r = [r for r in rooms if r.room_type in MAIN_TYPES]
         wing_r = [r for r in rooms if r.room_type not in MAIN_TYPES]
         if not wing_r or not main_r:
@@ -365,43 +409,53 @@ class LayoutEngine:
         wing_area = sum(r.area_m2 for r in wing_r)
         wing_tw = round(math.sqrt(wing_area * 1.2), 2)
         wing_ox = round(main_max_x * 0.45, 3)
-        wing = self._layout_strip(floor, wing_r, offset_x=wing_ox, offset_y=main_max_y, target_w=wing_tw)
+        wing = self._layout_strip(
+            floor, wing_r, offset_x=wing_ox, offset_y=main_max_y, target_w=wing_tw
+        )
         return main + wing
 
-    def _layout_u(self, floor: int, rooms) -> List[RoomLayout]:
+    def _layout_u(self, floor: int, rooms) -> list[RoomLayout]:
         """П-образный: left wing + center + right wing (U footprint)."""
+
         def _ok(r):
             try:
                 return (ROOM_ORDER.index(r.room_type), -r.area_m2)
             except ValueError:
                 return (len(ROOM_ORDER), -r.area_m2)
+
         ordered = sorted(rooms, key=_ok)
         n = len(ordered)
         left_n = max(1, n // 3)
         right_n = max(1, n // 3)
         center_n = max(1, n - left_n - right_n)
         left_r = ordered[:left_n]
-        center_r = ordered[left_n:left_n + center_n]
-        right_r = ordered[left_n + center_n:]
+        center_r = ordered[left_n : left_n + center_n]
+        right_r = ordered[left_n + center_n :]
         if not center_r or not right_r:
             return self._layout_strip(floor, rooms, aspect_factor=1.2)
         wing_tw = round(math.sqrt(sum(r.area_m2 for r in left_r) * 0.7), 2)
         left = self._layout_strip(floor, left_r, offset_x=0.0, offset_y=0.0, target_w=wing_tw)
         left_max_x = max(r.x + r.width for r in left)
         center_tw = round(math.sqrt(sum(r.area_m2 for r in center_r) * 1.2), 2)
-        center = self._layout_strip(floor, center_r, offset_x=left_max_x, offset_y=0.0, target_w=center_tw)
+        center = self._layout_strip(
+            floor, center_r, offset_x=left_max_x, offset_y=0.0, target_w=center_tw
+        )
         center_max_x = max(r.x + r.width for r in center) if center else left_max_x
         right_tw = round(math.sqrt(sum(r.area_m2 for r in right_r) * 0.7), 2)
-        right = self._layout_strip(floor, right_r, offset_x=center_max_x, offset_y=0.0, target_w=right_tw)
+        right = self._layout_strip(
+            floor, right_r, offset_x=center_max_x, offset_y=0.0, target_w=right_tw
+        )
         return left + center + right
 
-    def _layout_t(self, floor: int, rooms) -> List[RoomLayout]:
+    def _layout_t(self, floor: int, rooms) -> list[RoomLayout]:
         """Т-образный: wide top bar + narrow stem centered below."""
+
         def _ok(r):
             try:
                 return (ROOM_ORDER.index(r.room_type), -r.area_m2)
             except ValueError:
                 return (len(ROOM_ORDER), -r.area_m2)
+
         ordered = sorted(rooms, key=_ok)
         n = len(ordered)
         top_n = max(1, int(n * 0.65))
@@ -414,5 +468,7 @@ class LayoutEngine:
         top_max_y = max(r.y + r.depth for r in top)
         stem_tw = round(top_max_x * 0.4, 2)
         stem_ox = round((top_max_x - stem_tw) / 2, 3)
-        stem = self._layout_strip(floor, stem_r, offset_x=stem_ox, offset_y=top_max_y, target_w=stem_tw)
+        stem = self._layout_strip(
+            floor, stem_r, offset_x=stem_ox, offset_y=top_max_y, target_w=stem_tw
+        )
         return top + stem

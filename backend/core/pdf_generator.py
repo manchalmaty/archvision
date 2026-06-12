@@ -3,6 +3,7 @@ PDF report generator for a completed GenerationResult.
 Renders a localized (en/ru/kk) summary: rooms, geo-climate, cost,
 compliance and MEP findings, with a non-liability disclaimer.
 """
+
 import io
 import logging
 import os
@@ -26,12 +27,15 @@ logger = logging.getLogger(__name__)
 _FONT_CANDIDATES = [
     # (regular, bold)
     ("C:/Windows/Fonts/arial.ttf", "C:/Windows/Fonts/arialbd.ttf"),
-    ("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
-     "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"),
-    ("/usr/share/fonts/dejavu/DejaVuSans.ttf",
-     "/usr/share/fonts/dejavu/DejaVuSans-Bold.ttf"),
-    ("/System/Library/Fonts/Supplemental/Arial.ttf",
-     "/System/Library/Fonts/Supplemental/Arial Bold.ttf"),
+    (
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
+    ),
+    ("/usr/share/fonts/dejavu/DejaVuSans.ttf", "/usr/share/fonts/dejavu/DejaVuSans-Bold.ttf"),
+    (
+        "/System/Library/Fonts/Supplemental/Arial.ttf",
+        "/System/Library/Fonts/Supplemental/Arial Bold.ttf",
+    ),
 ]
 
 FONT = "Helvetica"
@@ -67,14 +71,24 @@ _L = {
         "project": "Project",
         "generated": "Generated",
         "geo": "Geo-Climate & Structural Data",
-        "frost": "Frost depth", "seismic": "Seismic zone",
-        "wall": "Wall thickness", "insul": "Insulation",
-        "snow": "Snow load", "wind": "Wind load", "foundation": "Foundation type",
+        "frost": "Frost depth",
+        "seismic": "Seismic zone",
+        "wall": "Wall thickness",
+        "insul": "Insulation",
+        "snow": "Snow load",
+        "wind": "Wind load",
+        "foundation": "Foundation type",
         "rooms": "Rooms",
-        "room": "Room", "floor": "Floor", "dims": "Dimensions", "area": "Area",
+        "room": "Room",
+        "floor": "Floor",
+        "dims": "Dimensions",
+        "area": "Area",
         "cost": "Cost Estimate",
-        "total_usd": "Total (USD)", "total_local": "Total (local)",
-        "concrete": "Concrete", "brick": "Brick", "insul_m2": "Insulation",
+        "total_usd": "Total (USD)",
+        "total_local": "Total (local)",
+        "concrete": "Concrete",
+        "brick": "Brick",
+        "insul_m2": "Insulation",
         "compliance": "Compliance Issues",
         "no_issues": "All checked rules passed.",
         "fix": "Fix",
@@ -82,22 +96,31 @@ _L = {
         "no_clashes": "No MEP clashes detected.",
         "warnings": "Warnings",
         "disclaimer": "Schematic design for preliminary assessment only. "
-                      "Requires certification by a licensed architect.",
+        "Requires certification by a licensed architect.",
     },
     "ru": {
         "title": "Отчёт по архитектурному эскизу",
         "project": "Проект",
         "generated": "Сформирован",
         "geo": "Геоклимат и конструктив",
-        "frost": "Глубина промерзания", "seismic": "Сейсмическая зона",
-        "wall": "Толщина стен", "insul": "Утеплитель",
-        "snow": "Снеговая нагрузка", "wind": "Ветровая нагрузка",
+        "frost": "Глубина промерзания",
+        "seismic": "Сейсмическая зона",
+        "wall": "Толщина стен",
+        "insul": "Утеплитель",
+        "snow": "Снеговая нагрузка",
+        "wind": "Ветровая нагрузка",
         "foundation": "Тип фундамента",
         "rooms": "Помещения",
-        "room": "Помещение", "floor": "Этаж", "dims": "Размеры", "area": "Площадь",
+        "room": "Помещение",
+        "floor": "Этаж",
+        "dims": "Размеры",
+        "area": "Площадь",
         "cost": "Смета",
-        "total_usd": "Итого (USD)", "total_local": "Итого (местная валюта)",
-        "concrete": "Бетон", "brick": "Кирпич", "insul_m2": "Утеплитель",
+        "total_usd": "Итого (USD)",
+        "total_local": "Итого (местная валюта)",
+        "concrete": "Бетон",
+        "brick": "Кирпич",
+        "insul_m2": "Утеплитель",
         "compliance": "Замечания по нормам",
         "no_issues": "Все проверенные нормы соблюдены.",
         "fix": "Рекомендация",
@@ -105,22 +128,31 @@ _L = {
         "no_clashes": "Конфликтов инженерных сетей не обнаружено.",
         "warnings": "Предупреждения",
         "disclaimer": "Эскизный проект для предварительной оценки. "
-                      "Требует заверения лицензированным архитектором.",
+        "Требует заверения лицензированным архитектором.",
     },
     "kk": {
         "title": "Сәулеттік эскиз бойынша есеп",
         "project": "Жоба",
         "generated": "Құрылған күні",
         "geo": "Геоклимат және конструкция",
-        "frost": "Қату тереңдігі", "seismic": "Сейсмикалық аймақ",
-        "wall": "Қабырға қалыңдығы", "insul": "Жылу оқшаулағыш",
-        "snow": "Қар жүктемесі", "wind": "Жел жүктемесі",
+        "frost": "Қату тереңдігі",
+        "seismic": "Сейсмикалық аймақ",
+        "wall": "Қабырға қалыңдығы",
+        "insul": "Жылу оқшаулағыш",
+        "snow": "Қар жүктемесі",
+        "wind": "Жел жүктемесі",
         "foundation": "Іргетас түрі",
         "rooms": "Бөлмелер",
-        "room": "Бөлме", "floor": "Қабат", "dims": "Өлшемдері", "area": "Ауданы",
+        "room": "Бөлме",
+        "floor": "Қабат",
+        "dims": "Өлшемдері",
+        "area": "Ауданы",
         "cost": "Смета",
-        "total_usd": "Барлығы (USD)", "total_local": "Барлығы (жергілікті валюта)",
-        "concrete": "Бетон", "brick": "Кірпіш", "insul_m2": "Жылу оқшаулағыш",
+        "total_usd": "Барлығы (USD)",
+        "total_local": "Барлығы (жергілікті валюта)",
+        "concrete": "Бетон",
+        "brick": "Кірпіш",
+        "insul_m2": "Жылу оқшаулағыш",
         "compliance": "Нормалар бойынша ескертулер",
         "no_issues": "Барлық тексерілген талаптар орындалды.",
         "fix": "Ұсыныс",
@@ -128,21 +160,24 @@ _L = {
         "no_clashes": "Инженерлік желілер қақтығысы табылмады.",
         "warnings": "Ескертулер",
         "disclaimer": "Алдын ала бағалауға арналған эскиздік жоба. "
-                      "Лицензияланған сәулетшінің растауын қажет етеді.",
+        "Лицензияланған сәулетшінің растауын қажет етеді.",
     },
 }
 
+
 def _table_style(*extra: tuple) -> TableStyle:
     """Shared base look for every table; pass per-table overrides as extras."""
-    return TableStyle([
-        ("FONTNAME", (0, 0), (-1, -1), FONT),
-        ("FONTSIZE", (0, 0), (-1, -1), 9),
-        ("GRID", (0, 0), (-1, -1), 0.4, colors.HexColor("#b0b7c3")),
-        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-        ("TOPPADDING", (0, 0), (-1, -1), 4),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
-        *extra,
-    ])
+    return TableStyle(
+        [
+            ("FONTNAME", (0, 0), (-1, -1), FONT),
+            ("FONTSIZE", (0, 0), (-1, -1), 9),
+            ("GRID", (0, 0), (-1, -1), 0.4, colors.HexColor("#b0b7c3")),
+            ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+            ("TOPPADDING", (0, 0), (-1, -1), 4),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+            *extra,
+        ]
+    )
 
 
 # Header row bolded and tinted — used by the rooms table.
@@ -158,41 +193,54 @@ def generate_pdf(result: GenerationResult, lang: str = "en") -> bytes:
 
     styles = {
         "h1": ParagraphStyle("h1", fontName=FONT_BOLD, fontSize=16, spaceAfter=2 * mm),
-        "h2": ParagraphStyle("h2", fontName=FONT_BOLD, fontSize=12,
-                             spaceBefore=5 * mm, spaceAfter=2 * mm),
+        "h2": ParagraphStyle(
+            "h2", fontName=FONT_BOLD, fontSize=12, spaceBefore=5 * mm, spaceAfter=2 * mm
+        ),
         "body": ParagraphStyle("body", fontName=FONT, fontSize=9, leading=12),
-        "muted": ParagraphStyle("muted", fontName=FONT, fontSize=8,
-                                textColor=colors.HexColor("#667085")),
+        "muted": ParagraphStyle(
+            "muted", fontName=FONT, fontSize=8, textColor=colors.HexColor("#667085")
+        ),
     }
 
     story = []
     story.append(Paragraph(t["title"], styles["h1"]))
-    story.append(Paragraph(
-        f'{t["project"]}: <font face="{FONT}">{result.project_id[:8]}</font> · '
-        f'{t["generated"]}: {date.today().isoformat()}',
-        styles["muted"],
-    ))
+    story.append(
+        Paragraph(
+            f'{t["project"]}: <font face="{FONT}">{result.project_id[:8]}</font> · '
+            f'{t["generated"]}: {date.today().isoformat()}',
+            styles["muted"],
+        )
+    )
     story.append(Spacer(1, 4 * mm))
 
     # Geo-climate
     g = result.geo_climate
     story.append(Paragraph(t["geo"], styles["h2"]))
-    story.append(Table(
-        [
-            [t["frost"], f"{g.frost_depth_m} m", t["seismic"], str(g.seismic_zone)],
-            [t["wall"], f"{g.wall_thickness_mm} mm", t["insul"], f"{g.insulation_thickness_mm} mm"],
-            [t["snow"], f"{g.snow_load_kpa} kPa", t["wind"], f"{g.wind_load_kpa} kPa"],
-            [t["foundation"], g.foundation_type, "", ""],
-        ],
-        colWidths=[42 * mm, 38 * mm, 42 * mm, 38 * mm],
-        style=_table_style(("SPAN", (1, 3), (3, 3))),
-    ))
+    story.append(
+        Table(
+            [
+                [t["frost"], f"{g.frost_depth_m} m", t["seismic"], str(g.seismic_zone)],
+                [
+                    t["wall"],
+                    f"{g.wall_thickness_mm} mm",
+                    t["insul"],
+                    f"{g.insulation_thickness_mm} mm",
+                ],
+                [t["snow"], f"{g.snow_load_kpa} kPa", t["wind"], f"{g.wind_load_kpa} kPa"],
+                [t["foundation"], g.foundation_type, "", ""],
+            ],
+            colWidths=[42 * mm, 38 * mm, 42 * mm, 38 * mm],
+            style=_table_style(("SPAN", (1, 3), (3, 3))),
+        )
+    )
 
     # Rooms
     story.append(Paragraph(t["rooms"], styles["h2"]))
     rows = [[t["room"], t["floor"], t["dims"], t["area"]]]
     for r in sorted(result.rooms, key=lambda r: (r.floor, r.name)):
-        rows.append([r.name, str(r.floor), f"{r.width:.2f} × {r.depth:.2f} m", f"{r.area_m2:.1f} m²"])
+        rows.append(
+            [r.name, str(r.floor), f"{r.width:.2f} × {r.depth:.2f} m", f"{r.area_m2:.1f} m²"]
+        )
     story.append(Table(rows, colWidths=[70 * mm, 20 * mm, 45 * mm, 25 * mm], style=_TABLE_STYLE))
 
     # Cost
@@ -208,11 +256,13 @@ def generate_pdf(result: GenerationResult, lang: str = "en") -> bytes:
     for k, v in c.breakdown.items():
         cost_rows.append([k.replace("_usd", "").replace("_", " ").title(), f"${v:,.0f}"])
     # Both total rows (USD and local currency) are intentionally bold.
-    story.append(Table(
-        cost_rows,
-        colWidths=[90 * mm, 70 * mm],
-        style=_table_style(("FONTNAME", (0, 0), (-1, 1), FONT_BOLD)),
-    ))
+    story.append(
+        Table(
+            cost_rows,
+            colWidths=[90 * mm, 70 * mm],
+            style=_table_style(("FONTNAME", (0, 0), (-1, 1), FONT_BOLD)),
+        )
+    )
 
     # Compliance
     story.append(Paragraph(t["compliance"], styles["h2"]))
@@ -232,11 +282,13 @@ def generate_pdf(result: GenerationResult, lang: str = "en") -> bytes:
         story.append(Paragraph(t["no_clashes"], styles["body"]))
     else:
         for conf in result.mep_conflicts:
-            story.append(Paragraph(
-                f"<b>[{conf.severity}]</b> {conf.description} "
-                f"({conf.location_x:.1f}, {conf.location_y:.1f}, {conf.location_z:.1f})",
-                styles["body"],
-            ))
+            story.append(
+                Paragraph(
+                    f"<b>[{conf.severity}]</b> {conf.description} "
+                    f"({conf.location_x:.1f}, {conf.location_y:.1f}, {conf.location_z:.1f})",
+                    styles["body"],
+                )
+            )
             story.append(Spacer(1, 1.5 * mm))
 
     # Warnings
@@ -251,9 +303,12 @@ def generate_pdf(result: GenerationResult, lang: str = "en") -> bytes:
 
     buf = io.BytesIO()
     SimpleDocTemplate(
-        buf, pagesize=A4,
-        leftMargin=18 * mm, rightMargin=18 * mm,
-        topMargin=16 * mm, bottomMargin=16 * mm,
+        buf,
+        pagesize=A4,
+        leftMargin=18 * mm,
+        rightMargin=18 * mm,
+        topMargin=16 * mm,
+        bottomMargin=16 * mm,
         title=t["title"],
     ).build(story)
     return buf.getvalue()
