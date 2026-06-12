@@ -1,0 +1,5 @@
+# Dev/CI tooling — linters, formatter, test runner.
+# Runtime deps live in requirements.txt.
+ruff==0.15.17
+black==26.5.1
+pytest==9.0.3
