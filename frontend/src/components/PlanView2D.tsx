@@ -8,7 +8,7 @@ import {
   SELECTION_ACCENT,
   SEVERITY_COLORS,
 } from "./roomColors";
-import { floorRooms, roomsBBox, type BBox } from "./planGeometry";
+import { floorRooms, roomsBBox, clampPos, type BBox } from "./planGeometry";
 import type { RoomLayout, MEPConflict, DoorSpec, WindowSpec } from "../types";
 
 const WALL_T = 0.18; // wall line thickness in plan units (m)
@@ -35,12 +35,6 @@ function zoomViewBox(v: VB, k: number, ax: number, ay: number): VB {
 
 // fy flips plan Y so that north (larger y) points up on screen
 type FlipFn = (y: number) => number;
-
-// Defensive clamp: keep the opening inside its wall even if the backend
-// emitted a position that overflows (possible on very short walls).
-function clampPos(position: number, openingW: number, wallLen: number): number {
-  return Math.max(0, Math.min(position, Math.max(0, wallLen - openingW)));
-}
 
 function DoorSymbol({ room, door, fy }: { room: RoomLayout; door: DoorSpec; fy: FlipFn }) {
   const dw = door.width;

@@ -27,12 +27,18 @@ function loadParams(): BuildingParams {
   return DEFAULT_PARAMS;
 }
 
+// Debounced: mutators fire on every keystroke; persisting once after the
+// user pauses avoids a JSON.stringify + disk write per character.
+let saveTimer: ReturnType<typeof setTimeout> | undefined;
 function saveParams(params: BuildingParams) {
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(params));
-  } catch {
-    /* storage unavailable (private mode / quota) — non-fatal */
-  }
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(() => {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(params));
+    } catch {
+      /* storage unavailable (private mode / quota) — non-fatal */
+    }
+  }, 300);
 }
 
 export type ViewMode = "3d" | "2d";
@@ -40,6 +46,8 @@ export type ViewMode = "3d" | "2d";
 interface AppState {
   params: BuildingParams;
   result: GenerationResult | null;
+  /** True when params changed after the current result was generated. */
+  resultStale: boolean;
   isGenerating: boolean;
   /** Last generation error, shown in the workspace until the next attempt. */
   error: string | null;
@@ -64,6 +72,7 @@ interface AppState {
 export const useStore = create<AppState>((set) => ({
   params: loadParams(),
   result: null,
+  resultStale: false,
   isGenerating: false,
   error: null,
   activeFloor: 1,
@@ -71,20 +80,21 @@ export const useStore = create<AppState>((set) => ({
   selectedRoomId: null,
   viewMode: "3d",
 
-  // Any change to params invalidates the current result, so clear it
-  // (and the room selection, which points into the now-stale layout).
+  // Any change to params marks the current result as stale, but keeps it on
+  // screen — wiping it on every keystroke would destroy the plan the user is
+  // viewing. The UI shows a "regenerate" hint while resultStale is true.
   setParams: (p) =>
     set((s) => {
       const params = { ...s.params, ...p };
       saveParams(params);
-      return { params, result: null, selectedRoomId: null };
+      return { params, resultStale: s.result !== null };
     }),
 
   addRoom: (r) =>
     set((s) => {
       const params = { ...s.params, rooms: [...s.params.rooms, r] };
       saveParams(params);
-      return { params, result: null, selectedRoomId: null };
+      return { params, resultStale: s.result !== null };
     }),
 
   updateRoom: (index, r) =>
@@ -93,7 +103,7 @@ export const useStore = create<AppState>((set) => ({
       rooms[index] = { ...rooms[index], ...r };
       const params = { ...s.params, rooms };
       saveParams(params);
-      return { params, result: null, selectedRoomId: null };
+      return { params, resultStale: s.result !== null };
     }),
 
   removeRoom: (index) =>
@@ -103,10 +113,10 @@ export const useStore = create<AppState>((set) => ({
         rooms: s.params.rooms.filter((_, i) => i !== index),
       };
       saveParams(params);
-      return { params, result: null, selectedRoomId: null };
+      return { params, resultStale: s.result !== null };
     }),
 
-  setResult: (r) => set({ result: r }),
+  setResult: (r) => set({ result: r, resultStale: false, selectedRoomId: null }),
   setGenerating: (v) => set({ isGenerating: v }),
   setError: (msg) => set({ error: msg }),
   setActiveFloor: (f) => set({ activeFloor: f }),

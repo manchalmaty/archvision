@@ -12,6 +12,7 @@ export default {
     genSuccess: "Plan generated successfully!",
     showResults: "Show Results →",
     dismissError: "Dismiss error",
+    staleParams: "Parameters changed — regenerate to update the plan",
     disclaimer:
       "Schematic design for preliminary assessment. Requires certification by a licensed architect.",
   },

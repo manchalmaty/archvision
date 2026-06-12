@@ -124,10 +124,15 @@ def _adjacent_rooms(room: RoomLayout, wall: str, all_rooms: list) -> list:
 
 
 def _place_opening(wall_len: float, opening_width: float) -> float:
-    """Center opening in wall, respecting MIN_CORNER clearance."""
+    """Center opening in wall, respecting MIN_CORNER clearance.
+
+    On walls too short for corner clearances the opening is centered without
+    them; the position never lets the opening overflow the wall, so renderers
+    can trust the data as-is.
+    """
     usable = wall_len - 2 * MIN_CORNER
     if usable < opening_width:
-        return MIN_CORNER
+        return round(max(0.0, (wall_len - opening_width) / 2), 3)
     return round(MIN_CORNER + (usable - opening_width) / 2, 3)
 
 
@@ -286,9 +291,12 @@ class LayoutEngine:
         total_area = sum(r.area_m2 for r in ordered)
         if target_w is None:
             target_w = round(math.sqrt(total_area * aspect_factor), 2)
-            # Respect the plot: never plan rows wider than the plot itself.
-            if self.params.plot_width_m:
-                target_w = min(target_w, self.params.plot_width_m)
+        # Respect the plot for EVERY strip (main body and L/U/T wings alike):
+        # a strip starting at offset_x may only use the remaining plot width.
+        if self.params.plot_width_m:
+            available = self.params.plot_width_m - offset_x
+            if available > 1.0:
+                target_w = min(target_w, available)
 
         # Pass 1: bin rooms into rows
         raw_rows: list[list[tuple]] = []

@@ -5,10 +5,6 @@ import { ifcDownloadUrl, pdfReportUrl } from "../api/client";
 
 type Tab = "ANALYSIS" | "MEP" | "EXPORT";
 
-// Hints exist for the conflict types the backend emits today; unknown future
-// types (HVAC, electrical) fall back to mepHints.default so guidance is never empty.
-const KNOWN_HINT_TYPES = new Set(["pipe_pipe_clash", "pipe_wall_penetration"]);
-
 function planQualityScore(result: import("../types").GenerationResult): {
   score: number;
   labelKey: string;
@@ -347,9 +343,11 @@ function MEPTab() {
 
       {/* Conflict list */}
       {conflicts.map((c) => {
-        const hint = KNOWN_HINT_TYPES.has(c.conflict_type)
-          ? t(`mepHints.${c.conflict_type}`)
-          : t("mepHints.default");
+        // Locale files are the single source of hint types; unknown conflict
+        // types fall back to the generic guidance.
+        const hint = t(`mepHints.${c.conflict_type}`, {
+          defaultValue: t("mepHints.default"),
+        });
         return (
           <div
             key={c.conflict_id}

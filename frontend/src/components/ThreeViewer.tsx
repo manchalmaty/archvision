@@ -4,7 +4,8 @@ import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { OrbitControls, Grid, Text, Box, Cylinder, PerspectiveCamera } from "@react-three/drei";
 import * as THREE from "three";
 import { useStore } from "../store/useStore";
-import { ROOM_COLORS } from "./roomColors";
+import { ROOM_COLORS, SEVERITY_COLORS } from "./roomColors";
+import { floorRooms, roomsBBox, clampPos } from "./planGeometry";
 import { PlanView2D } from "./PlanView2D";
 import type { RoomLayout, MEPConflict, DoorSpec, WindowSpec } from "../types";
 
@@ -131,20 +132,22 @@ function DoorVisual({
   const dt = 0.12;
   const cy = SLAB_H / 2 + dh / 2; // center height above group origin
   const dw = door.width;
+  const wallLen = door.wall === "S" || door.wall === "N" ? roomWidth : roomDepth;
+  const dpos = clampPos(door.position, dw, wallLen);
 
   let pos: [number, number, number];
   let args: [number, number, number];
   if (door.wall === "S") {
-    pos = [door.position + dw / 2 - roomWidth / 2, cy, -roomDepth / 2];
+    pos = [dpos + dw / 2 - roomWidth / 2, cy, -roomDepth / 2];
     args = [dw, dh, dt];
   } else if (door.wall === "N") {
-    pos = [door.position + dw / 2 - roomWidth / 2, cy, roomDepth / 2];
+    pos = [dpos + dw / 2 - roomWidth / 2, cy, roomDepth / 2];
     args = [dw, dh, dt];
   } else if (door.wall === "W") {
-    pos = [-roomWidth / 2, cy, door.position + dw / 2 - roomDepth / 2];
+    pos = [-roomWidth / 2, cy, dpos + dw / 2 - roomDepth / 2];
     args = [dt, dh, dw];
   } else {
-    pos = [roomWidth / 2, cy, door.position + dw / 2 - roomDepth / 2];
+    pos = [roomWidth / 2, cy, dpos + dw / 2 - roomDepth / 2];
     args = [dt, dh, dw];
   }
   return (
@@ -167,24 +170,26 @@ function WindowVisual({
   const cy = SLAB_H / 2 + win.sill + win.height / 2;
   const ww = win.width;
   const wh = win.height;
+  const wallLen = win.wall === "S" || win.wall === "N" ? roomWidth : roomDepth;
+  const wpos = clampPos(win.position, ww, wallLen);
 
   let pos: [number, number, number];
   let frameArgs: [number, number, number];
   let glassArgs: [number, number, number];
   if (win.wall === "S") {
-    pos = [win.position + ww / 2 - roomWidth / 2, cy, -roomDepth / 2];
+    pos = [wpos + ww / 2 - roomWidth / 2, cy, -roomDepth / 2];
     frameArgs = [ww + 0.08, wh + 0.08, dt + 0.02];
     glassArgs = [ww, wh, dt];
   } else if (win.wall === "N") {
-    pos = [win.position + ww / 2 - roomWidth / 2, cy, roomDepth / 2];
+    pos = [wpos + ww / 2 - roomWidth / 2, cy, roomDepth / 2];
     frameArgs = [ww + 0.08, wh + 0.08, dt + 0.02];
     glassArgs = [ww, wh, dt];
   } else if (win.wall === "W") {
-    pos = [-roomWidth / 2, cy, win.position + ww / 2 - roomDepth / 2];
+    pos = [-roomWidth / 2, cy, wpos + ww / 2 - roomDepth / 2];
     frameArgs = [dt + 0.02, wh + 0.08, ww + 0.08];
     glassArgs = [dt, wh, ww];
   } else {
-    pos = [roomWidth / 2, cy, win.position + ww / 2 - roomDepth / 2];
+    pos = [roomWidth / 2, cy, wpos + ww / 2 - roomDepth / 2];
     frameArgs = [dt + 0.02, wh + 0.08, ww + 0.08];
     glassArgs = [dt, wh, ww];
   }
@@ -241,7 +246,7 @@ function ConflictMarker({ conflict }: { conflict: MEPConflict }) {
     }
   });
 
-  const color = conflict.severity === "HIGH" ? "#ef4444" : "#f59e0b";
+  const color = SEVERITY_COLORS[conflict.severity] ?? SEVERITY_COLORS.MEDIUM;
 
   return (
     <mesh
@@ -268,16 +273,13 @@ function CameraRig() {
 
   useEffect(() => {
     if (!result || !controlsRef.current) return;
-    const rooms = result.rooms.filter((r) => r.floor === activeFloor);
-    if (!rooms.length) return;
+    // Plan Y maps to Three.js Z (depth axis).
+    const bb = roomsBBox(floorRooms(result, activeFloor));
+    if (!bb) return;
 
-    const minX = Math.min(...rooms.map((r) => r.x));
-    const maxX = Math.max(...rooms.map((r) => r.x + r.width));
-    const minZ = Math.min(...rooms.map((r) => r.y));
-    const maxZ = Math.max(...rooms.map((r) => r.y + r.depth));
-    const cx = (minX + maxX) / 2;
-    const cz = (minZ + maxZ) / 2;
-    const span = Math.max(maxX - minX, maxZ - minZ);
+    const cx = (bb.minX + bb.maxX) / 2;
+    const cz = (bb.minY + bb.maxY) / 2;
+    const span = Math.max(bb.maxX - bb.minX, bb.maxY - bb.minY);
     const dist = span * 1.1 + 8;
     const fy = (activeFloor - 1) * FLOOR_HEIGHT + 1.5;
 

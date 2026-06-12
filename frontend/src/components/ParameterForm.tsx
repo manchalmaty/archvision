@@ -20,7 +20,6 @@ const SHAPES: { id: BuildingShape; icon: JSX.Element }[] = [
   },
   {
     id: "square",
-
     icon: (
       <svg
         viewBox="0 0 24 24"
@@ -36,7 +35,6 @@ const SHAPES: { id: BuildingShape; icon: JSX.Element }[] = [
   },
   {
     id: "l_shape",
-
     icon: (
       <svg
         viewBox="0 0 24 24"
@@ -52,7 +50,6 @@ const SHAPES: { id: BuildingShape; icon: JSX.Element }[] = [
   },
   {
     id: "u_shape",
-
     icon: (
       <svg
         viewBox="0 0 24 24"
@@ -68,7 +65,6 @@ const SHAPES: { id: BuildingShape; icon: JSX.Element }[] = [
   },
   {
     id: "t_shape",
-
     icon: (
       <svg
         viewBox="0 0 24 24"
@@ -96,6 +92,13 @@ const ROOM_TYPES: RoomType[] = [
 ];
 
 const COUNTRIES: CountryCode[] = ["RU", "KZ", "UA", "BY", "UZ", "DE", "US", "OTHER"];
+
+// Optional positive number: empty/invalid/non-positive input clears the field
+// (the backend schema requires gt=0, so 0 is not a meaningful value here).
+function parsePositiveFloat(value: string): number | undefined {
+  const v = parseFloat(value);
+  return Number.isFinite(v) && v > 0 ? v : undefined;
+}
 
 interface Props {
   onGenerate: () => void;
@@ -195,7 +198,7 @@ export function ParameterForm({ onGenerate }: Props) {
               className="input"
               placeholder={t("form.plotWidth")}
               value={params.plot_width_m ?? ""}
-              onChange={(e) => setParams({ plot_width_m: parseFloat(e.target.value) || undefined })}
+              onChange={(e) => setParams({ plot_width_m: parsePositiveFloat(e.target.value) })}
             />
             <span className="text-slate-600 text-sm">×</span>
             <input
@@ -206,7 +209,7 @@ export function ParameterForm({ onGenerate }: Props) {
               className="input"
               placeholder={t("form.plotDepth")}
               value={params.plot_depth_m ?? ""}
-              onChange={(e) => setParams({ plot_depth_m: parseFloat(e.target.value) || undefined })}
+              onChange={(e) => setParams({ plot_depth_m: parsePositiveFloat(e.target.value) })}
             />
           </div>
           {plotCapacity !== null && totalArea > plotCapacity && (

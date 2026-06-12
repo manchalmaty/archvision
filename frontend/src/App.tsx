@@ -10,7 +10,8 @@ import toast from "react-hot-toast";
 
 export default function App() {
   const { t, i18n } = useTranslation();
-  const { params, setResult, setGenerating, isGenerating, result, error, setError } = useStore();
+  const { params, setResult, setGenerating, isGenerating, result, resultStale, error, setError } =
+    useStore();
   const [rightOpen, setRightOpen] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
 
@@ -30,9 +31,8 @@ export default function App() {
       if (isCancelError(e)) {
         toast(t("app.cancelled"));
       } else {
-        const msg = getErrorMessage(e, t("app.genFailed"));
-        setError(msg);
-        toast.error(msg);
+        // The persistent banner is the single error surface — no extra toast.
+        setError(getErrorMessage(e, t("app.genFailed")));
       }
     } finally {
       setGenerating(false);
@@ -174,41 +174,66 @@ export default function App() {
               </div>
             </div>
           )}
-          {/* Error banner — persists until the next generation attempt */}
-          {error && !isGenerating && (
+          {/* Notices: error banner + stale-params hint, stacked top-center */}
+          {!isGenerating && (error || (result && resultStale)) && (
             <div
               style={{
                 position: "absolute",
-                top: 16,
+                top: 56,
                 left: "50%",
                 transform: "translateX(-50%)",
-                maxWidth: 420,
-                background: "#2d1216",
-                border: "1px solid #7f1d1d",
-                borderRadius: 8,
-                padding: "10px 14px",
-                zIndex: 6,
                 display: "flex",
-                alignItems: "flex-start",
-                gap: 10,
+                flexDirection: "column",
+                alignItems: "center",
+                gap: 8,
+                zIndex: 6,
+                maxWidth: 420,
               }}
             >
-              <span style={{ fontSize: 13, color: "#fca5a5", lineHeight: 1.4 }}>{error}</span>
-              <button
-                onClick={() => setError(null)}
-                aria-label={t("app.dismissError")}
-                style={{
-                  background: "none",
-                  border: "none",
-                  color: "#7f1d1d",
-                  cursor: "pointer",
-                  fontSize: 16,
-                  lineHeight: 1,
-                  padding: 0,
-                }}
-              >
-                ×
-              </button>
+              {error && (
+                <div
+                  style={{
+                    background: "#2d1216",
+                    border: "1px solid #7f1d1d",
+                    borderRadius: 8,
+                    padding: "10px 14px",
+                    display: "flex",
+                    alignItems: "flex-start",
+                    gap: 10,
+                  }}
+                >
+                  <span style={{ fontSize: 13, color: "#fca5a5", lineHeight: 1.4 }}>{error}</span>
+                  <button
+                    onClick={() => setError(null)}
+                    aria-label={t("app.dismissError")}
+                    style={{
+                      background: "none",
+                      border: "none",
+                      color: "#7f1d1d",
+                      cursor: "pointer",
+                      fontSize: 16,
+                      lineHeight: 1,
+                      padding: 0,
+                    }}
+                  >
+                    ×
+                  </button>
+                </div>
+              )}
+              {result && resultStale && (
+                <div
+                  style={{
+                    background: "#2a2008",
+                    border: "1px solid #a16207",
+                    borderRadius: 20,
+                    padding: "5px 14px",
+                    fontSize: 12,
+                    color: "#fcd34d",
+                  }}
+                >
+                  {t("app.staleParams")}
+                </div>
+              )}
             </div>
           )}
           {/* Toggle button when panel is closed after first generation */}

@@ -1,5 +1,6 @@
-from fastapi import APIRouter, HTTPException, BackgroundTasks, Query
+from fastapi import APIRouter, HTTPException, BackgroundTasks, Path, Query
 from fastapi.responses import FileResponse, Response
+import logging
 import uuid
 import os
 
@@ -16,10 +17,16 @@ from mep.clash_detector import ClashDetector
 from ai.rag_engine import ComplianceChecker
 from config import settings
 
+logger = logging.getLogger(__name__)
+
 router = APIRouter()
 
 geo_calc = GeoClimateCalculator()
 rag_checker = ComplianceChecker()
+
+# project_id is always a uuid4 we generated; rejecting anything else closes
+# the path-traversal door on every file-serving endpoint below.
+UUID_PATH = Path(pattern=r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$")
 
 
 @router.post("/generate-plan", response_model=GenerationResult)
@@ -80,8 +87,10 @@ async def generate_plan(params: BuildingParams):
         result_path = os.path.join(settings.IFC_OUTPUT_DIR, f"{project_id}.json")
         with open(result_path, "w", encoding="utf-8") as f:
             f.write(result.model_dump_json())
-    except OSError:
-        pass  # report export degrades gracefully; generation itself succeeded
+    except OSError as exc:
+        # Non-fatal (generation succeeded), but /report/{id} will 404 —
+        # leave a trail so operators can correlate.
+        logger.warning("Could not persist result for %s: %s", project_id, exc)
 
     return result
 
@@ -108,7 +117,7 @@ async def mep_routing(req: MEPRoutingRequest):
 
 
 @router.get("/download/{project_id}")
-async def download_ifc(project_id: str):
+async def download_ifc(project_id: str = UUID_PATH):
     ifc_path = os.path.join(settings.IFC_OUTPUT_DIR, f"{project_id}.ifc")
     if not os.path.exists(ifc_path):
         raise HTTPException(status_code=404, detail="IFC file not found")
@@ -120,15 +129,27 @@ async def download_ifc(project_id: str):
 
 
 @router.get("/report/{project_id}")
-async def pdf_report(project_id: str, lang: str = Query("en", pattern="^(en|ru|kk)$")):
+async def pdf_report(
+    project_id: str = UUID_PATH,
+    lang: str = Query("en", pattern="^(en|ru|kk)$"),
+):
     """Localized PDF report for a previously generated project."""
+    from pydantic import ValidationError
+
     from core.pdf_generator import generate_pdf
 
     result_path = os.path.join(settings.IFC_OUTPUT_DIR, f"{project_id}.json")
     if not os.path.exists(result_path):
         raise HTTPException(status_code=404, detail="Project not found")
-    with open(result_path, encoding="utf-8") as f:
-        result = GenerationResult.model_validate_json(f.read())
+    try:
+        with open(result_path, encoding="utf-8") as f:
+            result = GenerationResult.model_validate_json(f.read())
+    except ValidationError:
+        # File was written by an older schema version — regeneration required.
+        raise HTTPException(
+            status_code=410,
+            detail="Stored project data is incompatible with the current version; regenerate the plan",
+        )
 
     pdf_bytes = generate_pdf(result, lang)
     return Response(

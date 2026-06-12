@@ -10,41 +10,62 @@ const api = axios.create({
 
 const MAX_RETRIES = 2;
 
+/** Sleep that rejects immediately when the signal aborts, so Cancel is instant. */
+function abortableSleep(ms: number, signal?: AbortSignal): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const abortError = () => new DOMException("Aborted", "AbortError");
+    if (signal?.aborted) return reject(abortError());
+    const onAbort = () => {
+      clearTimeout(id);
+      reject(abortError());
+    };
+    const id = setTimeout(() => {
+      signal?.removeEventListener("abort", onAbort);
+      resolve();
+    }, ms);
+    signal?.addEventListener("abort", onAbort, { once: true });
+  });
+}
+
 /**
  * Generate a plan with cancellation support and automatic retry.
- * Retries only transient network failures (no HTTP response received);
- * HTTP errors and user cancellation are surfaced immediately.
+ * Retries only transient network failures (connection never established).
+ * Timeouts (ECONNABORTED) are NOT retried — the server is likely still
+ * working or overloaded, and re-firing a 120s request multiplies the load.
  */
 export async function generatePlan(
   params: BuildingParams,
   signal?: AbortSignal
 ): Promise<GenerationResult> {
-  let lastError: unknown;
-  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+  for (let attempt = 0; ; attempt++) {
     try {
       const { data } = await api.post<GenerationResult>("/generate-plan", params, { signal });
       return data;
     } catch (e) {
-      lastError = e;
-      const transient = axios.isAxiosError(e) && !e.response && !axios.isCancel(e);
-      if (!transient || signal?.aborted || attempt === MAX_RETRIES) throw e;
-      // Linear backoff: 1s, 2s.
-      await new Promise((r) => setTimeout(r, 1000 * (attempt + 1)));
+      const transient =
+        axios.isAxiosError(e) && !e.response && !isCancelError(e) && e.code !== "ECONNABORTED";
+      if (!transient || attempt >= MAX_RETRIES) throw e;
+      // Linear backoff: 1s, 2s — interruptible by Cancel.
+      await abortableSleep(1000 * (attempt + 1), signal);
     }
   }
-  throw lastError;
 }
 
 export function isCancelError(e: unknown): boolean {
-  return axios.isCancel(e);
+  return axios.isCancel(e) || (e instanceof DOMException && e.name === "AbortError");
 }
 
 export function ifcDownloadUrl(projectId: string): string {
   return `/api/v1/download/${projectId}`;
 }
 
+const PDF_LANGS = new Set(["en", "ru", "kk"]);
+
 export function pdfReportUrl(projectId: string, lang?: string): string {
-  return `/api/v1/report/${projectId}?lang=${lang || "en"}`;
+  // Normalize BCP-47 tags ("en-US" → "en") and guard against values the
+  // backend's ^(en|ru|kk)$ validator would reject with a 422.
+  const base = (lang || "en").split("-")[0];
+  return `/api/v1/report/${projectId}?lang=${PDF_LANGS.has(base) ? base : "en"}`;
 }
 
 /** Extract a human-readable message from an unknown error (axios or otherwise). */

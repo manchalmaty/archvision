@@ -3,6 +3,17 @@ import react from "@vitejs/plugin-react";
 
 export default defineConfig({
   plugins: [react()],
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          // Three.js stack dominates the bundle — keep it in its own chunk so
+          // app-code changes don't invalidate the cached 3D vendor payload.
+          "vendor-three": ["three", "@react-three/fiber", "@react-three/drei"],
+        },
+      },
+    },
+  },
   server: {
     host: "0.0.0.0",
     port: 3000,

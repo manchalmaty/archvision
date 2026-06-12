@@ -4,6 +4,7 @@ Renders a localized (en/ru/kk) summary: rooms, geo-climate, cost,
 compliance and MEP findings, with a non-liability disclaimer.
 """
 import io
+import logging
 import os
 from datetime import date
 
@@ -16,6 +17,8 @@ from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
 from models import GenerationResult
+
+logger = logging.getLogger(__name__)
 
 # ── Cyrillic-capable font discovery ──────────────────────────────────────────
 # ReportLab's built-in Type1 fonts (Helvetica) have no Cyrillic glyphs, so we
@@ -46,6 +49,16 @@ for _reg, _bold in _FONT_CANDIDATES:
             break
         except Exception:
             continue
+
+if FONT == "Helvetica":
+    # Built-in Type1 fonts have no Cyrillic glyphs — ru/kk reports will show
+    # boxes. Surface it loudly so a missing font package is caught in ops.
+    logger.warning(
+        "No Cyrillic-capable TTF font found (checked %d locations); "
+        "ru/kk PDF reports will render Cyrillic as boxes. "
+        "Install fonts-dejavu-core or equivalent.",
+        len(_FONT_CANDIDATES),
+    )
 
 # ── Localized labels ─────────────────────────────────────────────────────────
 _L = {
@@ -119,16 +132,24 @@ _L = {
     },
 }
 
-_TABLE_STYLE = TableStyle([
-    ("FONTNAME", (0, 0), (-1, -1), FONT),
+def _table_style(*extra: tuple) -> TableStyle:
+    """Shared base look for every table; pass per-table overrides as extras."""
+    return TableStyle([
+        ("FONTNAME", (0, 0), (-1, -1), FONT),
+        ("FONTSIZE", (0, 0), (-1, -1), 9),
+        ("GRID", (0, 0), (-1, -1), 0.4, colors.HexColor("#b0b7c3")),
+        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+        ("TOPPADDING", (0, 0), (-1, -1), 4),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+        *extra,
+    ])
+
+
+# Header row bolded and tinted — used by the rooms table.
+_TABLE_STYLE = _table_style(
     ("FONTNAME", (0, 0), (-1, 0), FONT_BOLD),
-    ("FONTSIZE", (0, 0), (-1, -1), 9),
-    ("GRID", (0, 0), (-1, -1), 0.4, colors.HexColor("#b0b7c3")),
     ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#e8ecf2")),
-    ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-    ("TOPPADDING", (0, 0), (-1, -1), 4),
-    ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
-])
+)
 
 
 def generate_pdf(result: GenerationResult, lang: str = "en") -> bytes:
@@ -164,14 +185,7 @@ def generate_pdf(result: GenerationResult, lang: str = "en") -> bytes:
             [t["foundation"], g.foundation_type, "", ""],
         ],
         colWidths=[42 * mm, 38 * mm, 42 * mm, 38 * mm],
-        style=TableStyle([
-            ("FONTNAME", (0, 0), (-1, -1), FONT),
-            ("FONTSIZE", (0, 0), (-1, -1), 9),
-            ("GRID", (0, 0), (-1, -1), 0.4, colors.HexColor("#b0b7c3")),
-            ("SPAN", (1, 3), (3, 3)),
-            ("TOPPADDING", (0, 0), (-1, -1), 4),
-            ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
-        ]),
+        style=_table_style(("SPAN", (1, 3), (3, 3))),
     ))
 
     # Rooms
@@ -193,14 +207,12 @@ def generate_pdf(result: GenerationResult, lang: str = "en") -> bytes:
     ]
     for k, v in c.breakdown.items():
         cost_rows.append([k.replace("_usd", "").replace("_", " ").title(), f"${v:,.0f}"])
-    story.append(Table(cost_rows, colWidths=[90 * mm, 70 * mm], style=TableStyle([
-        ("FONTNAME", (0, 0), (-1, -1), FONT),
-        ("FONTNAME", (0, 0), (-1, 1), FONT_BOLD),
-        ("FONTSIZE", (0, 0), (-1, -1), 9),
-        ("GRID", (0, 0), (-1, -1), 0.4, colors.HexColor("#b0b7c3")),
-        ("TOPPADDING", (0, 0), (-1, -1), 4),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
-    ])))
+    # Both total rows (USD and local currency) are intentionally bold.
+    story.append(Table(
+        cost_rows,
+        colWidths=[90 * mm, 70 * mm],
+        style=_table_style(("FONTNAME", (0, 0), (-1, 1), FONT_BOLD)),
+    ))
 
     # Compliance
     story.append(Paragraph(t["compliance"], styles["h2"]))

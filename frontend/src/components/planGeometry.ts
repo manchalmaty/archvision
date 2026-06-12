@@ -20,3 +20,11 @@ export function roomsBBox(rooms: RoomLayout[]): BBox | null {
     maxY: Math.max(...rooms.map((r) => r.y + r.depth)),
   };
 }
+
+/**
+ * Defensive clamp shared by the 2D and 3D renderers: keep a door/window
+ * inside its wall even if the backend emitted an overflowing position.
+ */
+export function clampPos(position: number, openingW: number, wallLen: number): number {
+  return Math.max(0, Math.min(position, Math.max(0, wallLen - openingW)));
+}
