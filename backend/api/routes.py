@@ -12,7 +12,7 @@ from config import settings
 from core.cost_estimator import CostEstimator
 from core.geo_calculator import GeoClimateCalculator
 from core.ifc_generator import IFCGenerator
-from core.layout_engine import LayoutEngine
+from core.llm_layout_engine import LLMLayoutEngine
 from mep.clash_detector import ClashDetector
 from mep.pipe_router import PipeRouter
 from models import (
@@ -57,7 +57,7 @@ async def generate_plan(params: BuildingParams):
         )
 
     # 3. Generate 2D/3D layout
-    layout_engine = LayoutEngine(params, geo_data)
+    layout_engine = LLMLayoutEngine(params, geo_data)
     rooms = layout_engine.generate()
     warnings.extend(layout_engine.warnings)
 

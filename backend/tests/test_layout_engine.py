@@ -147,6 +147,27 @@ class TestOpenings:
                 ), f"{room.name}: window on internal wall {win.wall}"
 
 
+class TestTiling:
+    """Rectangular/square deterministic layouts must tile with no gaps and stay
+    fully connected — the guarantee the LLM loop falls back on."""
+
+    @pytest.mark.parametrize("shape", ["rectangular", "square"])
+    def test_clean_tiling_passes_validator(self, shape):
+        from core.plan_validator import PlanRoom, validate_plan
+
+        params = make_params(building_shape=shape)
+        layouts = LayoutEngine(params, geo).generate()
+        floor1 = [r for r in layouts if r.floor == 1]
+        pr = [
+            PlanRoom(r.room_id, r.room_type.value, r.name, r.x, r.y, r.width, r.depth)
+            for r in floor1
+        ]
+        fw = max(r.x + r.width for r in floor1)
+        fh = max(r.y + r.depth for r in floor1)
+        errors, score = validate_plan(pr, fw, fh, shape)
+        assert score == 100, f"{shape}: {errors}"
+
+
 class TestAreaPreserved:
     def test_footprint_at_least_requested_area(self):
         # Rows are normalized to a common depth, so a room's footprint can be

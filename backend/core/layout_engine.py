@@ -303,8 +303,91 @@ class LayoutEngine:
         elif shape == "t_shape":
             return self._layout_t(floor, rooms)
         elif shape == "square":
-            return self._layout_strip(floor, rooms, aspect_factor=1.0)
-        return self._layout_strip(floor, rooms, aspect_factor=1.2)
+            return self._layout_tiled(floor, rooms, aspect_factor=1.0)
+        return self._layout_tiled(floor, rooms, aspect_factor=1.35)
+
+    def _layout_tiled(
+        self,
+        floor: int,
+        rooms,
+        offset_x: float = 0.0,
+        offset_y: float = 0.0,
+        target_w: float | None = None,
+        aspect_factor: float = 1.35,
+    ) -> list[RoomLayout]:
+        """Slice-and-dice tiling: gap-free and overlap-free by construction.
+
+        Rooms are binned into rows by a target width; each row's height is then
+        set so the row spans the target width *exactly* (Σ widths = target_w),
+        and rows stack to fill a target_w × (total_area/target_w) rectangle with
+        no ragged edges. Aspect ratios stay reasonable because binning uses each
+        room's natural width, but tiling is never sacrificed for them.
+        """
+        if not rooms:
+            return []
+
+        def _order_key(r):
+            try:
+                return (ROOM_ORDER.index(r.room_type), -r.area_m2)
+            except ValueError:
+                return (len(ROOM_ORDER), -r.area_m2)
+
+        ordered = sorted(rooms, key=_order_key)
+        total_area = sum(r.area_m2 for r in ordered)
+        if target_w is None:
+            target_w = round(math.sqrt(total_area * aspect_factor), 2)
+        if self.params.plot_width_m:
+            available = self.params.plot_width_m - offset_x
+            if available > 1.0:
+                target_w = min(target_w, available)
+        target_w = max(target_w, 1.5)
+
+        # Bin rooms into rows using their natural width, breaking a row once it
+        # would overflow target_w (keeps per-row aspect ratios sane).
+        rows: list[list] = []
+        current: list = []
+        cur_w = 0.0
+        for room in ordered:
+            w, _d = room_dims(room.room_type, room.area_m2)
+            if current and cur_w + w > target_w * 1.05:
+                rows.append(current)
+                current = [room]
+                cur_w = w
+            else:
+                current.append(room)
+                cur_w += w
+        if current:
+            rows.append(current)
+
+        layouts: list[RoomLayout] = []
+        cursor_y = offset_y
+        for row in rows:
+            row_area = sum(r.area_m2 for r in row)
+            # Row height chosen so the row's rooms span target_w exactly.
+            row_h = round(row_area / target_w, 3)
+            cursor_x = offset_x
+            for i, room in enumerate(row):
+                # Last room in the row absorbs rounding slack to hit target_w cleanly.
+                if i == len(row) - 1:
+                    rw = round(offset_x + target_w - cursor_x, 3)
+                else:
+                    rw = round(room.area_m2 / row_h, 3) if row_h > 0 else target_w
+                layouts.append(
+                    RoomLayout(
+                        room_id=str(uuid.uuid4()),
+                        room_type=room.room_type,
+                        name=room.name or room.room_type.value.replace("_", " ").title(),
+                        x=round(cursor_x, 3),
+                        y=round(cursor_y, 3),
+                        floor=floor,
+                        width=rw,
+                        depth=row_h,
+                        area_m2=room.area_m2,
+                    )
+                )
+                cursor_x += rw
+            cursor_y += row_h
+        return layouts
 
     def _layout_strip(
         self,
