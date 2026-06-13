@@ -309,8 +309,8 @@ class LayoutEngine:
         elif shape == "t_shape":
             return self._layout_t(floor, rooms)
         elif shape == "square":
-            return self._layout_tiled(floor, rooms, aspect_factor=1.0)
-        return self._layout_tiled(floor, rooms, aspect_factor=1.35)
+            return self._layout_central_hall(floor, rooms, aspect_factor=1.0)
+        return self._layout_central_hall(floor, rooms, aspect_factor=1.35)
 
     def _layout_tiled(
         self,
@@ -393,6 +393,107 @@ class LayoutEngine:
                 )
                 cursor_x += rw
             cursor_y += row_h
+        return layouts
+
+    def _emit_row(self, layouts, floor, group, ox, oy, width) -> float:
+        """Lay one row of rooms spanning [ox, ox+width] exactly; return next y."""
+        if not group:
+            return oy
+
+        def _order_key(r):
+            try:
+                return ROOM_ORDER.index(r.room_type)
+            except ValueError:
+                return len(ROOM_ORDER)
+
+        group = sorted(group, key=_order_key)
+        area = sum(r.area_m2 for r in group)
+        rh = round(area / width, 3) if width > 0 else 0.0
+        x = ox
+        for i, room in enumerate(group):
+            rw = round(ox + width - x, 3) if i == len(group) - 1 else round(room.area_m2 / rh, 3)
+            layouts.append(
+                RoomLayout(
+                    room_id=str(uuid.uuid4()),
+                    room_type=room.room_type,
+                    name=room.name or room.room_type.value.replace("_", " ").title(),
+                    x=round(x, 3),
+                    y=round(oy, 3),
+                    floor=floor,
+                    width=rw,
+                    depth=rh,
+                    area_m2=room.area_m2,
+                )
+            )
+            x += rw
+        return round(oy + rh, 3)
+
+    def _layout_central_hall(self, floor: int, rooms, aspect_factor: float = 1.3):
+        """Central-corridor plan: a full-width hallway band splits the rooms into
+        two rows, one above and one below, so EVERY room opens directly off the
+        hallway (a real distribution node, not a linear enfilade). Wet zones are
+        grouped into one band to share a plumbing wall. Falls back to slice-and-
+        dice tiling when a single-row band would force unusably narrow rooms.
+        """
+        halls = [r for r in rooms if r.room_type == RoomType.HALLWAY]
+        others = [r for r in rooms if r.room_type != RoomType.HALLWAY]
+        if not halls or not others:
+            return self._layout_tiled(floor, rooms, aspect_factor=aspect_factor)
+        hall = halls[0]
+
+        total_area = sum(r.area_m2 for r in rooms)
+        width = round(math.sqrt(total_area * aspect_factor), 2)
+        if self.params.plot_width_m:
+            width = min(width, self.params.plot_width_m)
+        width = max(width, 3.0)
+
+        # Split rooms into two bands; keep wet zones together when possible.
+        wet = [r for r in others if r.room_type in WET_ZONES]
+        dry = [r for r in others if r.room_type not in WET_ZONES]
+        if wet and dry:
+            north, south = dry, wet
+        else:
+            pool = sorted(others, key=lambda r: -r.area_m2)
+            north, south, an, asth = [], [], 0.0, 0.0
+            for r in pool:
+                if an <= asth:
+                    north.append(r)
+                    an += r.area_m2
+                else:
+                    south.append(r)
+                    asth += r.area_m2
+
+        # Guard: only reject central-hall for genuinely degenerate bands (a room
+        # thinner than 0.7 m). For everything else central-hall beats an enfilade,
+        # so we prefer it even when proportions are merely tight.
+        def _row_ok(group) -> bool:
+            if not group:
+                return True
+            gh = sum(r.area_m2 for r in group) / width
+            return gh >= 1.0 and all((r.area_m2 / gh) >= 0.7 for r in group)
+
+        if not (_row_ok(north) and _row_ok(south)):
+            return self._layout_tiled(floor, rooms, aspect_factor=aspect_factor)
+
+        hall_h = round(max(hall.area_m2 / width, 1.3), 3)
+
+        layouts: list[RoomLayout] = []
+        y = self._emit_row(layouts, floor, north, 0.0, 0.0, width)
+        layouts.append(
+            RoomLayout(
+                room_id=str(uuid.uuid4()),
+                room_type=hall.room_type,
+                name=hall.name or "Hallway",
+                x=0.0,
+                y=round(y, 3),
+                floor=floor,
+                width=width,
+                depth=hall_h,
+                area_m2=hall.area_m2,
+            )
+        )
+        y = round(y + hall_h, 3)
+        self._emit_row(layouts, floor, south, 0.0, y, width)
         return layouts
 
     def _layout_strip(

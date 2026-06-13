@@ -164,6 +164,33 @@ class TestTiling:
     fully connected — the guarantee the LLM loop falls back on."""
 
     @pytest.mark.parametrize("shape", ["rectangular", "square"])
+    def test_every_room_opens_off_the_hallway(self, shape):
+        # Central-hall layouts must be a distribution node, not an enfilade:
+        # every room on the ground floor borders the hallway directly.
+        from core.layout_engine import _adjacent_rooms
+
+        params = make_params(
+            building_shape=shape,
+            rooms=[
+                RoomInput(room_type=RoomType.LIVING_ROOM, area_m2=20),
+                RoomInput(room_type=RoomType.BEDROOM, area_m2=14),
+                RoomInput(room_type=RoomType.KITCHEN, area_m2=10),
+                RoomInput(room_type=RoomType.BATHROOM, area_m2=5),
+            ],
+        )
+        layouts = LayoutEngine(params, geo).generate()
+        floor1 = [r for r in layouts if r.floor == 1]
+        for room in floor1:
+            if room.room_type == RoomType.HALLWAY:
+                continue
+            touches_hall = any(
+                other.room_type == RoomType.HALLWAY
+                for wall in ("N", "S", "E", "W")
+                for other in _adjacent_rooms(room, wall, floor1)
+            )
+            assert touches_hall, f"{shape}: {room.name} does not border the hallway"
+
+    @pytest.mark.parametrize("shape", ["rectangular", "square"])
     def test_clean_tiling_passes_validator(self, shape):
         from core.plan_validator import PlanRoom, validate_plan
 

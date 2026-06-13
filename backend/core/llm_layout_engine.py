@@ -237,21 +237,18 @@ class LLMLayoutEngine:
             result_pair = _layout_floor_llm(client, floor_num, self.params.floors, self.params, floor_rooms)
 
             if result_pair is None:
+                # Rule-based is a clean validated tiling — an operator detail, not
+                # a user-facing problem, so it is logged but not surfaced as a warning.
                 logger.warning("LLM failed floor=%d — falling back to rule-based", floor_num)
-                self.warnings.append("LLM layout failed — used rule-based fallback")
                 rule_result = self._rule.generate()
                 self.warnings.extend(self._rule.warnings)
                 return rule_result
 
             layouts, err_count = result_pair
             if err_count > 0:
-                # LLM couldn't produce a clean plan — rule-based is more reliable
                 logger.warning(
                     "LLM plan has %d unresolved error(s) on floor=%d — using rule-based",
                     err_count, floor_num,
-                )
-                self.warnings.append(
-                    f"LLM layout had {err_count} geometry issue(s) — used rule-based fallback"
                 )
                 rule_result = self._rule.generate()
                 self.warnings.extend(self._rule.warnings)
