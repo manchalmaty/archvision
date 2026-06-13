@@ -5,6 +5,7 @@ Packs rooms using a greedy strip algorithm, groups wet zones together.
 
 import math
 import uuid
+from collections import deque
 
 from models import (
     BuildingParams,
@@ -144,6 +145,28 @@ def _adjacent_rooms(room: RoomLayout, wall: str, all_rooms: list) -> list:
     return result
 
 
+def _shared_len(a: RoomLayout, b: RoomLayout) -> float:
+    """Length of the wall segment two rooms share (0 if they don't touch)."""
+    if abs(a.x + a.width - b.x) < OPEN_TOL or abs(b.x + b.width - a.x) < OPEN_TOL:
+        return max(0.0, min(a.y + a.depth, b.y + b.depth) - max(a.y, b.y))
+    if abs(a.y + a.depth - b.y) < OPEN_TOL or abs(b.y + b.depth - a.y) < OPEN_TOL:
+        return max(0.0, min(a.x + a.width, b.x + b.width) - max(a.x, b.x))
+    return 0.0
+
+
+def _door_pos(room: RoomLayout, neighbor: RoomLayout, wall: str, dw: float) -> float:
+    """Door offset that centres the leaf on the segment shared with `neighbor`,
+    so the opening always lands in the real doorway (not on a blank wall)."""
+    if wall in ("N", "S"):
+        lo, hi = max(room.x, neighbor.x), min(room.x + room.width, neighbor.x + neighbor.width)
+        center = (lo + hi) / 2 - room.x
+    else:
+        lo, hi = max(room.y, neighbor.y), min(room.y + room.depth, neighbor.y + neighbor.depth)
+        center = (lo + hi) / 2 - room.y
+    wlen = _wall_len(room, wall)
+    return round(min(max(center - dw / 2, 0.0), max(0.0, wlen - dw)), 3)
+
+
 def _place_opening(wall_len: float, opening_width: float) -> float:
     """Center opening in wall, respecting MIN_CORNER clearance.
 
@@ -214,47 +237,94 @@ class LayoutEngine:
             )
 
     def _assign_openings(self, layouts: list[RoomLayout]) -> None:
-        """Place doors and windows on every room based on adjacency."""
-        WALLS = ("S", "N", "W", "E")
+        """Place doors and windows on every room.
 
+        Doors form a connected tree rooted at the hallway: every room gets one
+        door to its parent (the neighbour closer to the entrance), so the whole
+        plan is reachable. Wet rooms (bath/toilet) are kept as leaves — the tree
+        never routes *through* them — so you never walk through a toilet to reach
+        a living space.
+        """
+        for floor in {r.floor for r in layouts}:
+            self._assign_floor_doors([r for r in layouts if r.floor == floor])
+        self._assign_windows(layouts)
+
+    def _assign_floor_doors(self, rooms: list[RoomLayout]) -> None:
+        WALLS = ("S", "N", "W", "E")
+        if not rooms:
+            return
+
+        def wall_facing(a: RoomLayout, b: RoomLayout) -> str | None:
+            return next((w for w in WALLS if b in _adjacent_rooms(a, w, rooms)), None)
+
+        def add_door(child: RoomLayout, parent: RoomLayout, wall: str) -> None:
+            dw, dh = DOOR_SPECS.get(child.room_type, DEFAULT_DOOR)
+            child.doors.append(
+                DoorSpec(wall=wall, position=_door_pos(child, parent, wall, dw), width=dw, height=dh)
+            )
+
+        root = next((r for r in rooms if r.room_type == RoomType.HALLWAY), rooms[0])
+
+        # Entrance door for the root, on an external wall.
+        radj = {w: _adjacent_rooms(root, w, rooms) for w in WALLS}
+        rext = [w for w in WALLS if not radj[w]]
+        rint = [w for w in WALLS if radj[w]]
+        entrance = (rext or rint or [None])[0]
+        if entrance:
+            dw, dh = DOOR_SPECS.get(root.room_type, DEFAULT_DOOR)
+            root.doors.append(
+                DoorSpec(
+                    wall=entrance, position=_place_opening(_wall_len(root, entrance), dw),
+                    width=dw, height=dh,
+                )
+            )
+
+        # BFS tree from the root. Pass 1 expands only through dry rooms so wet
+        # rooms become leaves; a door is placed on each child facing its parent.
+        visited = {root.room_id}
+        queue = deque([root])
+        while queue:
+            cur = queue.popleft()
+            for w in WALLS:
+                for nb in _adjacent_rooms(cur, w, rooms):
+                    if nb.room_id in visited or _shared_len(nb, cur) < DEFAULT_DOOR[0]:
+                        continue
+                    cw = wall_facing(nb, cur)
+                    if cw is None:
+                        continue
+                    add_door(nb, cur, cw)
+                    visited.add(nb.room_id)
+                    if nb.room_type not in WET_ZONES:
+                        queue.append(nb)
+
+        # Pass 2: rooms only reachable through a wet room — connect to any visited
+        # neighbour as a last resort so nothing is stranded.
+        for r in rooms:
+            if r.room_id in visited:
+                continue
+            for w in WALLS:
+                parent = next((n for n in _adjacent_rooms(r, w, rooms) if n.room_id in visited), None)
+                if parent:
+                    add_door(r, parent, w)
+                    visited.add(r.room_id)
+                    break
+
+        # Pass 3: an isolated room with no adjacency at all — give it any door.
+        for r in rooms:
+            if r.doors:
+                continue
+            adjr = {w: _adjacent_rooms(r, w, rooms) for w in WALLS}
+            w = ([x for x in WALLS if adjr[x]] or list(WALLS))[0]
+            dw, dh = DOOR_SPECS.get(r.room_type, DEFAULT_DOOR)
+            r.doors.append(
+                DoorSpec(wall=w, position=_place_opening(_wall_len(r, w), dw), width=dw, height=dh)
+            )
+
+    def _assign_windows(self, layouts: list[RoomLayout]) -> None:
+        WALLS = ("S", "N", "W", "E")
         for room in layouts:
             same_floor = [r for r in layouts if r.floor == room.floor]
-
-            # Classify each wall as internal (adjacent to another room) or external
-            adj: dict[str, list] = {w: _adjacent_rooms(room, w, same_floor) for w in WALLS}
-            internal = [w for w in WALLS if adj[w]]
-            external = [w for w in WALLS if not adj[w]]
-
-            # ── Doors ────────────────────────────────────────────────────────
-            dw, dh = DOOR_SPECS.get(room.room_type, DEFAULT_DOOR)
-
-            if room.room_type == RoomType.HALLWAY:
-                # The hallway gets exactly ONE entrance door, on an external wall.
-                # Interior connections are owned by each neighbouring room (the
-                # branch below), so emitting a door per internal wall here would
-                # double up doors on every shared boundary.
-                entrance = external[0] if external else (internal[0] if internal else None)
-                if entrance:
-                    wlen = _wall_len(room, entrance)
-                    room.doors.append(
-                        DoorSpec(
-                            wall=entrance, position=_place_opening(wlen, dw), width=dw, height=dh
-                        )
-                    )
-            else:
-                hallway_walls = [
-                    w for w in internal if any(r.room_type == RoomType.HALLWAY for r in adj[w])
-                ]
-                door_wall = (hallway_walls or internal or external or [None])[0]
-                if door_wall:
-                    wlen = _wall_len(room, door_wall)
-                    room.doors.append(
-                        DoorSpec(
-                            wall=door_wall, position=_place_opening(wlen, dw), width=dw, height=dh
-                        )
-                    )
-
-            # ── Windows — ГОСТ 23166 ─────────────────────────────────────────
+            external = [w for w in WALLS if not _adjacent_rooms(room, w, same_floor)]
             needed = WINDOW_COUNTS.get(room.room_type, 1)
             ww, wh, sill = WIN_SPECS.get(room.room_type, (1.3, 1.4, 0.85))
             placed = 0
@@ -300,17 +370,17 @@ class LayoutEngine:
 
         return per_floor
 
+    # Footprint proportions per shape. Every shape now uses the central-hall
+    # layout: the wing layouts (L/U/T) stranded the hallway in a corner touching
+    # only wet rooms, which forced circulation through a toilet. A compact
+    # central corridor is a usable plan for every silhouette; the shape only
+    # nudges how wide vs deep the footprint is.
+    _SHAPE_ASPECT = {"square": 1.0, "rectangular": 1.35, "l_shape": 1.3, "u_shape": 1.4, "t_shape": 1.45}
+
     def _layout_floor(self, floor: int, rooms) -> list[RoomLayout]:
         shape = getattr(self.params, "building_shape", "rectangular")
-        if shape == "l_shape":
-            return self._layout_l(floor, rooms)
-        elif shape == "u_shape":
-            return self._layout_u(floor, rooms)
-        elif shape == "t_shape":
-            return self._layout_t(floor, rooms)
-        elif shape == "square":
-            return self._layout_central_hall(floor, rooms, aspect_factor=1.0)
-        return self._layout_central_hall(floor, rooms, aspect_factor=1.35)
+        aspect = self._SHAPE_ASPECT.get(shape, 1.35)
+        return self._layout_central_hall(floor, rooms, aspect_factor=aspect)
 
     def _layout_tiled(
         self,
@@ -495,170 +565,3 @@ class LayoutEngine:
         y = round(y + hall_h, 3)
         self._emit_row(layouts, floor, south, 0.0, y, width)
         return layouts
-
-    def _layout_strip(
-        self,
-        floor: int,
-        rooms,
-        offset_x: float = 0.0,
-        offset_y: float = 0.0,
-        target_w: float | None = None,
-        aspect_factor: float = 1.2,
-    ) -> list[RoomLayout]:
-        if not rooms:
-            return []
-
-        def _order_key(r):
-            try:
-                return (ROOM_ORDER.index(r.room_type), -r.area_m2)
-            except ValueError:
-                return (len(ROOM_ORDER), -r.area_m2)
-
-        ordered = sorted(rooms, key=_order_key)
-        total_area = sum(r.area_m2 for r in ordered)
-        if target_w is None:
-            target_w = round(math.sqrt(total_area * aspect_factor), 2)
-        # Respect the plot for EVERY strip (main body and L/U/T wings alike):
-        # a strip starting at offset_x may only use the remaining plot width.
-        if self.params.plot_width_m:
-            available = self.params.plot_width_m - offset_x
-            if available > 1.0:
-                target_w = min(target_w, available)
-
-        # Pass 1: bin rooms into rows
-        raw_rows: list[list[tuple]] = []
-        current_row: list[tuple] = []
-        current_width = 0.0
-        for room in ordered:
-            w, d = room_dims(room.room_type, room.area_m2)
-            if current_row and current_width + w > target_w:
-                raw_rows.append(current_row)
-                current_row = [(room, w, d)]
-                current_width = w
-            else:
-                current_row.append((room, w, d))
-                current_width += w
-        if current_row:
-            raw_rows.append(current_row)
-
-        # Pass 2: bounded proportional scale — compute max/min RF before applying
-        layouts = []
-        cursor_y = offset_y
-        for row in raw_rows:
-            row_sum_w = sum(w for _, w, _ in row)
-            ideal_scale = target_w / row_sum_w if row_sum_w > 0.01 else 1.0
-            row_max_rf = float("inf")
-            row_min_rf = 0.0
-            for room, w, d in row:
-                max_asp = ROOM_MAX_ASPECT.get(room.room_type, MAX_ASPECT)
-                cur_asp = (w / d) if d > 0 else 1.0
-                row_max_rf = min(row_max_rf, math.sqrt(max_asp / cur_asp))
-                row_min_rf = max(row_min_rf, math.sqrt(cur_asp / max_asp))
-            rf = max(row_min_rf, min(ideal_scale, row_max_rf))
-            scaled = []
-            for room, w, _d in row:
-                fw = max(round(w * rf, 3), 0.5)
-                fd = round(room.area_m2 / fw, 3)
-                scaled.append((room, fw, fd))
-            row_depth = round(max(fd for _, _, fd in scaled), 3)
-            cursor_x = offset_x
-            for room, fw, _fd in scaled:
-                layouts.append(
-                    RoomLayout(
-                        room_id=str(uuid.uuid4()),
-                        room_type=room.room_type,
-                        name=room.name or room.room_type.value.replace("_", " ").title(),
-                        x=round(cursor_x, 3),
-                        y=round(cursor_y, 3),
-                        floor=floor,
-                        width=fw,
-                        depth=row_depth,
-                        area_m2=room.area_m2,
-                    )
-                )
-                cursor_x += fw
-            cursor_y += row_depth
-        return layouts
-
-    def _layout_l(self, floor: int, rooms) -> list[RoomLayout]:
-        """Г-образный: service core (main body) + private wing extending down-right."""
-        MAIN_TYPES = {
-            RoomType.HALLWAY,
-            RoomType.BATHROOM,
-            RoomType.TOILET,
-            RoomType.KITCHEN,
-            RoomType.LIVING_ROOM,
-        }
-        main_r = [r for r in rooms if r.room_type in MAIN_TYPES]
-        wing_r = [r for r in rooms if r.room_type not in MAIN_TYPES]
-        if not wing_r or not main_r:
-            return self._layout_strip(floor, rooms, aspect_factor=1.2)
-        main = self._layout_strip(floor, main_r, offset_x=0.0, offset_y=0.0)
-        main_max_x = max(r.x + r.width for r in main)
-        main_max_y = max(r.y + r.depth for r in main)
-        wing_area = sum(r.area_m2 for r in wing_r)
-        wing_tw = round(math.sqrt(wing_area * 1.2), 2)
-        wing_ox = round(main_max_x * 0.45, 3)
-        wing = self._layout_strip(
-            floor, wing_r, offset_x=wing_ox, offset_y=main_max_y, target_w=wing_tw
-        )
-        return main + wing
-
-    def _layout_u(self, floor: int, rooms) -> list[RoomLayout]:
-        """П-образный: left wing + center + right wing (U footprint)."""
-
-        def _ok(r):
-            try:
-                return (ROOM_ORDER.index(r.room_type), -r.area_m2)
-            except ValueError:
-                return (len(ROOM_ORDER), -r.area_m2)
-
-        ordered = sorted(rooms, key=_ok)
-        n = len(ordered)
-        left_n = max(1, n // 3)
-        right_n = max(1, n // 3)
-        center_n = max(1, n - left_n - right_n)
-        left_r = ordered[:left_n]
-        center_r = ordered[left_n : left_n + center_n]
-        right_r = ordered[left_n + center_n :]
-        if not center_r or not right_r:
-            return self._layout_strip(floor, rooms, aspect_factor=1.2)
-        wing_tw = round(math.sqrt(sum(r.area_m2 for r in left_r) * 0.7), 2)
-        left = self._layout_strip(floor, left_r, offset_x=0.0, offset_y=0.0, target_w=wing_tw)
-        left_max_x = max(r.x + r.width for r in left)
-        center_tw = round(math.sqrt(sum(r.area_m2 for r in center_r) * 1.2), 2)
-        center = self._layout_strip(
-            floor, center_r, offset_x=left_max_x, offset_y=0.0, target_w=center_tw
-        )
-        center_max_x = max(r.x + r.width for r in center) if center else left_max_x
-        right_tw = round(math.sqrt(sum(r.area_m2 for r in right_r) * 0.7), 2)
-        right = self._layout_strip(
-            floor, right_r, offset_x=center_max_x, offset_y=0.0, target_w=right_tw
-        )
-        return left + center + right
-
-    def _layout_t(self, floor: int, rooms) -> list[RoomLayout]:
-        """Т-образный: wide top bar + narrow stem centered below."""
-
-        def _ok(r):
-            try:
-                return (ROOM_ORDER.index(r.room_type), -r.area_m2)
-            except ValueError:
-                return (len(ROOM_ORDER), -r.area_m2)
-
-        ordered = sorted(rooms, key=_ok)
-        n = len(ordered)
-        top_n = max(1, int(n * 0.65))
-        top_r = ordered[:top_n]
-        stem_r = ordered[top_n:]
-        if not stem_r:
-            return self._layout_strip(floor, rooms, aspect_factor=1.2)
-        top = self._layout_strip(floor, top_r, offset_x=0.0, offset_y=0.0)
-        top_max_x = max(r.x + r.width for r in top)
-        top_max_y = max(r.y + r.depth for r in top)
-        stem_tw = round(top_max_x * 0.4, 2)
-        stem_ox = round((top_max_x - stem_tw) / 2, 3)
-        stem = self._layout_strip(
-            floor, stem_r, offset_x=stem_ox, offset_y=top_max_y, target_w=stem_tw
-        )
-        return top + stem

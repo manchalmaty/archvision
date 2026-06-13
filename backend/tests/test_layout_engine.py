@@ -130,6 +130,55 @@ class TestOpenings:
                     f"{shape}: hallway on floor {room.floor} has {len(room.doors)} doors"
                 )
 
+    @staticmethod
+    def _door_graph(floor):
+        from core.layout_engine import _adjacent_rooms
+
+        edges = {r.room_id: set() for r in floor}
+        for r in floor:
+            for d in r.doors:
+                for other in _adjacent_rooms(r, d.wall, floor):
+                    edges[r.room_id].add(other.room_id)
+                    edges[other.room_id].add(r.room_id)
+        return edges
+
+    @pytest.mark.parametrize("shape", SHAPES)
+    def test_all_rooms_reachable_from_hallway(self, shape):
+        params = make_params(building_shape=shape, floors=1)
+        floor = [r for r in LayoutEngine(params, geo).generate() if r.floor == 1]
+        edges = self._door_graph(floor)
+        hall = next(r for r in floor if r.room_type == RoomType.HALLWAY)
+        seen, stack = {hall.room_id}, [hall.room_id]
+        while stack:
+            for n in edges[stack.pop()]:
+                if n not in seen:
+                    seen.add(n)
+                    stack.append(n)
+        for r in floor:
+            assert r.room_id in seen, f"{shape}: {r.name} is unreachable from the hallway"
+
+    @pytest.mark.parametrize("shape", SHAPES)
+    def test_no_routing_through_wet_rooms(self, shape):
+        # Removing bathrooms/toilets must not strand any dry room: you should never
+        # have to walk through a toilet/bathroom to reach a living space.
+        wet = {RoomType.BATHROOM, RoomType.TOILET}
+        params = make_params(building_shape=shape, floors=1)
+        floor = [r for r in LayoutEngine(params, geo).generate() if r.floor == 1]
+        edges = self._door_graph(floor)
+        wet_ids = {r.room_id for r in floor if r.room_type in wet}
+        hall = next(r for r in floor if r.room_type == RoomType.HALLWAY)
+        seen, stack = {hall.room_id}, [hall.room_id]
+        while stack:
+            for n in edges[stack.pop()]:
+                if n in seen or n in wet_ids:
+                    continue
+                seen.add(n)
+                stack.append(n)
+        for r in floor:
+            if r.room_type in wet:
+                continue
+            assert r.room_id in seen, f"{shape}: {r.name} is only reachable through a wet room"
+
     def test_opening_positions_inside_walls(self):
         """Data-layer guarantee: position is clamped so openings never overflow."""
         params = make_params()
