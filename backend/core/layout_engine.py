@@ -229,11 +229,17 @@ class LayoutEngine:
             dw, dh = DOOR_SPECS.get(room.room_type, DEFAULT_DOOR)
 
             if room.room_type == RoomType.HALLWAY:
-                # Hallway: one door per internal wall (connects every neighbour)
-                for w in internal:
-                    wlen = _wall_len(room, w)
+                # The hallway gets exactly ONE entrance door, on an external wall.
+                # Interior connections are owned by each neighbouring room (the
+                # branch below), so emitting a door per internal wall here would
+                # double up doors on every shared boundary.
+                entrance = external[0] if external else (internal[0] if internal else None)
+                if entrance:
+                    wlen = _wall_len(room, entrance)
                     room.doors.append(
-                        DoorSpec(wall=w, position=_place_opening(wlen, dw), width=dw, height=dh)
+                        DoorSpec(
+                            wall=entrance, position=_place_opening(wlen, dw), width=dw, height=dh
+                        )
                     )
             else:
                 hallway_walls = [

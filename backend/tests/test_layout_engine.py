@@ -118,6 +118,18 @@ class TestOpenings:
         for room in layouts:
             assert room.doors, f"{room.name} has no door"
 
+    @pytest.mark.parametrize("shape", SHAPES)
+    def test_hallway_has_single_door(self, shape):
+        # The hallway owns one entrance door; neighbours own the interior doors,
+        # so the hallway must never accumulate a door per shared wall.
+        params = make_params(building_shape=shape)
+        layouts = LayoutEngine(params, geo).generate()
+        for room in layouts:
+            if room.room_type == RoomType.HALLWAY:
+                assert len(room.doors) == 1, (
+                    f"{shape}: hallway on floor {room.floor} has {len(room.doors)} doors"
+                )
+
     def test_opening_positions_inside_walls(self):
         """Data-layer guarantee: position is clamped so openings never overflow."""
         params = make_params()

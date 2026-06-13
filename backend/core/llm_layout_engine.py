@@ -12,19 +12,9 @@ import uuid
 from openai import OpenAI
 
 from config import settings
-from core.layout_engine import (
-    DEFAULT_DOOR,
-    DOOR_SPECS,
-    MIN_CORNER,
-    WIN_SPECS,
-    WINDOW_COUNTS,
-    LayoutEngine,
-    _adjacent_rooms,
-    _place_opening,
-    _wall_len,
-)
+from core.layout_engine import LayoutEngine
 from core.plan_validator import PlanRoom, validate_plan
-from models import BuildingParams, DoorSpec, GeoClimateData, RoomLayout, RoomType, WindowSpec
+from models import BuildingParams, GeoClimateData, RoomLayout, RoomType
 
 logger = logging.getLogger(__name__)
 
@@ -144,51 +134,6 @@ def _to_layouts(plan_rooms: list[PlanRoom], floor: int) -> list[RoomLayout]:
             )
         )
     return layouts
-
-
-def _assign_openings(layouts: list[RoomLayout]) -> None:
-    """Deterministic door + window placement based on adjacency (same logic as LayoutEngine)."""
-    WALLS = ("S", "N", "W", "E")
-    for room in layouts:
-        same_floor = [r for r in layouts if r.floor == room.floor]
-        adj = {w: _adjacent_rooms(room, w, same_floor) for w in WALLS}
-        internal = [w for w in WALLS if adj[w]]
-        external = [w for w in WALLS if not adj[w]]
-
-        dw, dh = DOOR_SPECS.get(room.room_type, DEFAULT_DOOR)
-        if room.room_type == RoomType.HALLWAY:
-            for w in internal:
-                room.doors.append(
-                    DoorSpec(wall=w, position=_place_opening(_wall_len(room, w), dw),
-                             width=dw, height=dh)
-                )
-        else:
-            hallway_walls = [
-                w for w in internal
-                if any(r.room_type == RoomType.HALLWAY for r in adj[w])
-            ]
-            door_wall = (hallway_walls or internal or external or [None])[0]
-            if door_wall:
-                room.doors.append(
-                    DoorSpec(wall=door_wall,
-                             position=_place_opening(_wall_len(room, door_wall), dw),
-                             width=dw, height=dh)
-                )
-
-        needed = WINDOW_COUNTS.get(room.room_type, 1)
-        ww, wh, sill = WIN_SPECS.get(room.room_type, (1.3, 1.4, 0.85))
-        placed = 0
-        for w in external:
-            if placed >= needed:
-                break
-            wlen = _wall_len(room, w)
-            if wlen < ww + 2 * MIN_CORNER:
-                continue
-            room.windows.append(
-                WindowSpec(wall=w, position=_place_opening(wlen, ww),
-                           width=ww, height=wh, sill=sill)
-            )
-            placed += 1
 
 
 def _layout_floor_llm(
@@ -314,8 +259,8 @@ class LLMLayoutEngine:
 
             all_layouts.extend(layouts)
 
-        # Deterministic openings — placed after all floors are positioned
-        _assign_openings(all_layouts)
+        # Deterministic openings — reuse the rule engine's single source of truth
+        self._rule._assign_openings(all_layouts)
         self._rule._check_plot_fit(all_layouts)
         self.warnings.extend(self._rule.warnings)
         return all_layouts
