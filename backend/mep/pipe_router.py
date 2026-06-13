@@ -13,6 +13,19 @@ from models import GeoClimateData, RoomLayout, RoomType
 
 WET_ZONES = {RoomType.KITCHEN, RoomType.BATHROOM, RoomType.TOILET}
 GRID_STEP = 0.5  # metres per grid cell
+FLOOR_HEIGHT = 3.0  # metres per storey
+
+
+def riser_xy(rooms: list[RoomLayout]) -> tuple[float, float] | None:
+    """The plumbing riser sits at the centre of the largest wet room on the
+    lowest wet floor, so drains stay inside the (grouped) wet zone instead of
+    crossing bedrooms. Returns None when there are no wet rooms."""
+    wet = [r for r in rooms if r.room_type in WET_ZONES]
+    if not wet:
+        return None
+    low_floor = min(r.floor for r in wet)
+    anchor = max((r for r in wet if r.floor == low_floor), key=lambda r: r.width * r.depth)
+    return (anchor.x + anchor.width / 2, anchor.y + anchor.depth / 2)
 
 
 @dataclass
@@ -97,9 +110,8 @@ class PipeRouter:
         if not wet_rooms:
             return []
 
-        # Riser shaft at centroid of wet zones on floor 1
-        riser_x = sum(r.x + r.width / 2 for r in wet_rooms) / len(wet_rooms)
-        riser_y = sum(r.y + r.depth / 2 for r in wet_rooms) / len(wet_rooms)
+        # Riser shaft inside the largest wet room (keeps runs within the wet zone)
+        riser_x, riser_y = riser_xy(self.rooms)
 
         obstacles = self._build_obstacles()
         pipes = []
@@ -144,6 +156,24 @@ class PipeRouter:
                     diameter_mm=25,
                     from_room_id="supply_main",
                     to_room_id=room.room_id,
+                )
+            )
+
+        # Vertical riser: a single stack tying every wet floor together. Without
+        # it, upper-floor drains terminate in mid-air instead of running down to
+        # the ground-floor sewer connection.
+        wet_floors = sorted({r.floor for r in wet_rooms})
+        if len(wet_floors) > 1:
+            z_bottom = (wet_floors[0] - 1) * FLOOR_HEIGHT + 0.5
+            z_top = (wet_floors[-1] - 1) * FLOOR_HEIGHT + 0.5
+            pipes.append(
+                Pipe(
+                    pipe_id=str(uuid.uuid4()),
+                    pipe_type="riser",
+                    points=[(riser_x, riser_y, z_bottom), (riser_x, riser_y, z_top)],
+                    diameter_mm=110,
+                    from_room_id="riser_bottom",
+                    to_room_id="riser_top",
                 )
             )
 

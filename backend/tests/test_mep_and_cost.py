@@ -4,7 +4,7 @@ from core.cost_estimator import CURRENCY_INFO, CostEstimator
 from core.geo_calculator import GeoClimateCalculator
 from core.layout_engine import LayoutEngine
 from mep.clash_detector import ClashDetector
-from mep.pipe_router import PipeRouter
+from mep.pipe_router import FLOOR_HEIGHT, PipeRouter
 from models import CountryCode
 
 geo = GeoClimateCalculator().calculate(CountryCode.KZ, None, 1)
@@ -24,10 +24,75 @@ class TestMEP:
         pipes = PipeRouter(layouts, basic_params.floors, geo).route()
         conflicts = ClashDetector(layouts, pipes).detect()
         for c in conflicts:
-            assert c.conflict_type in ("pipe_pipe_clash", "pipe_wall_penetration")
+            assert c.conflict_type in ("pipe_pipe_clash", "pipe_through_room")
             assert c.severity in ("HIGH", "MEDIUM", "LOW")
             assert c.conflict_id
             assert c.description
+
+    def test_no_conflicts_inside_dry_rooms_when_wet_grouped(self, layouts, basic_params):
+        # With the central-hall layout grouping wet zones, no conflict should be
+        # reported as being *inside* a bedroom/living room (the old bedroom noise).
+        from mep.pipe_router import WET_ZONES
+
+        pipes = PipeRouter(layouts, basic_params.floors, geo).route()
+        conflicts = ClashDetector(layouts, pipes).detect()
+        dry = [r for r in layouts if r.room_type not in WET_ZONES]
+        for c in conflicts:
+            for room in dry:
+                inside = (
+                    room.x < c.location_x < room.x + room.width
+                    and room.y < c.location_y < room.y + room.depth
+                )
+                # If a marker IS inside a dry room it must be an explicit, actionable
+                # "pipe routed through this room" — never silent noise.
+                if inside:
+                    assert c.conflict_type == "pipe_through_room"
+
+    def test_pipe_through_bedroom_is_flagged(self):
+        # Positive control: a bathroom stranded behind a bedroom forces a drain
+        # across the bedroom — that must be reported (the feature isn't dead).
+        from models import RoomLayout, RoomType
+
+        rooms = [
+            RoomLayout(
+                room_id="k", room_type=RoomType.KITCHEN, name="Kitchen",
+                x=0.0, y=0.0, floor=1, width=3.0, depth=3.0, area_m2=9.0,
+            ),
+            RoomLayout(
+                room_id="bed", room_type=RoomType.BEDROOM, name="Bedroom",
+                x=3.0, y=0.0, floor=1, width=4.0, depth=3.0, area_m2=12.0,
+            ),
+            RoomLayout(
+                room_id="bath", room_type=RoomType.BATHROOM, name="Bathroom",
+                x=7.0, y=0.0, floor=1, width=3.0, depth=3.0, area_m2=9.0,
+            ),
+        ]
+        pipes = PipeRouter(rooms, 1, geo).route()
+        conflicts = ClashDetector(rooms, pipes).detect()
+        through = [c for c in conflicts if c.conflict_type == "pipe_through_room"]
+        assert through, "a drain crossing the bedroom must be flagged"
+        assert all("Bedroom" in c.description for c in through)
+
+    def test_vertical_riser_connects_floors(self):
+        # A pure pipe-router unit test: wet rooms on two floors must be tied by a
+        # vertical riser stack spanning both storeys.
+        from models import RoomLayout, RoomType
+
+        rooms = [
+            RoomLayout(
+                room_id="b1", room_type=RoomType.BATHROOM, name="Bath 1",
+                x=0, y=0, floor=1, width=2.5, depth=2.0, area_m2=5.0,
+            ),
+            RoomLayout(
+                room_id="b2", room_type=RoomType.BATHROOM, name="Bath 2",
+                x=0, y=0, floor=2, width=2.5, depth=2.0, area_m2=5.0,
+            ),
+        ]
+        pipes = PipeRouter(rooms, 2, geo).route()
+        risers = [p for p in pipes if p.pipe_type == "riser"]
+        assert len(risers) == 1, "two wet floors must produce one vertical riser"
+        zs = [pt[2] for pt in risers[0].points]
+        assert max(zs) - min(zs) >= FLOOR_HEIGHT - 0.5, "riser must span both floors"
 
     def test_clash_detection_deterministic(self, layouts, basic_params):
         pipes = PipeRouter(layouts, basic_params.floors, geo).route()

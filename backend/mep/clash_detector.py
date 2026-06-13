@@ -1,59 +1,21 @@
 """
-Clash detection: finds intersections between pipes and structural elements.
+Clash detection for sketch-level MEP.
+
+At this fidelity the only actionable plumbing problem is a drain/supply line
+forced to run through a dry room because a wet room sits far from the riser.
+Pipe-to-pipe proximity at the shared riser is expected (that is what a riser is)
+and is deliberately NOT reported — flagging it produced noise that no reasonable
+edit could clear and undermined trust in the result.
 """
 
-import math
 import uuid
 
-from mep.pipe_router import Pipe
-from models import MEPConflict, RoomLayout
+from mep.pipe_router import FLOOR_HEIGHT, Pipe
+from models import MEPConflict, RoomLayout, RoomType
 
-CLASH_RADIUS = 0.15  # metres — minimum clearance
-
-
-def segment_min_distance(
-    p1: tuple[float, float, float],
-    p2: tuple[float, float, float],
-    q1: tuple[float, float, float],
-    q2: tuple[float, float, float],
-) -> float:
-    """Minimum distance between two 3D line segments."""
-    d1 = (p2[0] - p1[0], p2[1] - p1[1], p2[2] - p1[2])
-    d2 = (q2[0] - q1[0], q2[1] - q1[1], q2[2] - q1[2])
-    r = (p1[0] - q1[0], p1[1] - q1[1], p1[2] - q1[2])
-
-    a = sum(x * x for x in d1)
-    e = sum(x * x for x in d2)
-    f = sum(d2[i] * r[i] for i in range(3))
-
-    if a < 1e-10 and e < 1e-10:
-        return math.sqrt(sum(x * x for x in r))
-    if a < 1e-10:
-        s = 0
-        t = max(0, min(1, f / e))
-    else:
-        c = sum(d1[i] * r[i] for i in range(3))
-        if e < 1e-10:
-            t = 0
-            s = max(0, min(1, -c / a))
-        else:
-            b = sum(d1[i] * d2[i] for i in range(3))
-            denom = a * e - b * b
-            if abs(denom) > 1e-10:
-                s = max(0, min(1, (b * f - c * e) / denom))
-            else:
-                s = 0
-            t = (b * s + f) / e
-            if t < 0:
-                t = 0
-                s = max(0, min(1, -c / a))
-            elif t > 1:
-                t = 1
-                s = max(0, min(1, (b - c) / a))
-
-    pt1 = (p1[0] + s * d1[0], p1[1] + s * d1[1], p1[2] + s * d1[2])
-    pt2 = (q1[0] + t * d2[0], q1[1] + t * d2[1], q1[2] + t * d2[2])
-    return math.sqrt(sum((pt1[i] - pt2[i]) ** 2 for i in range(3)))
+# Only a pipe over a living space is a problem worth flagging. Crossing a
+# hallway, utility room or garage is normal and is left silent.
+HABITABLE = {RoomType.LIVING_ROOM, RoomType.BEDROOM}
 
 
 class ClashDetector:
@@ -62,78 +24,42 @@ class ClashDetector:
         self.pipes = pipes
 
     def detect(self) -> list[MEPConflict]:
-        conflicts = []
+        conflicts: list[MEPConflict] = []
+        seen: set[tuple[str, str]] = set()  # (room_id, pipe_id) — one report each
 
-        # Pipe–pipe clashes
-        for i, pipe_a in enumerate(self.pipes):
-            for j, pipe_b in enumerate(self.pipes):
-                if j <= i:
-                    continue
-                for k in range(len(pipe_a.points) - 1):
-                    for m in range(len(pipe_b.points) - 1):
-                        dist = segment_min_distance(
-                            pipe_a.points[k],
-                            pipe_a.points[k + 1],
-                            pipe_b.points[m],
-                            pipe_b.points[m + 1],
-                        )
-                        min_clearance = (
-                            pipe_a.diameter_mm + pipe_b.diameter_mm
-                        ) / 2000 + CLASH_RADIUS
-                        if dist < min_clearance:
-                            mid = (
-                                (pipe_a.points[k][0] + pipe_a.points[k + 1][0]) / 2,
-                                (pipe_a.points[k][1] + pipe_a.points[k + 1][1]) / 2,
-                                (pipe_a.points[k][2] + pipe_a.points[k + 1][2]) / 2,
-                            )
-                            conflicts.append(
-                                MEPConflict(
-                                    conflict_id=str(uuid.uuid4()),
-                                    conflict_type="pipe_pipe_clash",
-                                    description=(
-                                        f"Pipe {pipe_a.pipe_type} conflicts with "
-                                        f"pipe {pipe_b.pipe_type}: clearance {dist:.2f}m < {min_clearance:.2f}m"
-                                    ),
-                                    location_x=mid[0],
-                                    location_y=mid[1],
-                                    location_z=mid[2],
-                                    severity="HIGH" if dist < min_clearance * 0.5 else "MEDIUM",
-                                )
-                            )
-
-        # Structural clash: pipe passes through wall center line
         for pipe in self.pipes:
-            for room in self.rooms:
-                z_floor = (room.floor - 1) * 3.0
-                z_ceil = z_floor + 3.0
-                for k in range(len(pipe.points) - 1):
-                    px, py, pz = pipe.points[k]
-                    # Check if pipe segment is inside room wall zone
+            if pipe.pipe_type == "riser":  # the vertical stack lives in its shaft
+                continue
+            for k in range(len(pipe.points) - 1):
+                a, b = pipe.points[k], pipe.points[k + 1]
+                if abs(a[2] - b[2]) > 0.05:  # only horizontal runs cross rooms
+                    continue
+                mx, my, mz = (a[0] + b[0]) / 2, (a[1] + b[1]) / 2, (a[2] + b[2]) / 2
+                floor = int(mz // FLOOR_HEIGHT) + 1
+                for room in self.rooms:
+                    if room.floor != floor or room.room_type not in HABITABLE:
+                        continue
+                    if (room.room_id, pipe.pipe_id) in seen:
+                        continue
                     if (
-                        room.x - 0.1 <= px <= room.x + room.width + 0.1
-                        and room.y - 0.1 <= py <= room.y + room.depth + 0.1
-                        and z_floor <= pz <= z_ceil
+                        room.x < mx < room.x + room.width
+                        and room.y < my < room.y + room.depth
                     ):
-                        # Check if pipe is ON a wall (not interior)
-                        on_wall = (
-                            abs(px - room.x) < 0.1
-                            or abs(px - (room.x + room.width)) < 0.1
-                            or abs(py - room.y) < 0.1
-                            or abs(py - (room.y + room.depth)) < 0.1
-                        )
-                        if on_wall:
-                            conflicts.append(
-                                MEPConflict(
-                                    conflict_id=str(uuid.uuid4()),
-                                    conflict_type="pipe_wall_penetration",
-                                    description=(
-                                        f"{pipe.pipe_type} pipe penetrates wall of {room.name} — add sleeve"
-                                    ),
-                                    location_x=px,
-                                    location_y=py,
-                                    location_z=pz,
-                                    severity="LOW",
-                                )
+                        seen.add((room.room_id, pipe.pipe_id))
+                        conflicts.append(
+                            MEPConflict(
+                                conflict_id=str(uuid.uuid4()),
+                                conflict_type="pipe_through_room",
+                                description=(
+                                    f"{pipe.pipe_type} pipe is routed through {room.name} "
+                                    f"({room.room_type.value}) — move this wet room next to the "
+                                    f"riser or regroup the wet zone"
+                                ),
+                                location_x=mx,
+                                location_y=my,
+                                location_z=mz,
+                                severity="MEDIUM",
                             )
+                        )
 
         return conflicts
