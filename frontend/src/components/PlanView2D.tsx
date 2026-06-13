@@ -13,7 +13,7 @@ import type { RoomLayout, MEPConflict, DoorSpec, WindowSpec } from "../types";
 
 const WALL_T = 0.18; // wall line thickness in plan units (m)
 const PAD = 2.8; // sheet margin around the plan for dimension lines (m)
-const BG = "#060b15";
+const BG = "#ffffff";
 
 interface VB {
   x: number;
@@ -66,7 +66,7 @@ function DoorSymbol({ room, door, fy }: { room: RoomLayout; door: DoorSpec; fy: 
   return (
     <g pointerEvents="none">
       <line {...gap} stroke={BG} strokeWidth={WALL_T + 0.08} />
-      <path d={arc} fill="none" stroke="#5d6f86" strokeWidth={0.03} />
+      <path d={arc} fill="none" stroke="#64748b" strokeWidth={0.03} />
       <line {...leaf} stroke="#d9a05b" strokeWidth={0.07} strokeLinecap="round" />
     </g>
   );
@@ -100,7 +100,7 @@ function WindowSymbol({ room, win, fy }: { room: RoomLayout; win: WindowSpec; fy
   return (
     <g pointerEvents="none">
       <line {...mid} stroke={BG} strokeWidth={WALL_T + 0.08} />
-      <rect x={x} y={y} width={w} height={h} fill="#0b1726" stroke="#7dd3fc" strokeWidth={0.035} />
+      <rect x={x} y={y} width={w} height={h} fill="#e0f2fe" stroke="#0ea5e9" strokeWidth={0.035} />
       <line {...mid} stroke="#7dd3fc" strokeWidth={0.025} />
     </g>
   );
@@ -121,7 +121,7 @@ function RoomLabel({ room, fy, selected }: { room: RoomLayout; fy: FlipFn; selec
         x={cx}
         y={cy - fs * 0.35}
         fontSize={fs}
-        fill="#dbe4ee"
+        fill="#1f2937"
         fontWeight={600}
         textAnchor="middle"
       >
@@ -131,7 +131,7 @@ function RoomLabel({ room, fy, selected }: { room: RoomLayout; fy: FlipFn; selec
         x={cx}
         y={cy + fs * 0.85}
         fontSize={fs * 0.78}
-        fill="#7c8aa0"
+        fill="#6b7280"
         textAnchor="middle"
         className="font-mono"
       >
@@ -142,7 +142,7 @@ function RoomLabel({ room, fy, selected }: { room: RoomLayout; fy: FlipFn; selec
           x={cx}
           y={cy + fs * 1.95}
           fontSize={fs * 0.62}
-          fill="#55637a"
+          fill="#9ca3af"
           textAnchor="middle"
           className="font-mono"
         >
@@ -173,7 +173,7 @@ function DimLine({
   const mx = (x1 + x2) / 2;
   const my = (y1 + y2) / 2;
   return (
-    <g stroke="#46586f" strokeWidth={0.03} pointerEvents="none">
+    <g stroke="#9ca3af" strokeWidth={0.03} pointerEvents="none">
       <line x1={x1} y1={y1} x2={x2} y2={y2} />
       <line x1={x1 - tick} y1={y1 + tick} x2={x1 + tick} y2={y1 - tick} />
       <line x1={x2 - tick} y1={y2 + tick} x2={x2 + tick} y2={y2 - tick} />
@@ -181,7 +181,7 @@ function DimLine({
         x={mx}
         y={my}
         fontSize={0.42}
-        fill="#8fa0b8"
+        fill="#6b7280"
         stroke="none"
         textAnchor="middle"
         className="font-mono"
@@ -254,7 +254,7 @@ const PlanSheet = memo(function PlanSheet({
           width={r.width}
           height={r.depth}
           fill="none"
-          stroke={r.room_id === selectedRoomId ? SELECTION_ACCENT : "#d7e1ec"}
+          stroke={r.room_id === selectedRoomId ? SELECTION_ACCENT : "#1f2937"}
           strokeWidth={WALL_T}
           pointerEvents="none"
         />
@@ -299,7 +299,7 @@ const PlanSheet = memo(function PlanSheet({
         vertical
       />
       {/* Extension lines */}
-      <g stroke="#2b3a50" strokeWidth={0.02} pointerEvents="none">
+      <g stroke="#cbd5e1" strokeWidth={0.02} pointerEvents="none">
         <line x1={minX} y1={minY - 0.2} x2={minX} y2={minY - 1.55} />
         <line x1={maxX} y1={minY - 0.2} x2={maxX} y2={minY - 1.55} />
         <line x1={minX - 0.2} y1={minY} x2={minX - 1.55} y2={minY} />
@@ -308,15 +308,15 @@ const PlanSheet = memo(function PlanSheet({
 
       {/* North arrow */}
       <g transform={`translate(${maxX + 1.4} ${minY - 1.2})`} pointerEvents="none">
-        <circle r={0.55} fill="none" stroke="#3b4a5f" strokeWidth={0.04} />
+        <circle r={0.55} fill="none" stroke="#cbd5e1" strokeWidth={0.04} />
         <path
           d="M 0 0.3 L 0 -0.3 M -0.16 -0.1 L 0 -0.34 L 0.16 -0.1"
           fill="none"
-          stroke="#8fa0b8"
+          stroke="#6b7280"
           strokeWidth={0.06}
           strokeLinecap="round"
         />
-        <text y={-0.75} fontSize={0.36} fill="#8fa0b8" textAnchor="middle" fontWeight={700}>
+        <text y={-0.75} fontSize={0.36} fill="#6b7280" textAnchor="middle" fontWeight={700}>
           N
         </text>
       </g>
@@ -330,8 +330,8 @@ const PlanSheet = memo(function PlanSheet({
             y={0}
             width={1}
             height={0.16}
-            fill={i % 2 === 0 ? "#cbd5e1" : "none"}
-            stroke="#cbd5e1"
+            fill={i % 2 === 0 ? "#94a3b8" : "none"}
+            stroke="#94a3b8"
             strokeWidth={0.025}
           />
         ))}
@@ -342,7 +342,7 @@ const PlanSheet = memo(function PlanSheet({
             x={i}
             y={0.62}
             fontSize={0.34}
-            fill="#55637a"
+            fill="#9ca3af"
             textAnchor={i === 0 ? "start" : i === scaleSegments ? "end" : "middle"}
             className="font-mono"
           >
@@ -356,7 +356,7 @@ const PlanSheet = memo(function PlanSheet({
         x={maxX}
         y={maxY + 1.7}
         fontSize={0.4}
-        fill="#7c8aa0"
+        fill="#6b7280"
         textAnchor="end"
         pointerEvents="none"
       >
@@ -497,10 +497,10 @@ export function PlanView2D() {
       >
         <defs>
           <pattern id="grid1m" width={1} height={1} patternUnits="userSpaceOnUse">
-            <path d="M 1 0 H 0 V 1" fill="none" stroke="#111a29" strokeWidth={0.02} />
+            <path d="M 1 0 H 0 V 1" fill="none" stroke="#eef2f6" strokeWidth={0.02} />
           </pattern>
           <pattern id="grid5m" width={5} height={5} patternUnits="userSpaceOnUse">
-            <path d="M 5 0 H 0 V 5" fill="none" stroke="#1a2740" strokeWidth={0.035} />
+            <path d="M 5 0 H 0 V 5" fill="none" stroke="#e2e8f0" strokeWidth={0.035} />
           </pattern>
         </defs>
 
@@ -519,8 +519,9 @@ export function PlanView2D() {
         />
       </svg>
 
-      {/* Zoom controls; bottom-16 clears the "Show Results" button App puts at bottom-4 right-4 */}
-      <div className="absolute right-4 bottom-16 flex flex-col gap-1">
+      {/* Zoom controls; bottom-20 + z-20 clears and sits above the "Show Results"
+          button App puts at bottom-4 right-4 */}
+      <div className="absolute right-4 bottom-20 z-20 flex flex-col gap-1">
         {[
           { label: "+", action: () => zoomBy(1 / 1.3), title: t("viewer.zoomIn") },
           { label: "−", action: () => zoomBy(1.3), title: t("viewer.zoomOut") },
@@ -530,7 +531,7 @@ export function PlanView2D() {
             key={b.label}
             onClick={b.action}
             title={b.title}
-            className="w-8 h-8 rounded-lg bg-surface-card border border-surface-border text-slate-300 hover:bg-surface-border hover:text-white transition-colors text-sm font-semibold"
+            className="w-8 h-8 rounded-lg bg-surface-card border border-surface-border text-slate-600 hover:bg-surface-border hover:text-slate-900 transition-colors text-sm font-semibold"
           >
             {b.label}
           </button>

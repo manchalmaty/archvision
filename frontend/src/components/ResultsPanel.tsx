@@ -20,9 +20,9 @@ function planQualityScore(result: import("../types").GenerationResult): {
   score -= errors * 10;
   score -= warns * 3;
   score = Math.max(0, score);
-  if (score >= 85) return { score, labelKey: "results.qualityGood", color: "#6ee7b7" };
-  if (score >= 65) return { score, labelKey: "results.qualityFair", color: "#fde047" };
-  return { score, labelKey: "results.qualityReview", color: "#f87171" };
+  if (score >= 85) return { score, labelKey: "results.qualityGood", color: "#15803d" };
+  if (score >= 65) return { score, labelKey: "results.qualityFair", color: "#a16207" };
+  return { score, labelKey: "results.qualityReview", color: "#dc2626" };
 }
 
 function Accordion({
@@ -36,7 +36,7 @@ function Accordion({
 }) {
   const [open, setOpen] = useState(defaultOpen);
   return (
-    <div style={{ borderBottom: "1px solid #1e2330", marginBottom: 2 }}>
+    <div style={{ borderBottom: "1px solid #e2e8f0", marginBottom: 2 }}>
       <button
         onClick={() => setOpen(!open)}
         style={{
@@ -48,7 +48,7 @@ function Accordion({
           background: "none",
           border: "none",
           cursor: "pointer",
-          color: "#94a3b8",
+          color: "#4b5563",
         }}
       >
         <span
@@ -94,19 +94,19 @@ function GeoCard() {
     <div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6, marginBottom: 6 }}>
         {items.map(({ label, value }) => (
-          <div key={label} style={{ background: "#161b27", borderRadius: 8, padding: "8px 10px" }}>
-            <p style={{ fontSize: 11, color: "#64748b", marginBottom: 3 }}>{label}</p>
-            <p style={{ fontSize: 14, fontFamily: "monospace", color: "#e2e8f0", fontWeight: 600 }}>
+          <div key={label} style={{ background: "#ffffff", borderRadius: 8, padding: "8px 10px" }}>
+            <p style={{ fontSize: 11, color: "#6b7280", marginBottom: 3 }}>{label}</p>
+            <p style={{ fontSize: 14, fontFamily: "monospace", color: "#1f2937", fontWeight: 600 }}>
               {value}
             </p>
           </div>
         ))}
       </div>
-      <div style={{ background: "#161b27", borderRadius: 8, padding: "8px 10px" }}>
-        <p style={{ fontSize: 11, color: "#64748b", marginBottom: 3 }}>
+      <div style={{ background: "#ffffff", borderRadius: 8, padding: "8px 10px" }}>
+        <p style={{ fontSize: 11, color: "#6b7280", marginBottom: 3 }}>
           {t("results.foundationType")}
         </p>
-        <p style={{ fontSize: 13, color: "#e2e8f0" }}>{g.foundation_type}</p>
+        <p style={{ fontSize: 13, color: "#1f2937" }}>{g.foundation_type}</p>
       </div>
     </div>
   );
@@ -124,7 +124,7 @@ function CostCard() {
           textAlign: "center",
           marginBottom: 10,
           padding: "12px",
-          background: "#161b27",
+          background: "#ffffff",
           borderRadius: 8,
         }}
       >
@@ -132,14 +132,14 @@ function CostCard() {
           style={{
             fontSize: 30,
             fontWeight: 700,
-            color: "#fff",
+            color: "#1f2937",
             fontFamily: "monospace",
             lineHeight: 1.1,
           }}
         >
           ${c.total_cost_usd.toLocaleString()}
         </p>
-        <p style={{ fontSize: 13, color: "#94a3b8", marginTop: 4 }}>
+        <p style={{ fontSize: 13, color: "#4b5563", marginTop: 4 }}>
           ≈ {c.total_cost_local.toLocaleString()} {c.currency}
         </p>
       </div>
@@ -152,14 +152,14 @@ function CostCard() {
               justifyContent: "space-between",
               alignItems: "center",
               padding: "5px 2px",
-              borderBottom: "1px solid #1a1f2e",
+              borderBottom: "1px solid #eff2f6",
             }}
           >
-            <span style={{ fontSize: 13, color: "#94a3b8", textTransform: "capitalize" }}>
+            <span style={{ fontSize: 13, color: "#4b5563", textTransform: "capitalize" }}>
               {k.replace("_usd", "").replace(/_/g, " ")}
             </span>
             <span
-              style={{ fontSize: 13, fontFamily: "monospace", color: "#cbd5e1", fontWeight: 600 }}
+              style={{ fontSize: 13, fontFamily: "monospace", color: "#374151", fontWeight: 600 }}
             >
               ${(v as number).toLocaleString()}
             </span>
@@ -175,14 +175,14 @@ function CostCard() {
           <div
             key={label}
             style={{
-              background: "#161b27",
+              background: "#ffffff",
               borderRadius: 6,
               padding: "7px 4px",
               textAlign: "center",
             }}
           >
-            <p style={{ fontSize: 10, color: "#64748b", marginBottom: 3 }}>{label}</p>
-            <p style={{ fontSize: 12, fontFamily: "monospace", color: "#e2e8f0" }}>{value}</p>
+            <p style={{ fontSize: 10, color: "#6b7280", marginBottom: 3 }}>{label}</p>
+            <p style={{ fontSize: 12, fontFamily: "monospace", color: "#1f2937" }}>{value}</p>
           </div>
         ))}
       </div>
@@ -203,12 +203,12 @@ function ComplianceCard() {
           display: "inline-flex",
           alignItems: "center",
           gap: 6,
-          background: "#052e16",
+          background: "#ecfdf5",
           border: "1px solid #166534",
           borderRadius: 20,
           padding: "4px 12px",
           fontSize: 13,
-          color: "#6ee7b7",
+          color: "#15803d",
         }}
       >
         {t("results.allRulesPassed")}
@@ -221,7 +221,7 @@ function ComplianceCard() {
       {issues.map((issue) => (
         <div
           key={issue.rule_id}
-          style={{ background: "#161b27", borderRadius: 8, padding: "8px 10px" }}
+          style={{ background: "#ffffff", borderRadius: 8, padding: "8px 10px" }}
         >
           <span
             style={{
@@ -233,15 +233,15 @@ function ComplianceCard() {
               fontSize: 11,
               fontWeight: 700,
               ...(issue.severity === "ERROR"
-                ? { background: "#450a0a", border: "1px solid #dc2626", color: "#fca5a5" }
-                : { background: "#431407", border: "1px solid #ea580c", color: "#fdba74" }),
+                ? { background: "#fef2f2", border: "1px solid #dc2626", color: "#b91c1c" }
+                : { background: "#fff7ed", border: "1px solid #0284c7", color: "#c2410c" }),
             }}
           >
             {issue.severity}
           </span>
-          <p style={{ fontSize: 13, color: "#cbd5e1", marginTop: 5 }}>{issue.description}</p>
+          <p style={{ fontSize: 13, color: "#374151", marginTop: 5 }}>{issue.description}</p>
           {issue.suggested_fix && (
-            <p style={{ fontSize: 12, color: "#64748b", marginTop: 3 }}>→ {issue.suggested_fix}</p>
+            <p style={{ fontSize: 12, color: "#6b7280", marginTop: 3 }}>→ {issue.suggested_fix}</p>
           )}
         </div>
       ))}
@@ -276,7 +276,7 @@ function MEPTab() {
     return (
       <div style={{ padding: "40px 16px", textAlign: "center" }}>
         <p style={{ fontSize: 36, marginBottom: 8 }}>✓</p>
-        <p style={{ fontSize: 14, color: "#6ee7b7" }}>{t("results.noClashes")}</p>
+        <p style={{ fontSize: 14, color: "#15803d" }}>{t("results.noClashes")}</p>
       </div>
     );
   }
@@ -287,10 +287,10 @@ function MEPTab() {
 
   const chipStyle = (sev: string) => {
     if (sev === "HIGH")
-      return { background: "#450a0a", border: "1px solid #dc2626", color: "#fca5a5" };
+      return { background: "#fef2f2", border: "1px solid #dc2626", color: "#b91c1c" };
     if (sev === "MEDIUM")
-      return { background: "#431407", border: "1px solid #ea580c", color: "#fdba74" };
-    return { background: "#422006", border: "1px solid #ca8a04", color: "#fde047" };
+      return { background: "#fff7ed", border: "1px solid #0284c7", color: "#c2410c" };
+    return { background: "#fefce8", border: "1px solid #ca8a04", color: "#a16207" };
   };
 
   return (
@@ -336,7 +336,7 @@ function MEPTab() {
             LOW: {low}
           </span>
         )}
-        <span style={{ fontSize: 12, color: "#64748b", alignSelf: "center" }}>
+        <span style={{ fontSize: 12, color: "#6b7280", alignSelf: "center" }}>
           {t("results.total")}: {conflicts.length}
         </span>
       </div>
@@ -379,11 +379,11 @@ function MEPTab() {
             {hint && (
               <details style={{ marginTop: 6 }}>
                 <summary
-                  style={{ fontSize: 11, color: "#94a3b8", cursor: "pointer", userSelect: "none" }}
+                  style={{ fontSize: 11, color: "#4b5563", cursor: "pointer", userSelect: "none" }}
                 >
                   {t("results.howToFix")}
                 </summary>
-                <p style={{ fontSize: 12, color: "#cbd5e1", marginTop: 4, lineHeight: 1.5 }}>
+                <p style={{ fontSize: 12, color: "#374151", marginTop: 4, lineHeight: 1.5 }}>
                   {hint}
                 </p>
               </details>
@@ -417,9 +417,9 @@ function ExportTab() {
       >
         {t("results.exportPdf")}
       </a>
-      <p style={{ fontSize: 12, color: "#475569", textAlign: "center", marginTop: 8 }}>
+      <p style={{ fontSize: 12, color: "#9ca3af", textAlign: "center", marginTop: 8 }}>
         {t("results.projectId")}{" "}
-        <span style={{ fontFamily: "monospace", color: "#64748b" }}>
+        <span style={{ fontFamily: "monospace", color: "#6b7280" }}>
           {result.project_id.slice(0, 8)}
         </span>
       </p>
@@ -449,7 +449,7 @@ export function ResultsPanel({ onClose }: Props) {
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
       {/* Panel header */}
-      <div style={{ flexShrink: 0, borderBottom: "1px solid #1e2330", background: "#0b0e16" }}>
+      <div style={{ flexShrink: 0, borderBottom: "1px solid #e2e8f0", background: "#f1f5f9" }}>
         <div
           style={{
             display: "flex",
@@ -463,7 +463,7 @@ export function ResultsPanel({ onClose }: Props) {
               style={{
                 fontSize: 11,
                 fontWeight: 600,
-                color: "#475569",
+                color: "#9ca3af",
                 textTransform: "uppercase",
                 letterSpacing: "0.1em",
               }}
@@ -495,14 +495,14 @@ export function ResultsPanel({ onClose }: Props) {
               background: "none",
               border: "none",
               cursor: "pointer",
-              color: "#475569",
+              color: "#9ca3af",
               fontSize: 20,
               lineHeight: 1,
               padding: "0 2px",
               transition: "color 0.15s",
             }}
-            onMouseEnter={(e) => (e.currentTarget.style.color = "#94a3b8")}
-            onMouseLeave={(e) => (e.currentTarget.style.color = "#475569")}
+            onMouseEnter={(e) => (e.currentTarget.style.color = "#4b5563")}
+            onMouseLeave={(e) => (e.currentTarget.style.color = "#9ca3af")}
             title={t("results.closePanel")}
           >
             ×
@@ -517,8 +517,8 @@ export function ResultsPanel({ onClose }: Props) {
               style={{
                 background: "none",
                 border: "none",
-                borderBottom: tab === id ? "2px solid #6366f1" : "2px solid transparent",
-                color: tab === id ? "#e2e8f0" : "#64748b",
+                borderBottom: tab === id ? "2px solid #0284c7" : "2px solid transparent",
+                color: tab === id ? "#1f2937" : "#6b7280",
                 fontSize: 12,
                 fontWeight: 600,
                 letterSpacing: "0.04em",

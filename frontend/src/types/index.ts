@@ -96,6 +96,15 @@ export interface CostEstimate {
   breakdown: Record<string, number>;
 }
 
+export interface ProjectSummary {
+  project_id: string;
+  created_at: string;
+  rooms: number;
+  floors: number;
+  total_area_m2: number;
+  country_currency: string;
+}
+
 export interface GenerationResult {
   project_id: string;
   rooms: RoomLayout[];

@@ -47,15 +47,63 @@ export default function App() {
       {/* Header */}
       <header className="border-b border-surface-border px-6 py-3 flex items-center justify-between flex-shrink-0">
         <div className="flex items-center gap-3">
-          <div className="w-8 h-8 bg-brand-600 rounded-lg flex items-center justify-center">
-            <svg viewBox="0 0 24 24" className="w-5 h-5 text-white fill-current">
-              <path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z" />
-              <polyline points="9 22 9 12 15 12 15 22" />
+          {/* Brand mark — triangular "A" / roof over a blueprint crosshair */}
+          <div className="w-9 h-9 rounded-md bg-slate-900 flex items-center justify-center flex-shrink-0">
+            <svg viewBox="0 0 32 32" className="w-9 h-9">
+              <line
+                x1="3"
+                y1="11"
+                x2="29"
+                y2="11"
+                stroke="#38bdf8"
+                strokeWidth="0.7"
+                opacity="0.5"
+              />
+              <line
+                x1="3"
+                y1="22"
+                x2="29"
+                y2="22"
+                stroke="#38bdf8"
+                strokeWidth="0.7"
+                opacity="0.5"
+              />
+              <line
+                x1="16"
+                y1="3"
+                x2="16"
+                y2="29"
+                stroke="#38bdf8"
+                strokeWidth="0.7"
+                opacity="0.5"
+              />
+              <path
+                d="M16 7 L25 25 H7 Z"
+                fill="none"
+                stroke="#ffffff"
+                strokeWidth="2.2"
+                strokeLinejoin="round"
+              />
+              <line x1="12" y1="19.5" x2="20" y2="19.5" stroke="#38bdf8" strokeWidth="2.2" />
             </svg>
           </div>
           <div>
-            <h1 className="text-lg font-bold text-white">ArchVision AI</h1>
-            <p className="text-xs text-slate-500">{t("app.subtitle")}</p>
+            <h1 className="font-display text-lg font-bold tracking-tight text-slate-900 leading-none">
+              ArchVision
+              <span
+                style={{
+                  backgroundImage: "linear-gradient(135deg, #2dd4bf 0%, #1e3a8a 100%)",
+                  WebkitBackgroundClip: "text",
+                  backgroundClip: "text",
+                  color: "transparent",
+                }}
+              >
+                &nbsp;AI
+              </span>
+            </h1>
+            <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-slate-500 mt-0.5">
+              {t("app.subtitle")}
+            </p>
           </div>
         </div>
         <div className="flex items-center gap-2">
@@ -68,7 +116,7 @@ export default function App() {
                 className={`px-2 py-1 text-xs font-semibold rounded-md transition-all ${
                   i18n.resolvedLanguage === code
                     ? "bg-brand-600 text-white"
-                    : "text-slate-400 hover:text-slate-200"
+                    : "text-slate-500 hover:text-slate-800"
                 }`}
               >
                 {label}
@@ -89,19 +137,19 @@ export default function App() {
             width: 280,
             flexShrink: 0,
             overflowY: "auto",
-            borderRight: "1px solid #1e2330",
-            padding: "16px",
+            borderRight: "1px solid #e2e8f0",
+            padding: "16px 16px 0",
             display: "flex",
             flexDirection: "column",
             gap: "12px",
-            background: "#0b0e16",
+            background: "#f1f5f9",
           }}
         >
           <ParameterForm onGenerate={handleGenerate} />
         </aside>
 
         {/* Center — always fills remaining space, never shifts */}
-        <main style={{ flex: 1, position: "relative", background: "#020617", overflow: "hidden" }}>
+        <main style={{ flex: 1, position: "relative", background: "#f8fafc", overflow: "hidden" }}>
           <ThreeViewer />
           {!result && !isGenerating && (
             <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
@@ -124,14 +172,14 @@ export default function App() {
                   ].map(([n, text]) => (
                     <div
                       key={n}
-                      style={{ display: "flex", alignItems: "center", gap: 10, color: "#475569" }}
+                      style={{ display: "flex", alignItems: "center", gap: 10, color: "#9ca3af" }}
                     >
                       <span
                         style={{
                           width: 22,
                           height: 22,
                           borderRadius: "50%",
-                          border: "1px solid #2a2e3a",
+                          border: "1px solid #cbd5e1",
                           display: "flex",
                           alignItems: "center",
                           justifyContent: "center",
@@ -150,7 +198,7 @@ export default function App() {
             </div>
           )}
           {isGenerating && (
-            <div className="absolute inset-0 flex items-center justify-center bg-slate-950/80">
+            <div className="absolute inset-0 flex items-center justify-center bg-white/70 backdrop-blur-sm">
               <div className="text-center">
                 <div className="w-12 h-12 border-2 border-brand-500 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
                 <p className="text-sm text-slate-400">{t("app.generating")}</p>
@@ -160,9 +208,9 @@ export default function App() {
                   style={{
                     marginTop: 16,
                     background: "transparent",
-                    border: "1px solid #2a2e3a",
+                    border: "1px solid #cbd5e1",
                     borderRadius: 8,
-                    color: "#94a3b8",
+                    color: "#4b5563",
                     fontSize: 13,
                     fontWeight: 600,
                     padding: "7px 18px",
@@ -193,23 +241,24 @@ export default function App() {
               {error && (
                 <div
                   style={{
-                    background: "#2d1216",
-                    border: "1px solid #7f1d1d",
+                    background: "#fef2f2",
+                    border: "1px solid #fecaca",
                     borderRadius: 8,
+                    boxShadow: "0 1px 2px rgba(0,0,0,0.06)",
                     padding: "10px 14px",
                     display: "flex",
                     alignItems: "flex-start",
                     gap: 10,
                   }}
                 >
-                  <span style={{ fontSize: 13, color: "#fca5a5", lineHeight: 1.4 }}>{error}</span>
+                  <span style={{ fontSize: 13, color: "#b91c1c", lineHeight: 1.4 }}>{error}</span>
                   <button
                     onClick={() => setError(null)}
                     aria-label={t("app.dismissError")}
                     style={{
                       background: "none",
                       border: "none",
-                      color: "#7f1d1d",
+                      color: "#dc2626",
                       cursor: "pointer",
                       fontSize: 16,
                       lineHeight: 1,
@@ -223,12 +272,13 @@ export default function App() {
               {result && resultStale && (
                 <div
                   style={{
-                    background: "#2a2008",
-                    border: "1px solid #a16207",
+                    background: "#fffbeb",
+                    border: "1px solid #fcd34d",
                     borderRadius: 20,
+                    boxShadow: "0 1px 2px rgba(0,0,0,0.06)",
                     padding: "5px 14px",
                     fontSize: 12,
-                    color: "#fcd34d",
+                    color: "#b45309",
                   }}
                 >
                   {t("app.staleParams")}
@@ -244,10 +294,10 @@ export default function App() {
                 position: "absolute",
                 bottom: 16,
                 right: 16,
-                background: "#1e2330",
-                border: "1px solid #2a2e3a",
+                background: "#e2e8f0",
+                border: "1px solid #cbd5e1",
                 borderRadius: 8,
-                color: "#94a3b8",
+                color: "#4b5563",
                 fontSize: 12,
                 fontWeight: 600,
                 padding: "6px 12px",
@@ -269,8 +319,8 @@ export default function App() {
               top: 0,
               bottom: 0,
               width: 320,
-              background: "#0b0e16",
-              borderLeft: "1px solid #1e2330",
+              background: "#f1f5f9",
+              borderLeft: "1px solid #e2e8f0",
               zIndex: 10,
               display: "flex",
               flexDirection: "column",

@@ -118,7 +118,7 @@ export function ParameterForm({ onGenerate }: Props) {
   return (
     <div className="flex flex-col gap-5">
       <div>
-        <h2 className="text-sm font-semibold text-slate-300 uppercase tracking-wider mb-3">
+        <h2 className="text-sm font-semibold text-slate-700 uppercase tracking-wider mb-3">
           {t("form.buildingParams")}
         </h2>
 
@@ -133,8 +133,8 @@ export function ParameterForm({ onGenerate }: Props) {
                 onClick={() => setParams({ building_shape: shape.id })}
                 className={`flex flex-col items-center gap-1 py-2 px-1 rounded-lg border transition-all ${
                   params.building_shape === shape.id
-                    ? "bg-brand-600/25 border-brand-500 text-brand-400"
-                    : "bg-surface-card border-surface-border text-slate-500 hover:border-slate-500 hover:text-slate-300"
+                    ? "bg-brand-50 border-brand-500 text-brand-700"
+                    : "bg-surface-card border-surface-border text-slate-500 hover:border-slate-400 hover:text-slate-700"
                 }`}
                 title={t(`shapes.${shape.id}`)}
               >
@@ -213,7 +213,7 @@ export function ParameterForm({ onGenerate }: Props) {
             />
           </div>
           {plotCapacity !== null && totalArea > plotCapacity && (
-            <p className="text-xs text-amber-400 mt-1.5 leading-snug">
+            <p className="text-xs text-amber-600 mt-1.5 leading-snug">
               {t("form.plotWarning", {
                 total: totalArea.toFixed(0),
                 capacity: plotCapacity.toFixed(0),
@@ -226,7 +226,7 @@ export function ParameterForm({ onGenerate }: Props) {
 
       <div>
         <div className="flex items-center justify-between mb-2">
-          <h2 className="text-sm font-semibold text-slate-300 uppercase tracking-wider">
+          <h2 className="text-sm font-semibold text-slate-700 uppercase tracking-wider">
             {t("form.rooms")}
             <span className="ml-2 text-brand-500 font-mono normal-case text-xs">
               {totalArea.toFixed(0)} m²
@@ -234,7 +234,7 @@ export function ParameterForm({ onGenerate }: Props) {
           </h2>
           <button
             onClick={() => addRoom({ room_type: "bedroom", area_m2: 12 })}
-            className="text-xs text-brand-500 hover:text-brand-400 transition-colors"
+            className="text-xs text-brand-600 hover:text-brand-700 transition-colors"
           >
             {t("form.addRoom")}
           </button>
@@ -291,8 +291,9 @@ export function ParameterForm({ onGenerate }: Props) {
         style={{
           position: "sticky",
           bottom: 0,
-          background: "linear-gradient(to bottom, transparent, #0b0e16 30%)",
+          background: "linear-gradient(to bottom, transparent, #f1f5f9 25%)",
           paddingTop: 16,
+          paddingBottom: 16,
           marginTop: 4,
         }}
       >

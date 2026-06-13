@@ -393,7 +393,7 @@ export function ThreeViewer() {
               className={`px-4 py-1.5 text-xs font-semibold rounded-md transition-all ${
                 viewMode === mode
                   ? "bg-brand-600 text-white"
-                  : "text-slate-400 hover:text-slate-200"
+                  : "text-slate-500 hover:text-slate-800"
               }`}
             >
               {label}
@@ -414,7 +414,7 @@ export function ThreeViewer() {
                 className={`w-9 h-9 rounded-lg text-sm font-semibold transition-all ${
                   activeFloor === f
                     ? "bg-brand-600 text-white"
-                    : "bg-surface-card text-slate-400 hover:bg-surface-border"
+                    : "bg-surface-card text-slate-500 hover:bg-surface-border"
                 }`}
               >
                 {f}
@@ -431,14 +431,14 @@ export function ThreeViewer() {
             onClick={toggleMEP}
             className={`text-xs px-3 py-1.5 rounded-lg border transition-all ${
               showMEP
-                ? "bg-red-900/40 border-red-700 text-red-300"
-                : "bg-surface-card border-surface-border text-slate-400"
+                ? "bg-red-50 border-red-300 text-red-700"
+                : "bg-surface-card border-surface-border text-slate-500"
             }`}
           >
             {showMEP ? t("viewer.mepOn") : t("viewer.mepOff")}
           </button>
           {result.mep_conflicts.length > 0 && showMEP && (
-            <span className="text-xs text-red-400 text-center">
+            <span className="text-xs text-red-600 text-center">
               {t("viewer.clashes", { count: result.mep_conflicts.length })}
             </span>
           )}
