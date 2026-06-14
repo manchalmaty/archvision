@@ -67,6 +67,20 @@ MIN_DIMS: dict[RoomType, tuple[float, float]] = {
     RoomType.HALLWAY: (1.2, 2.0),
 }
 
+# Narrowest usable side per room type (m): a room must clear this in BOTH
+# dimensions or furniture will not fit. Shared by the layout engine (to size
+# bands) and the invariant checker (rule 9), so they cannot drift apart.
+USABLE_MIN_SIDE: dict[RoomType, float] = {
+    RoomType.LIVING_ROOM: 2.4,
+    RoomType.BEDROOM: 2.4,
+    RoomType.KITCHEN: 1.8,
+    RoomType.BATHROOM: 1.5,
+    RoomType.TOILET: 0.8,
+    RoomType.HALLWAY: 0.9,
+    RoomType.UTILITY: 1.2,
+    RoomType.GARAGE: 2.4,
+}
+
 
 OPEN_TOL = 0.08  # adjacency tolerance (m)
 MIN_CORNER = 0.3  # min clearance from wall corner to opening edge (m)
@@ -342,31 +356,43 @@ class LayoutEngine:
                 placed += 1
 
     def _ensure_essentials(self, rooms: list) -> list:
-        """Auto-inject hallway and toilet if user omitted them."""
+        """Auto-inject the rooms a dwelling cannot legally lack: hallway, a
+        toilet, and a kitchen (a home without a kitchen is uninhabitable — see
+        invariant rule 8)."""
         types = {r.room_type for r in rooms}
         if RoomType.HALLWAY not in types:
             rooms.append(RoomInput(room_type=RoomType.HALLWAY, area_m2=5.0, name="Hallway"))
         if RoomType.TOILET not in types:
             rooms.append(RoomInput(room_type=RoomType.TOILET, area_m2=2.0, name="Toilet"))
+        if RoomType.KITCHEN not in types:
+            rooms.append(RoomInput(room_type=RoomType.KITCHEN, area_m2=8.0, name="Kitchen"))
         return rooms
 
     def _distribute_floors(self, rooms: list):
         floors = self.params.floors
 
-        # Ground-floor priority: plumbing zones + entry
-        ground = [r for r in rooms if r.room_type in GROUND_FLOOR_ZONES]
-        upper = [r for r in rooms if r.room_type not in GROUND_FLOOR_ZONES]
+        # Ground floor holds the service core and the social room (wet zones +
+        # hallway + living room). Private rooms (bedrooms, etc.) go upstairs when
+        # there is an upstairs — this is the normal arrangement and it also keeps
+        # the ground floor from cramming a lone bedroom in beside the wet band.
+        ground_pref = GROUND_FLOOR_ZONES | {RoomType.LIVING_ROOM}
+        ground = [r for r in rooms if r.room_type in ground_pref]
+        private = [r for r in rooms if r.room_type not in ground_pref]
 
         per_floor: list[list] = [[] for _ in range(floors)]
         per_floor[0].extend(ground)
 
-        # Distribute upper-floor rooms by area balance
-        upper_sorted = sorted(upper, key=lambda r: r.area_m2, reverse=True)
-        floor_totals = [sum(r.area_m2 for r in f) for f in per_floor]
-        for room in upper_sorted:
-            min_floor = floor_totals.index(min(floor_totals))
-            per_floor[min_floor].append(room)
-            floor_totals[min_floor] += room.area_m2
+        if floors == 1:
+            per_floor[0].extend(private)
+            return per_floor
+
+        # Balance private rooms across the UPPER floors only.
+        upper = list(range(1, floors))
+        totals = dict.fromkeys(upper, 0.0)
+        for room in sorted(private, key=lambda r: r.area_m2, reverse=True):
+            f = min(upper, key=lambda i: totals[i])
+            per_floor[f].append(room)
+            totals[f] += room.area_m2
 
         return per_floor
 
@@ -507,9 +533,11 @@ class LayoutEngine:
         """
         halls = [r for r in rooms if r.room_type == RoomType.HALLWAY]
         others = [r for r in rooms if r.room_type != RoomType.HALLWAY]
-        if not halls or not others:
+        if not others:
             return self._layout_tiled(floor, rooms, aspect_factor=aspect_factor)
-        hall = halls[0]
+        # Upper floors carry no hallway — they still get the two-band, min-size
+        # treatment, just without a central corridor strip between the bands.
+        hall = halls[0] if halls else None
 
         total_area = sum(r.area_m2 for r in rooms)
         width = round(math.sqrt(total_area * aspect_factor), 2)
@@ -533,6 +561,25 @@ class LayoutEngine:
                     south.append(r)
                     asth += r.area_m2
 
+        # Size the footprint so each band is both deep enough for its deepest
+        # room AND wide enough that its narrowest room clears its minimum side.
+        # Upper bound (depth): width <= band_area / deepest_min.
+        # Lower bound (width): width >= narrowest_min * band_area / room_area.
+        # When the two conflict (too many rooms for one row) the width bound wins
+        # and the invariant checker honestly reports the remaining shortfall.
+        for band in (north, south):
+            if not band:
+                continue
+            band_area = sum(r.area_m2 for r in band)
+            deepest = max(USABLE_MIN_SIDE.get(r.room_type, 1.5) for r in band)
+            width = min(width, band_area / deepest)
+            for r in band:
+                need_w = USABLE_MIN_SIDE.get(r.room_type, 1.5)
+                width = max(width, need_w * band_area / r.area_m2)
+        if self.params.plot_width_m:
+            width = min(width, self.params.plot_width_m)
+        width = max(width, 2.0)
+
         # Guard: only reject central-hall for genuinely degenerate bands (a room
         # thinner than 0.7 m). For everything else central-hall beats an enfilade,
         # so we prefer it even when proportions are merely tight.
@@ -545,23 +592,23 @@ class LayoutEngine:
         if not (_row_ok(north) and _row_ok(south)):
             return self._layout_tiled(floor, rooms, aspect_factor=aspect_factor)
 
-        hall_h = round(max(hall.area_m2 / width, 1.3), 3)
-
         layouts: list[RoomLayout] = []
         y = self._emit_row(layouts, floor, north, 0.0, 0.0, width)
-        layouts.append(
-            RoomLayout(
-                room_id=str(uuid.uuid4()),
-                room_type=hall.room_type,
-                name=hall.name or "Hallway",
-                x=0.0,
-                y=round(y, 3),
-                floor=floor,
-                width=width,
-                depth=hall_h,
-                area_m2=hall.area_m2,
+        if hall is not None:
+            hall_h = round(max(hall.area_m2 / width, 1.3), 3)
+            layouts.append(
+                RoomLayout(
+                    room_id=str(uuid.uuid4()),
+                    room_type=hall.room_type,
+                    name=hall.name or "Hallway",
+                    x=0.0,
+                    y=round(y, 3),
+                    floor=floor,
+                    width=width,
+                    depth=hall_h,
+                    area_m2=hall.area_m2,
+                )
             )
-        )
-        y = round(y + hall_h, 3)
+            y = round(y + hall_h, 3)
         self._emit_row(layouts, floor, south, 0.0, y, width)
         return layouts
