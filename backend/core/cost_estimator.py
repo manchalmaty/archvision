@@ -1,13 +1,21 @@
 """
 Bill of materials and cost estimation from room layouts.
-"""
 
-import math
+Sketch-level but physically honest: concrete is the strip foundation plus floor
+slabs (not solid concrete partitions everywhere), walls are brick/block at their
+real thickness, and shared interior walls are counted once — not once per room.
+"""
 
 from models import CostEstimate, CountryCode, GeoClimateData, RoomLayout
 
 FLOOR_HEIGHT = 3.0
-SLAB_THICKNESS = 0.2
+SLAB_THICKNESS = 0.2  # m — floor/ceiling slab
+INTERIOR_WALL_T = 0.12  # m — partition thickness (exterior comes from geo)
+EXT_SOLID_FRAC = 0.70  # exterior wall minus window/door openings
+INT_SOLID_FRAC = 0.85  # interior wall minus doorways
+LOAD_BEARING_FRAC = 0.5  # share of interior walls that sit on the foundation
+STRIP_WIDTH = 0.4  # m — foundation strip footing width
+STRIP_BELOW_FROST = 0.2  # m — footing sits this far below the frost line
 
 # Material unit costs USD/m3 or USD/m2
 MATERIAL_COSTS_USD = {
@@ -31,6 +39,24 @@ CURRENCY_INFO = {
 }
 
 
+def _floor_walls(rooms: list[RoomLayout]) -> tuple[float, float]:
+    """Return (exterior perimeter, interior wall length) for one floor.
+
+    Interior walls are shared between two rooms, so summing per-room perimeters
+    double-counts them: interior length = (Σ room perimeters − exterior) / 2.
+    """
+    if not rooms:
+        return 0.0, 0.0
+    min_x = min(r.x for r in rooms)
+    min_y = min(r.y for r in rooms)
+    max_x = max(r.x + r.width for r in rooms)
+    max_y = max(r.y + r.depth for r in rooms)
+    exterior = 2 * ((max_x - min_x) + (max_y - min_y))
+    room_perims = sum(2 * (r.width + r.depth) for r in rooms)
+    interior = max(0.0, (room_perims - exterior) / 2)
+    return exterior, interior
+
+
 class CostEstimator:
     def __init__(self, rooms: list[RoomLayout], geo: GeoClimateData, country: CountryCode):
         self.rooms = rooms
@@ -38,37 +64,29 @@ class CostEstimator:
         self.country = country
 
     def estimate(self) -> CostEstimate:
-        wall_t = self.geo.wall_thickness_mm / 1000.0
+        ext_t = self.geo.wall_thickness_mm / 1000.0
+        floors = sorted({r.floor for r in self.rooms}) or [1]
 
-        total_wall_area = 0.0
-        total_slab_area = 0.0
-        total_perimeter = 0.0
+        # Walls (brick/block) and exterior insulation, summed per floor.
+        brick_m3 = 0.0
+        insulation_m2 = 0.0
+        for f in floors:
+            ext, interior = _floor_walls([r for r in self.rooms if r.floor == f])
+            brick_m3 += ext * FLOOR_HEIGHT * ext_t * EXT_SOLID_FRAC
+            brick_m3 += interior * FLOOR_HEIGHT * INTERIOR_WALL_T * INT_SOLID_FRAC
+            insulation_m2 += ext * FLOOR_HEIGHT
 
-        for room in self.rooms:
-            perimeter = 2 * (room.width + room.depth)
-            total_wall_area += perimeter * FLOOR_HEIGHT
-            total_slab_area += room.width * room.depth
-            total_perimeter += perimeter
+        # Concrete = strip foundation (ground floor only) + one slab per floor.
+        ground_ext, ground_int = _floor_walls([r for r in self.rooms if r.floor == floors[0]])
+        strip_length = ground_ext + ground_int * LOAD_BEARING_FRAC
+        strip_depth = self.geo.frost_depth_m + STRIP_BELOW_FROST
+        foundation_m3 = strip_length * STRIP_WIDTH * strip_depth
 
-        # Concrete: walls + slabs
-        wall_concrete_m3 = total_wall_area * wall_t * 0.4  # 40% solid (openings)
-        slab_concrete_m3 = total_slab_area * SLAB_THICKNESS
+        slab_area = sum(r.width * r.depth for r in self.rooms)
+        slab_m3 = slab_area * SLAB_THICKNESS
+        concrete_total = foundation_m3 + slab_m3
 
-        # Foundation slab
-        foundation_area = total_slab_area * 1.1  # 10% overhang
-        foundation_concrete_m3 = foundation_area * 0.4
-
-        concrete_total = wall_concrete_m3 + slab_concrete_m3 + foundation_concrete_m3
-
-        # Brick / masonry (outer walls)
-        floor_count = max(r.floor for r in self.rooms) if self.rooms else 1
-        outer_perimeter = math.sqrt(total_slab_area) * 4 * 0.8  # rough outer perimeter
-        brick_m3 = outer_perimeter * FLOOR_HEIGHT * floor_count * wall_t * 0.6
-
-        # Insulation
-        insulation_m2 = outer_perimeter * FLOOR_HEIGHT * floor_count
-
-        # Cost calculation
+        # Costs
         concrete_cost = concrete_total * MATERIAL_COSTS_USD["concrete"]
         brick_cost = brick_m3 * MATERIAL_COSTS_USD["brick"]
         insulation_cost = insulation_m2 * MATERIAL_COSTS_USD["insulation"]

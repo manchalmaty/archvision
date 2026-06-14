@@ -133,6 +133,30 @@ class TestCostEstimator:
 
         assert big.total_cost_usd > small.total_cost_usd
 
+    def test_concrete_volume_is_realistic(self, layouts):
+        # Regression: the old formula put solid-concrete partitions everywhere and
+        # a full-area raft, giving ~1.6 m³ of concrete per m² of floor. A strip
+        # foundation + slabs should sit well under ~1.2 m³/m².
+        cost = CostEstimator(layouts, geo, CountryCode.RU).estimate()
+        floor_area = sum(r.width * r.depth for r in layouts)
+        assert cost.concrete_m3 / floor_area < 1.2
+
+    def test_interior_walls_counted_once(self):
+        # Two 3×3 rooms sharing a wall: exterior perimeter is the 6×3 box (18 m),
+        # and the single shared partition is 3 m — not 6 m from summing perimeters.
+        from core.cost_estimator import _floor_walls
+        from models import RoomLayout, RoomType
+
+        rooms = [
+            RoomLayout(room_id="a", room_type=RoomType.BEDROOM, name="A",
+                       x=0, y=0, floor=1, width=3, depth=3, area_m2=9),
+            RoomLayout(room_id="b", room_type=RoomType.BEDROOM, name="B",
+                       x=3, y=0, floor=1, width=3, depth=3, area_m2=9),
+        ]
+        exterior, interior = _floor_walls(rooms)
+        assert exterior == pytest.approx(18.0)
+        assert interior == pytest.approx(3.0)
+
     def test_thicker_walls_cost_more(self, basic_params):
         layouts = LayoutEngine(basic_params, geo).generate()
         cold_geo = GeoClimateCalculator().calculate(CountryCode.RU, "Сибирь", 1)
