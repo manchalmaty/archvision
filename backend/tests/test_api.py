@@ -95,6 +95,36 @@ class TestReport:
         r = client.get(f"/api/v1/report/{generated['project_id']}", params={"lang": "xx"})
         assert r.status_code == 422
 
+    def test_report_embeds_floor_plan_drawing(self):
+        # The report must contain the actual 2D scheme, not just tables: one
+        # vector drawing per floor, with a rect per room and door/window lines.
+        from reportlab.graphics.shapes import PolyLine, Rect
+
+        from core.cost_estimator import CostEstimator
+        from core.geo_calculator import GeoClimateCalculator
+        from core.layout_engine import LayoutEngine
+        from core.pdf_generator import _floor_plan_drawing
+        from models import BuildingParams, CountryCode, RoomInput, RoomType
+
+        geo = GeoClimateCalculator().calculate(CountryCode.RU, None, 1)
+        params = BuildingParams(
+            rooms=[
+                RoomInput(room_type=RoomType.LIVING_ROOM, area_m2=18),
+                RoomInput(room_type=RoomType.BEDROOM, area_m2=12),
+                RoomInput(room_type=RoomType.KITCHEN, area_m2=9),
+                RoomInput(room_type=RoomType.BATHROOM, area_m2=4),
+            ],
+            country=CountryCode.RU, floors=1,
+        )
+        rooms = LayoutEngine(params, geo).generate()
+        CostEstimator(rooms, geo, CountryCode.RU).estimate()
+        drawing = _floor_plan_drawing(rooms, 493.0, "Floor 1")
+        rects = [e for e in drawing.contents if isinstance(e, Rect)]
+        arcs = [e for e in drawing.contents if isinstance(e, PolyLine)]
+        assert len(rects) == len(rooms)  # one poché room box each
+        assert arcs  # door swing arcs present
+        assert drawing.width > 0 and drawing.height > 0
+
 
 class TestMisc:
     def test_health(self):

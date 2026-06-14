@@ -6,9 +6,11 @@ compliance and MEP findings, with a non-liability disclaimer.
 
 import io
 import logging
+import math
 import os
 from datetime import date
 
+from reportlab.graphics.shapes import Drawing, Line, PolyLine, Rect, String
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import ParagraphStyle
@@ -17,7 +19,7 @@ from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
-from models import GenerationResult
+from models import GenerationResult, RoomLayout
 
 logger = logging.getLogger(__name__)
 
@@ -78,6 +80,7 @@ _L = {
         "snow": "Snow load",
         "wind": "Wind load",
         "foundation": "Foundation type",
+        "plan": "Floor Plan",
         "rooms": "Rooms",
         "room": "Room",
         "floor": "Floor",
@@ -110,6 +113,7 @@ _L = {
         "snow": "Снеговая нагрузка",
         "wind": "Ветровая нагрузка",
         "foundation": "Тип фундамента",
+        "plan": "План этажа",
         "rooms": "Помещения",
         "room": "Помещение",
         "floor": "Этаж",
@@ -142,6 +146,7 @@ _L = {
         "snow": "Қар жүктемесі",
         "wind": "Жел жүктемесі",
         "foundation": "Іргетас түрі",
+        "plan": "Қабат жоспары",
         "rooms": "Бөлмелер",
         "room": "Бөлме",
         "floor": "Қабат",
@@ -187,6 +192,85 @@ _TABLE_STYLE = _table_style(
 )
 
 
+_INK = colors.HexColor("#1f2937")
+_ROOM_FILL = colors.HexColor("#f8fafc")
+_LABEL = colors.HexColor("#111827")
+_MUTED = colors.HexColor("#6b7280")
+_WINDOW = colors.HexColor("#2563eb")
+_DOOR = colors.HexColor("#94a3b8")
+_PLAN_WALL_PT = 1.8
+_PLAN_MAX_H = 105 * mm
+
+
+def _door_world(r: RoomLayout, door):
+    """Opening endpoints (a, b), the into-room unit normal, and width — in world
+    metres. World y grows downward (matches the layout engine)."""
+    p, dw = door.position, door.width
+    if door.wall == "S":
+        return (r.x + p, r.y), (r.x + p + dw, r.y), (0.0, 1.0), dw
+    if door.wall == "N":
+        return (r.x + p, r.y + r.depth), (r.x + p + dw, r.y + r.depth), (0.0, -1.0), dw
+    if door.wall == "W":
+        return (r.x, r.y + p), (r.x, r.y + p + dw), (1.0, 0.0), dw
+    return (r.x + r.width, r.y + p), (r.x + r.width, r.y + p + dw), (-1.0, 0.0), dw
+
+
+def _floor_plan_drawing(rooms: list[RoomLayout], avail_w: float, caption: str) -> Drawing:
+    """Vector floor plan: poché walls, doors (swing arc), windows and labels."""
+    min_x = min(r.x for r in rooms)
+    min_y = min(r.y for r in rooms)
+    max_x = max(r.x + r.width for r in rooms)
+    max_y = max(r.y + r.depth for r in rooms)
+    plan_w, plan_h = max_x - min_x, max_y - min_y
+    pad, cap_h = 6.0, 14.0
+    scale = min((avail_w - 2 * pad) / plan_w, (_PLAN_MAX_H - 2 * pad - cap_h) / plan_h)
+    dw_pt = plan_w * scale + 2 * pad
+    dh_pt = plan_h * scale + 2 * pad + cap_h
+    d = Drawing(dw_pt, dh_pt)
+
+    def sx(wx: float) -> float:
+        return pad + (wx - min_x) * scale
+
+    def sy(wy: float) -> float:  # flip so north (smaller world y) is up
+        return cap_h + pad + (max_y - wy) * scale
+
+    for r in rooms:
+        d.add(Rect(
+            sx(r.x), sy(r.y + r.depth), r.width * scale, r.depth * scale,
+            fillColor=_ROOM_FILL, strokeColor=_INK, strokeWidth=_PLAN_WALL_PT,
+        ))
+
+    for r in rooms:
+        for win in r.windows:
+            (ax, ay), (bx, by), _, _ = _door_world(r, win)
+            d.add(Line(sx(ax), sy(ay), sx(bx), sy(by), strokeColor=_WINDOW, strokeWidth=2.2))
+        for door in r.doors:
+            (ax, ay), (bx, by), (nx, ny), dwm = _door_world(r, door)
+            # erase the wall under the opening, then draw the swing arc + leaf
+            d.add(Line(sx(ax), sy(ay), sx(bx), sy(by), strokeColor=_ROOM_FILL, strokeWidth=_PLAN_WALL_PT + 1.2))
+            a0 = math.atan2(by - ay, bx - ax)
+            a1 = math.atan2(ny, nx)
+            if a1 - a0 > math.pi:
+                a1 -= 2 * math.pi
+            elif a0 - a1 > math.pi:
+                a1 += 2 * math.pi
+            pts = []
+            for i in range(9):
+                ang = a0 + (a1 - a0) * i / 8
+                pts += [sx(ax + dwm * math.cos(ang)), sy(ay + dwm * math.sin(ang))]
+            d.add(PolyLine(pts, strokeColor=_DOOR, strokeWidth=0.5))
+            d.add(Line(sx(ax), sy(ay), sx(ax + nx * dwm), sy(ay + ny * dwm),
+                       strokeColor=_DOOR, strokeWidth=0.9))
+
+    for r in rooms:
+        cx, cy = sx(r.x + r.width / 2), sy(r.y + r.depth / 2)
+        d.add(String(cx, cy + 2, r.name, textAnchor="middle", fontName=FONT_BOLD, fontSize=7, fillColor=_LABEL))
+        d.add(String(cx, cy - 7, f"{r.area_m2:.1f} m²", textAnchor="middle", fontName=FONT, fontSize=6, fillColor=_MUTED))
+
+    d.add(String(pad, 4, caption, fontName=FONT, fontSize=7.5, fillColor=colors.HexColor("#374151")))
+    return d
+
+
 def generate_pdf(result: GenerationResult, lang: str = "en") -> bytes:
     """Render the report and return raw PDF bytes."""
     t = _L.get(lang, _L["en"])
@@ -212,6 +296,21 @@ def generate_pdf(result: GenerationResult, lang: str = "en") -> bytes:
         )
     )
     story.append(Spacer(1, 4 * mm))
+
+    # Floor plan drawing(s) — the actual 2D scheme, one per floor
+    avail_w = A4[0] - 36 * mm  # page width minus left+right margins
+    floors = sorted({r.floor for r in result.rooms})
+    if result.rooms:
+        story.append(Paragraph(t["plan"], styles["h2"]))
+        for f in floors:
+            fr = [r for r in result.rooms if r.floor == f]
+            area = sum(r.width * r.depth for r in fr)
+            caption = f"{t['floor']} {f} · {area:.1f} m²"
+            try:
+                story.append(_floor_plan_drawing(fr, avail_w, caption))
+                story.append(Spacer(1, 3 * mm))
+            except Exception:
+                logger.exception("Failed to render floor plan for floor %s", f)
 
     # Geo-climate
     g = result.geo_climate
