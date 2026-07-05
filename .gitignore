@@ -36,3 +36,6 @@ agent-skills/
 
 # Externally cloned skills (ui-ux-pro-max, llm-council) — not part of ArchVision
 .skills-external/
+
+# Externally cloned skills repo (own git history, not part of ArchVision)
+andrej-karpathy-skills/
