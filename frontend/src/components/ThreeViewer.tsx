@@ -347,6 +347,13 @@ export function ThreeViewer() {
     useStore();
   const maxFloor = result ? Math.max(...result.rooms.map((r) => r.floor)) : 1;
 
+  // 3D view is hidden for now. The 3D <Canvas> below is kept; restore the
+  // switcher by uncommenting the "3d" entry here.
+  const VIEW_MODES: { mode: "3d" | "2d"; label: string }[] = [
+    // { mode: "3d", label: "3D" },
+    { mode: "2d", label: t("viewer.plan2d") },
+  ];
+
   return (
     <div className="relative w-full h-full min-h-[400px]">
       {viewMode === "3d" ? (
@@ -380,13 +387,11 @@ export function ThreeViewer() {
         <PlanView2D />
       )}
 
-      {/* 2D / 3D view toggle */}
-      {result && (
+      {/* 2D / 3D view toggle — 3D is HIDDEN (its code below is kept, not deleted);
+          re-add `{ mode: "3d" as const, label: "3D" }` to VIEW_MODES to restore it. */}
+      {result && VIEW_MODES.length > 1 && (
         <div className="absolute top-4 left-1/2 -translate-x-1/2 flex bg-surface-card border border-surface-border rounded-lg p-0.5 shadow-lg z-10">
-          {[
-            { mode: "3d" as const, label: "3D" },
-            { mode: "2d" as const, label: t("viewer.plan2d") },
-          ].map(({ mode, label }) => (
+          {VIEW_MODES.map(({ mode, label }) => (
             <button
               key={mode}
               onClick={() => setViewMode(mode)}
@@ -458,16 +463,61 @@ export function ThreeViewer() {
                 <span className="w-3 h-0.5 bg-sky-300 rounded" />
                 <span>{t("viewer.window")}</span>
               </div>
+              <div className="flex items-center gap-2">
+                <svg viewBox="0 0 16 16" className="w-3.5 h-3.5 flex-shrink-0">
+                  <circle cx="8" cy="8" r="3" fill="#f59e0b" />
+                  {[0, 1, 2, 3, 4, 5, 6, 7].map((i) => {
+                    const a = (i * Math.PI) / 4;
+                    return (
+                      <line
+                        key={i}
+                        x1={8 + Math.cos(a) * 5}
+                        y1={8 + Math.sin(a) * 5}
+                        x2={8 + Math.cos(a) * 7}
+                        y2={8 + Math.sin(a) * 7}
+                        stroke="#f59e0b"
+                        strokeWidth="1.2"
+                        strokeLinecap="round"
+                      />
+                    );
+                  })}
+                </svg>
+                <span>{t("viewer.daylight")}</span>
+              </div>
+              {showMEP && (
+                <div className="flex items-center gap-2">
+                  <svg viewBox="0 0 16 16" className="w-3.5 h-3.5 flex-shrink-0">
+                    <line
+                      x1="2"
+                      y1="8"
+                      x2="14"
+                      y2="8"
+                      stroke="#0891b2"
+                      strokeWidth="1.2"
+                      strokeDasharray="2 1.5"
+                    />
+                    <circle cx="8" cy="8" r="3" fill="#fff" stroke="#0891b2" strokeWidth="1.2" />
+                    <circle cx="8" cy="8" r="1" fill="#0891b2" />
+                  </svg>
+                  <span>{t("viewer.mepDraft")}</span>
+                </div>
+              )}
             </>
           )}
-          <div className="flex items-center gap-2">
-            <div className="w-3 h-3 rounded-full bg-red-500" />
-            <span>{t("viewer.clashHigh")}</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="w-3 h-3 rounded-full bg-amber-500" />
-            <span>{t("viewer.clashMedium")}</span>
-          </div>
+          {/* Conflict swatches only when conflicts actually exist — otherwise the
+              legend implies problems the plan doesn't have. */}
+          {result.mep_conflicts.length > 0 && (
+            <>
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 rounded-full bg-red-500" />
+                <span>{t("viewer.clashHigh")}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 rounded-full bg-amber-500" />
+                <span>{t("viewer.clashMedium")}</span>
+              </div>
+            </>
+          )}
           <div className="flex items-center gap-2">
             <div className="w-3 h-3 bg-blue-400 rounded" />
             <span>{t("viewer.selectedRoom")}</span>

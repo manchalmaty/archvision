@@ -9,11 +9,61 @@ import {
   SEVERITY_COLORS,
 } from "./roomColors";
 import { floorRooms, roomsBBox, clampPos, type BBox } from "./planGeometry";
+import { roomDisplayName } from "./roomName";
 import type { RoomLayout, MEPConflict, DoorSpec, WindowSpec } from "../types";
 
 const WALL_T = 0.18; // wall line thickness in plan units (m)
 const PAD = 2.8; // sheet margin around the plan for dimension lines (m)
 const BG = "#ffffff";
+
+// Daylight rating colors (amber = good sun, slate = ok, grey = poor). Drawn as a
+// rayed SUN glyph — NOT a plain dot — so it can't be mistaken for an MEP-conflict
+// marker (which is a plain coloured circle).
+const SUN_FILL: Record<string, string> = { good: "#f59e0b", ok: "#94a3b8", poor: "#cbd5e1" };
+const SUN_RAYS = Array.from({ length: 8 }, (_, i) => {
+  const a = (i * Math.PI) / 4;
+  return [Math.cos(a), Math.sin(a)] as const;
+});
+
+// MEP draft layer (plumbing): wet points + a shared riser + approximate branch
+// lines. Cyan keeps it distinct from windows (blue) and conflicts (red/amber).
+const MEP_COLOR = "#0891b2";
+const WET_TYPES: ReadonlySet<string> = new Set(["kitchen", "bathroom", "toilet", "utility"]);
+
+// Mirror of backend riser_xy(): centre of the largest wet room on the lowest wet floor.
+function computeRiser(rooms: RoomLayout[]): { x: number; y: number } | null {
+  const wet = rooms.filter((r) => WET_TYPES.has(r.room_type));
+  if (!wet.length) return null;
+  const low = Math.min(...wet.map((r) => r.floor));
+  const anchor = wet
+    .filter((r) => r.floor === low)
+    .reduce((a, b) => (a.width * a.depth >= b.width * b.depth ? a : b));
+  return { x: anchor.x + anchor.width / 2, y: anchor.y + anchor.depth / 2 };
+}
+
+function WaterDrop({ cx, cy }: { cx: number; cy: number }) {
+  // White halo disc lifts the drop off coloured room fills; the drop itself is
+  // slightly larger with a white keyline so it stays crisp when zoomed out.
+  return (
+    <g>
+      <circle cx={cx} cy={cy} r={0.3} fill="#ffffff" opacity={0.85} />
+      <path
+        d={`M ${cx} ${cy - 0.26} L ${cx + 0.14} ${cy + 0.04} L ${cx - 0.14} ${cy + 0.04} Z`}
+        fill={MEP_COLOR}
+        stroke="#ffffff"
+        strokeWidth={0.03}
+      />
+      <circle
+        cx={cx}
+        cy={cy + 0.06}
+        r={0.16}
+        fill={MEP_COLOR}
+        stroke="#ffffff"
+        strokeWidth={0.04}
+      />
+    </g>
+  );
+}
 
 interface VB {
   x: number;
@@ -38,9 +88,12 @@ type FlipFn = (y: number) => number;
 
 function DoorSymbol({ room, door, fy }: { room: RoomLayout; door: DoorSpec; fy: FlipFn }) {
   const dw = door.width;
+  const opening = door.kind === "opening"; // wide cased gap, no swing leaf
+  const j = WALL_T / 2 + 0.03; // jamb tick half-length
   let gap: { x1: number; y1: number; x2: number; y2: number };
   let leaf: { x1: number; y1: number; x2: number; y2: number };
   let arc: string;
+  let jambs: { x1: number; y1: number; x2: number; y2: number }[];
 
   if (door.wall === "S" || door.wall === "N") {
     const x1 = room.x + clampPos(door.position, dw, room.width);
@@ -51,6 +104,10 @@ function DoorSymbol({ room, door, fy }: { room: RoomLayout; door: DoorSpec; fy: 
     gap = { x1, y1: yw, x2, y2: yw };
     leaf = { x1, y1: yw, x2: x1, y2: yw + dir * dw };
     arc = `M ${x2} ${yw} A ${dw} ${dw} 0 0 ${sweep} ${x1} ${yw + dir * dw}`;
+    jambs = [
+      { x1, y1: yw - j, x2: x1, y2: yw + j },
+      { x1: x2, y1: yw - j, x2, y2: yw + j },
+    ];
   } else {
     const dpos = clampPos(door.position, dw, room.depth);
     const yTop = fy(room.y + dpos + dw);
@@ -61,13 +118,27 @@ function DoorSymbol({ room, door, fy }: { room: RoomLayout; door: DoorSpec; fy: 
     gap = { x1: xw, y1: yTop, x2: xw, y2: yBot };
     leaf = { x1: xw, y1: yTop, x2: xw + dir * dw, y2: yTop };
     arc = `M ${xw} ${yBot} A ${dw} ${dw} 0 0 ${sweep} ${xw + dir * dw} ${yTop}`;
+    jambs = [
+      { x1: xw - j, y1: yTop, x2: xw + j, y2: yTop },
+      { x1: xw - j, y1: yBot, x2: xw + j, y2: yBot },
+    ];
   }
 
+  // An opening just erases the wall across its width and frames the two jambs —
+  // no swing arc or leaf — so the rooms read as one continuous volume.
   return (
     <g pointerEvents="none">
       <line {...gap} stroke={BG} strokeWidth={WALL_T + 0.08} />
-      <path d={arc} fill="none" stroke="#64748b" strokeWidth={0.03} />
-      <line {...leaf} stroke="#d9a05b" strokeWidth={0.07} strokeLinecap="round" />
+      {opening ? (
+        jambs.map((jb, i) => (
+          <line key={i} {...jb} stroke="#1f2937" strokeWidth={0.05} strokeLinecap="round" />
+        ))
+      ) : (
+        <>
+          <path d={arc} fill="none" stroke="#64748b" strokeWidth={0.03} />
+          <line {...leaf} stroke="#d9a05b" strokeWidth={0.07} strokeLinecap="round" />
+        </>
+      )}
     </g>
   );
 }
@@ -106,17 +177,55 @@ function WindowSymbol({ room, win, fy }: { room: RoomLayout; win: WindowSpec; fy
   );
 }
 
-function RoomLabel({ room, fy, selected }: { room: RoomLayout; fy: FlipFn; selected: boolean }) {
+function RoomLabel({
+  room,
+  label,
+  fy,
+  selected,
+}: {
+  room: RoomLayout;
+  label: string;
+  fy: FlipFn;
+  selected: boolean;
+}) {
+  const { t } = useTranslation();
   const cx = room.x + room.width / 2;
   const cy = fy(room.y + room.depth / 2);
   const fs = Math.min(Math.max(Math.min(room.width, room.depth) * 0.18, 0.24), 0.46);
   const maxChars = Math.max(3, Math.floor((room.width - 0.3) / (fs * 0.6)));
-  const name = room.name.length > maxChars ? room.name.slice(0, maxChars - 1) + "…" : room.name;
-  // Selected room always shows its dimensions; others only when there's space.
-  const showDims = selected || Math.min(room.width, room.depth) > 1.8;
+  const name = label.length > maxChars ? label.slice(0, maxChars - 1) + "…" : label;
+  // Keep on-plan labels to name + area; dimensions show only for the selected
+  // room (deliberate) — otherwise the hover card carries them, so the third line
+  // no longer stacks onto walls/dimension lines.
+  const showDims = selected;
 
   return (
     <g pointerEvents="none" style={{ userSelect: "none" }}>
+      {room.sun &&
+        (() => {
+          const sx = room.x + 0.45;
+          const sy = fy(room.y + room.depth) + 0.45;
+          const c = SUN_FILL[room.sun];
+          return (
+            <g>
+              <title>{t(`daylight.${room.sun}`)}</title>
+              <circle cx={sx} cy={sy} r={0.36} fill="#ffffff" opacity={0.85} />
+              {SUN_RAYS.map(([dx, dy], i) => (
+                <line
+                  key={i}
+                  x1={sx + dx * 0.2}
+                  y1={sy + dy * 0.2}
+                  x2={sx + dx * 0.31}
+                  y2={sy + dy * 0.31}
+                  stroke={c}
+                  strokeWidth={0.06}
+                  strokeLinecap="round"
+                />
+              ))}
+              <circle cx={sx} cy={sy} r={0.15} fill={c} stroke="#ffffff" strokeWidth={0.04} />
+            </g>
+          );
+        })()}
       <text
         x={cx}
         y={cy - fs * 0.35}
@@ -135,7 +244,7 @@ function RoomLabel({ room, fy, selected }: { room: RoomLayout; fy: FlipFn; selec
         textAnchor="middle"
         className="font-mono"
       >
-        {room.area_m2.toFixed(1)} m²
+        {(room.width * room.depth).toFixed(1)} m²
       </text>
       {showDims && (
         <text
@@ -194,6 +303,10 @@ function DimLine({
   );
 }
 
+// Hovered plan object (room or conflict dot) + screen position, for the
+// Finch-style floating metrics card.
+type HoverInfo = { x: number; y: number; room?: RoomLayout; conflict?: MEPConflict };
+
 // Everything that does NOT depend on the viewBox. Memoized so pan/zoom
 // re-renders (one setVb per pointermove) only touch the <svg> attributes.
 const PlanSheet = memo(function PlanSheet({
@@ -202,23 +315,27 @@ const PlanSheet = memo(function PlanSheet({
   activeFloor,
   showMEP,
   conflicts,
+  riser,
   selectedRoomId,
   setSelectedRoom,
   movedRef,
+  onHover,
 }: {
   rooms: RoomLayout[];
   bbox: BBox;
   activeFloor: number;
   showMEP: boolean;
   conflicts: MEPConflict[];
+  riser: { x: number; y: number } | null;
   selectedRoomId: string | null;
   setSelectedRoom: (id: string | null) => void;
   movedRef: React.MutableRefObject<boolean>;
+  onHover: (h: HoverInfo | null) => void;
 }) {
   const { t } = useTranslation();
   const { minX, maxX, minY, maxY } = bbox;
   const fy: FlipFn = (y) => minY + maxY - y;
-  const floorArea = rooms.reduce((s, r) => s + r.area_m2, 0);
+  const floorArea = rooms.reduce((s, r) => s + r.width * r.depth, 0);
   const scaleSegments = Math.min(5, Math.max(2, Math.round((maxX - minX) / 3)));
 
   return (
@@ -241,24 +358,38 @@ const PlanSheet = memo(function PlanSheet({
               if (movedRef.current) return;
               setSelectedRoom(selected ? null : r.room_id);
             }}
+            onMouseMove={(e) => onHover({ room: r, x: e.clientX, y: e.clientY })}
+            onMouseLeave={() => onHover(null)}
           />
         );
       })}
 
-      {/* Walls */}
-      {rooms.map((r) => (
-        <rect
-          key={`w-${r.room_id}`}
-          x={r.x}
-          y={fy(r.y + r.depth)}
-          width={r.width}
-          height={r.depth}
-          fill="none"
-          stroke={r.room_id === selectedRoomId ? SELECTION_ACCENT : "#1f2937"}
-          strokeWidth={WALL_T}
-          pointerEvents="none"
-        />
-      ))}
+      {/* Walls — solid "poché" band (filled ring between outer and inner
+          rectangle) so walls read as real walls, not a thin outline. Adjacent
+          rooms overlap their bands on shared walls; acceptable at sketch level. */}
+      {rooms.map((r) => {
+        const x = r.x;
+        const yT = fy(r.y + r.depth);
+        const w = r.width;
+        const d = r.depth;
+        const t = WALL_T;
+        const o = t / 2; // band centred on the room boundary
+        // Outer + inner rectangles (same winding) → evenodd fills only the wall
+        // band. Centring on the boundary makes adjacent rooms' bands coincide
+        // (one clean shared wall) and lets door/window gap-erases cover it.
+        const ring =
+          `M ${x - o} ${yT - o} h ${w + t} v ${d + t} h ${-(w + t)} Z ` +
+          `M ${x + o} ${yT + o} h ${w - t} v ${d - t} h ${-(w - t)} Z`;
+        return (
+          <path
+            key={`w-${r.room_id}`}
+            d={ring}
+            fillRule="evenodd"
+            fill={r.room_id === selectedRoomId ? SELECTION_ACCENT : "#1f2937"}
+            pointerEvents="none"
+          />
+        );
+      })}
 
       {/* Openings */}
       {rooms.map((r) => (
@@ -277,6 +408,7 @@ const PlanSheet = memo(function PlanSheet({
         <RoomLabel
           key={`l-${r.room_id}`}
           room={r}
+          label={roomDisplayName(r, t)}
           fy={fy}
           selected={r.room_id === selectedRoomId}
         />
@@ -363,18 +495,64 @@ const PlanSheet = memo(function PlanSheet({
         {t("viewer.floor")} {activeFloor} · {floorArea.toFixed(1)} m²
       </text>
 
-      {/* MEP conflict markers */}
+      {/* MEP draft layer — wet points + shared riser + approximate branch lines.
+          Everything runs along the TOP of the wet band (just inside the back
+          wall) so it never overlaps the centred room labels. */}
+      {showMEP &&
+        riser &&
+        (() => {
+          const wet = rooms.filter((r) => WET_TYPES.has(r.room_type));
+          if (!wet.length) return null;
+          const dropOf = (r: RoomLayout) => ({ x: r.x + r.width / 2, y: fy(r.y + r.depth) + 0.45 });
+          const bandTop = Math.max(...wet.map((r) => r.y + r.depth)); // back wall (max y)
+          const rx = riser.x;
+          const ry = fy(bandTop) + 0.45;
+          return (
+            <g pointerEvents="none">
+              {wet.map((r) => {
+                const d = dropOf(r);
+                return (
+                  <line
+                    key={`mep-b-${r.room_id}`}
+                    x1={d.x}
+                    y1={d.y}
+                    x2={rx}
+                    y2={ry}
+                    stroke={MEP_COLOR}
+                    strokeWidth={0.06}
+                    strokeDasharray="0.26 0.16"
+                  />
+                );
+              })}
+              {wet.map((r) => {
+                const d = dropOf(r);
+                return <WaterDrop key={`mep-d-${r.room_id}`} cx={d.x} cy={d.y} />;
+              })}
+              {/* Riser: stacked-ring glyph at the shared stack location */}
+              <g transform={`translate(${rx} ${ry})`}>
+                <circle r={0.26} fill="#ffffff" stroke={MEP_COLOR} strokeWidth={0.06} />
+                <circle r={0.14} fill="none" stroke={MEP_COLOR} strokeWidth={0.045} />
+                <circle r={0.05} fill={MEP_COLOR} />
+              </g>
+            </g>
+          );
+        })()}
+
+      {/* MEP conflict markers — the solid dot is hoverable (with a padded hit
+          area) and raises the floating card with the localized fix hint. */}
       {showMEP &&
         conflicts.map((c) => {
           const color = SEVERITY_COLORS[c.severity] ?? SEVERITY_COLORS.MEDIUM;
           return (
-            <g
-              key={c.conflict_id}
-              transform={`translate(${c.location_x} ${fy(c.location_y)})`}
-              pointerEvents="none"
-            >
-              <circle r={0.16} fill={color} />
-              <circle r={0.16} fill="none" stroke={color} strokeWidth={0.05}>
+            <g key={c.conflict_id} transform={`translate(${c.location_x} ${fy(c.location_y)})`}>
+              <circle
+                r={0.16}
+                fill={color}
+                stroke="#ffffff"
+                strokeWidth={0.04}
+                pointerEvents="none"
+              />
+              <circle r={0.16} fill="none" stroke={color} strokeWidth={0.05} pointerEvents="none">
                 <animate attributeName="r" values="0.16;0.6" dur="1.6s" repeatCount="indefinite" />
                 <animate
                   attributeName="opacity"
@@ -383,6 +561,13 @@ const PlanSheet = memo(function PlanSheet({
                   repeatCount="indefinite"
                 />
               </circle>
+              <circle
+                r={0.34}
+                fill="transparent"
+                style={{ cursor: "help" }}
+                onMouseMove={(e) => onHover({ conflict: c, x: e.clientX, y: e.clientY })}
+                onMouseLeave={() => onHover(null)}
+              />
             </g>
           );
         })}
@@ -396,15 +581,19 @@ export function PlanView2D() {
   const activeFloor = useStore((s) => s.activeFloor);
   const showMEP = useStore((s) => s.showMEP);
   const selectedRoomId = useStore((s) => s.selectedRoomId);
+  const rightPanelOpen = useStore((s) => s.rightPanelOpen);
   const setSelectedRoom = useStore((s) => s.setSelectedRoom);
 
   const svgRef = useRef<SVGSVGElement>(null);
   const [vb, setVb] = useState<VB | null>(null);
   const panRef = useRef<{ sx: number; sy: number; vb: VB; wpp: number } | null>(null);
   const movedRef = useRef(false);
+  const [hover, setHover] = useState<HoverInfo | null>(null);
 
   const rooms = useMemo(() => floorRooms(result, activeFloor), [result, activeFloor]);
   const bbox = useMemo(() => roomsBBox(rooms), [rooms]);
+  // Riser is anchored on the lowest wet floor, so derive it from ALL rooms.
+  const riser = useMemo(() => (result ? computeRiser(result.rooms) : null), [result]);
 
   const fit: VB = useMemo(() => {
     if (!bbox) return { x: -5, y: -5, w: 10, h: 10 };
@@ -500,7 +689,12 @@ export function PlanView2D() {
             <path d="M 1 0 H 0 V 1" fill="none" stroke="#eef2f6" strokeWidth={0.02} />
           </pattern>
           <pattern id="grid5m" width={5} height={5} patternUnits="userSpaceOnUse">
-            <path d="M 5 0 H 0 V 5" fill="none" stroke="#e2e8f0" strokeWidth={0.035} />
+            <path
+              d="M 5 0 H 0 V 5"
+              fill="none"
+              style={{ stroke: "var(--surface-border)" }}
+              strokeWidth={0.035}
+            />
           </pattern>
         </defs>
 
@@ -513,29 +707,142 @@ export function PlanView2D() {
           activeFloor={activeFloor}
           showMEP={showMEP}
           conflicts={result.mep_conflicts}
+          riser={riser}
           selectedRoomId={selectedRoomId}
           setSelectedRoom={setSelectedRoom}
           movedRef={movedRef}
+          onHover={setHover}
         />
       </svg>
 
-      {/* Zoom controls; bottom-20 + z-20 clears and sits above the "Show Results"
-          button App puts at bottom-4 right-4 */}
-      <div className="absolute right-4 bottom-20 z-20 flex flex-col gap-1">
-        {[
-          { label: "+", action: () => zoomBy(1 / 1.3), title: t("viewer.zoomIn") },
-          { label: "−", action: () => zoomBy(1.3), title: t("viewer.zoomOut") },
-          { label: "⤢", action: () => setVb(null), title: t("viewer.zoomFit") },
-        ].map((b) => (
-          <button
-            key={b.label}
-            onClick={b.action}
-            title={b.title}
-            className="w-8 h-8 rounded-lg bg-surface-card border border-surface-border text-slate-600 hover:bg-surface-border hover:text-slate-900 transition-colors text-sm font-semibold"
-          >
-            {b.label}
-          </button>
-        ))}
+      {/* Finch-style floating metrics card — appears on hover (room metrics or
+          conflict explanation), so numbers don't all hang on the plan at once
+          and labels can stay minimal. */}
+      {hover && !panRef.current && (
+        <div
+          className="hover-card"
+          style={{
+            position: "fixed",
+            left: Math.min(hover.x + 16, window.innerWidth - (hover.conflict ? 256 : 210)),
+            top: Math.min(hover.y + 16, window.innerHeight - 120),
+            pointerEvents: "none",
+            zIndex: 50,
+            width: hover.conflict ? 236 : 190,
+            padding: "9px 11px",
+            fontFamily: "Inter, system-ui, sans-serif",
+          }}
+        >
+          {hover.room && (
+            <>
+              <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 5 }}>
+                <span
+                  style={{
+                    width: 9,
+                    height: 9,
+                    borderRadius: 3,
+                    background: ROOM_FILL_2D[hover.room.room_type] || DEFAULT_FILL_2D,
+                    flexShrink: 0,
+                  }}
+                />
+                <span style={{ fontSize: 13, fontWeight: 600, color: "#161616" }}>
+                  {roomDisplayName(hover.room, t)}
+                </span>
+              </div>
+              <div style={{ fontSize: 12, color: "#475569", fontFamily: "monospace" }}>
+                {(hover.room.width * hover.room.depth).toFixed(1)} m²
+                <span style={{ color: "#cbd5e1" }}> · </span>
+                {hover.room.width.toFixed(1)} × {hover.room.depth.toFixed(1)} m
+              </div>
+              {hover.room.sun && (
+                <div
+                  style={{
+                    fontSize: 11,
+                    marginTop: 5,
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 5,
+                    color: hover.room.sun === "good" ? "#b45309" : "#64748b",
+                  }}
+                >
+                  <span
+                    style={{
+                      width: 8,
+                      height: 8,
+                      borderRadius: "50%",
+                      background: SUN_FILL[hover.room.sun],
+                      display: "inline-block",
+                    }}
+                  />
+                  {t(`daylight.${hover.room.sun}`)}
+                </div>
+              )}
+            </>
+          )}
+          {hover.conflict && (
+            <>
+              <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 5 }}>
+                <span
+                  style={{
+                    width: 9,
+                    height: 9,
+                    borderRadius: "50%",
+                    background: SEVERITY_COLORS[hover.conflict.severity] ?? SEVERITY_COLORS.MEDIUM,
+                    flexShrink: 0,
+                  }}
+                />
+                <span
+                  style={{
+                    fontSize: 11,
+                    fontWeight: 700,
+                    letterSpacing: "0.05em",
+                    color: "#334155",
+                  }}
+                >
+                  {hover.conflict.severity}
+                </span>
+              </div>
+              <div style={{ fontSize: 12, color: "#334155", lineHeight: 1.45 }}>
+                {hover.conflict.description}
+              </div>
+              <div style={{ fontSize: 11, color: "#64748b", marginTop: 5, lineHeight: 1.45 }}>
+                {t(`mepHints.${hover.conflict.conflict_type}`, {
+                  defaultValue: t("mepHints.default"),
+                })}
+              </div>
+            </>
+          )}
+        </div>
+      )}
+
+      {/* Plan zoom — grouped widget with a live % readout so it reads
+          unmistakably as a viewer zoom (the bare +/− was ambiguous: "scale of
+          what?"). Clicking the % fits the plan back to 100%. bottom-20 clears
+          the "Show Results" button App puts at bottom-4. */}
+      <div
+        className="absolute bottom-20 z-20 flex flex-col items-stretch w-9 rounded-xl overflow-hidden border border-surface-border bg-surface-card shadow-sm transition-[right] duration-200"
+        style={{ right: rightPanelOpen ? 336 : 16 }}
+      >
+        <button
+          onClick={() => zoomBy(1 / 1.3)}
+          title={t("viewer.zoomIn")}
+          className="h-8 text-slate-600 hover:bg-surface-border hover:text-slate-900 transition-colors text-base font-semibold"
+        >
+          +
+        </button>
+        <button
+          onClick={() => setVb(null)}
+          title={t("viewer.zoomFit")}
+          className="py-1 text-center text-[10px] font-mono text-slate-500 hover:text-brand-600 border-y border-surface-border transition-colors"
+        >
+          {Math.round((fit.w / view.w) * 100)}%
+        </button>
+        <button
+          onClick={() => zoomBy(1.3)}
+          title={t("viewer.zoomOut")}
+          className="h-8 text-slate-600 hover:bg-surface-border hover:text-slate-900 transition-colors text-base font-semibold"
+        >
+          −
+        </button>
       </div>
     </div>
   );
