@@ -10,9 +10,17 @@ geo = GeoClimateCalculator().calculate(CountryCode.RU, None, 1)
 
 def room(rid, rtype, x, y, w, d, floor=1, doors=None, area=None):
     return RoomLayout(
-        room_id=rid, room_type=rtype, name=rid, x=x, y=y, floor=floor,
-        width=w, depth=d, area_m2=area if area is not None else w * d,
-        doors=doors or [], windows=[],
+        room_id=rid,
+        room_type=rtype,
+        name=rid,
+        x=x,
+        y=y,
+        floor=floor,
+        width=w,
+        depth=d,
+        area_m2=area if area is not None else w * d,
+        doors=doors or [],
+        windows=[],
     )
 
 
@@ -37,7 +45,9 @@ class TestEnginePassesAllInvariants:
                 RoomInput(room_type=RoomType.BATHROOM, area_m2=5),
                 RoomInput(room_type=RoomType.TOILET, area_m2=3),
             ],
-            country=CountryCode.RU, floors=floors, building_shape=shape,
+            country=CountryCode.RU,
+            floors=floors,
+            building_shape=shape,
         )
         layouts = LayoutEngine(params, geo).generate()
         violations = check_invariants(layouts)
@@ -46,13 +56,17 @@ class TestEnginePassesAllInvariants:
 
 class TestEachRuleCatchesAViolation:
     def test_rule1_overlap(self):
-        plan = [room("a", RoomType.LIVING_ROOM, 0, 0, 4, 4, doors=[door("S")]),
-                room("b", RoomType.BEDROOM, 2, 2, 4, 4, doors=[door("S")])]
+        plan = [
+            room("a", RoomType.LIVING_ROOM, 0, 0, 4, 4, doors=[door("S")]),
+            room("b", RoomType.BEDROOM, 2, 2, 4, 4, doors=[door("S")]),
+        ]
         assert 1 in rules(check_invariants(plan))
 
     def test_rule1_gap(self):
-        plan = [room("a", RoomType.LIVING_ROOM, 0, 0, 3, 3, doors=[door("S")]),
-                room("b", RoomType.BEDROOM, 6, 0, 3, 3, doors=[door("S")])]
+        plan = [
+            room("a", RoomType.LIVING_ROOM, 0, 0, 3, 3, doors=[door("S")]),
+            room("b", RoomType.BEDROOM, 6, 0, 3, 3, doors=[door("S")]),
+        ]
         assert 1 in rules(check_invariants(plan))
 
     def test_rule2_area_too_small(self):

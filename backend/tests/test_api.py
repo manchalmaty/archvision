@@ -114,7 +114,8 @@ class TestReport:
                 RoomInput(room_type=RoomType.KITCHEN, area_m2=9),
                 RoomInput(room_type=RoomType.BATHROOM, area_m2=4),
             ],
-            country=CountryCode.RU, floors=1,
+            country=CountryCode.RU,
+            floors=1,
         )
         rooms = LayoutEngine(params, geo).generate()
         CostEstimator(rooms, geo, CountryCode.RU).estimate()

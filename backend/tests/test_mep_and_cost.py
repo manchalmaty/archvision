@@ -55,16 +55,37 @@ class TestMEP:
 
         rooms = [
             RoomLayout(
-                room_id="k", room_type=RoomType.KITCHEN, name="Kitchen",
-                x=0.0, y=0.0, floor=1, width=3.0, depth=3.0, area_m2=9.0,
+                room_id="k",
+                room_type=RoomType.KITCHEN,
+                name="Kitchen",
+                x=0.0,
+                y=0.0,
+                floor=1,
+                width=3.0,
+                depth=3.0,
+                area_m2=9.0,
             ),
             RoomLayout(
-                room_id="bed", room_type=RoomType.BEDROOM, name="Bedroom",
-                x=3.0, y=0.0, floor=1, width=4.0, depth=3.0, area_m2=12.0,
+                room_id="bed",
+                room_type=RoomType.BEDROOM,
+                name="Bedroom",
+                x=3.0,
+                y=0.0,
+                floor=1,
+                width=4.0,
+                depth=3.0,
+                area_m2=12.0,
             ),
             RoomLayout(
-                room_id="bath", room_type=RoomType.BATHROOM, name="Bathroom",
-                x=7.0, y=0.0, floor=1, width=3.0, depth=3.0, area_m2=9.0,
+                room_id="bath",
+                room_type=RoomType.BATHROOM,
+                name="Bathroom",
+                x=7.0,
+                y=0.0,
+                floor=1,
+                width=3.0,
+                depth=3.0,
+                area_m2=9.0,
             ),
         ]
         pipes = PipeRouter(rooms, 1, geo).route()
@@ -80,12 +101,26 @@ class TestMEP:
 
         rooms = [
             RoomLayout(
-                room_id="b1", room_type=RoomType.BATHROOM, name="Bath 1",
-                x=0, y=0, floor=1, width=2.5, depth=2.0, area_m2=5.0,
+                room_id="b1",
+                room_type=RoomType.BATHROOM,
+                name="Bath 1",
+                x=0,
+                y=0,
+                floor=1,
+                width=2.5,
+                depth=2.0,
+                area_m2=5.0,
             ),
             RoomLayout(
-                room_id="b2", room_type=RoomType.BATHROOM, name="Bath 2",
-                x=0, y=0, floor=2, width=2.5, depth=2.0, area_m2=5.0,
+                room_id="b2",
+                room_type=RoomType.BATHROOM,
+                name="Bath 2",
+                x=0,
+                y=0,
+                floor=2,
+                width=2.5,
+                depth=2.0,
+                area_m2=5.0,
             ),
         ]
         pipes = PipeRouter(rooms, 2, geo).route()
@@ -148,10 +183,28 @@ class TestCostEstimator:
         from models import RoomLayout, RoomType
 
         rooms = [
-            RoomLayout(room_id="a", room_type=RoomType.BEDROOM, name="A",
-                       x=0, y=0, floor=1, width=3, depth=3, area_m2=9),
-            RoomLayout(room_id="b", room_type=RoomType.BEDROOM, name="B",
-                       x=3, y=0, floor=1, width=3, depth=3, area_m2=9),
+            RoomLayout(
+                room_id="a",
+                room_type=RoomType.BEDROOM,
+                name="A",
+                x=0,
+                y=0,
+                floor=1,
+                width=3,
+                depth=3,
+                area_m2=9,
+            ),
+            RoomLayout(
+                room_id="b",
+                room_type=RoomType.BEDROOM,
+                name="B",
+                x=3,
+                y=0,
+                floor=1,
+                width=3,
+                depth=3,
+                area_m2=9,
+            ),
         ]
         exterior, interior = _floor_walls(rooms)
         assert exterior == pytest.approx(18.0)
