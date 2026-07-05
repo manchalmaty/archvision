@@ -1,5 +1,6 @@
 import { beforeEach, afterEach, describe, expect, it, vi } from "vitest";
-import { useStore } from "./useStore";
+import { useStore, deriveActivePreset } from "./useStore";
+import { buildPresetRooms } from "../presets";
 import type { GenerationResult } from "../types";
 
 const fakeResult = { project_id: "test-id", rooms: [] } as unknown as GenerationResult;
@@ -99,5 +100,37 @@ describe("localStorage persistence", () => {
     }
     vi.advanceTimersByTime(350);
     expect(setItemSpy).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("deriveActivePreset", () => {
+  it("keeps the stored preset when rooms still match its program", () => {
+    const rooms = buildPresetRooms("couple");
+    expect(deriveActivePreset(rooms, { preset: "couple", familyKids: 2 })).toEqual({
+      preset: "couple",
+      familyKids: 2,
+    });
+  });
+
+  it("re-derives custom when stored rooms no longer match the preset", () => {
+    const rooms = buildPresetRooms("couple").slice(0, 3); // hand-edited away
+    expect(deriveActivePreset(rooms, { preset: "couple", familyKids: 2 }).preset).toBe("custom");
+  });
+
+  it("treats a hand-named preset room as custom", () => {
+    const rooms = buildPresetRooms("single");
+    rooms[0] = { ...rooms[0], name: "Studio" };
+    expect(deriveActivePreset(rooms, { preset: "single", familyKids: 2 }).preset).toBe("custom");
+  });
+
+  it("matches the family program for the stored kid count", () => {
+    const rooms = buildPresetRooms("family", 3);
+    expect(deriveActivePreset(rooms, { preset: "family", familyKids: 3 }).preset).toBe("family");
+    expect(deriveActivePreset(rooms, { preset: "family", familyKids: 2 }).preset).toBe("custom");
+  });
+
+  it("passes through an already-custom program untouched", () => {
+    const rooms = buildPresetRooms("rental");
+    expect(deriveActivePreset(rooms, { preset: "custom", familyKids: 2 }).preset).toBe("custom");
   });
 });
