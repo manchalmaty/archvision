@@ -39,6 +39,21 @@ class BuildingParams(BaseModel):
     plot_width_m: float | None = Field(default=None, gt=0)
     plot_depth_m: float | None = Field(default=None, gt=0)
     building_shape: str = "rectangular"  # rectangular|square|l_shape|u_shape|t_shape
+    # Openness of the social zone (a preference, not an invariant):
+    #   closed — every room walled, kitchen on the wet riser, entrance via hallway
+    #   mixed  — kitchen+living open as one volume, bedrooms behind a hallway
+    #   open   — kitchen+living open, no hallway; entrance into the social volume
+    openness: str = "closed"  # closed|mixed|open
+    # Budget ↔ spacious (a single preference): 0 = compact + small rooms (cheap),
+    # 1 = spread + large rooms (pricey). 0.5 = neutral (current behavior).
+    spaciousness: float = Field(default=0.5, ge=0.0, le=1.0)
+    # Real compass bearing the plan's top ("N" wall) points to. A SENSOR input:
+    # it never moves rooms, only scores daylight (and drives whole-plan rotation
+    # when auto_orient is on). 8-point: N|NE|E|SE|S|SW|W|NW. "N" = top is north.
+    facing: str = "N"
+    # When true, rotate the finished plan to the quarter-turn that best faces
+    # rooms to the sun (actuator). The solver stays sun-blind; this is on top.
+    auto_orient: bool = False
 
 
 class GeoClimateData(BaseModel):
@@ -57,6 +72,7 @@ class DoorSpec(BaseModel):
     position: float  # offset from west/south corner (m)
     width: float = 0.8
     height: float = 2.0
+    kind: str = "door"  # "door" (swing leaf) | "opening" (wide cased gap, no leaf)
 
 
 class WindowSpec(BaseModel):
@@ -79,6 +95,10 @@ class RoomLayout(BaseModel):
     area_m2: float
     doors: list[DoorSpec] = []
     windows: list[WindowSpec] = []
+    # Daylight rating for this room given the building's facing: "good" | "ok" |
+    # "poor" for habitable rooms, "" for rooms that don't need sun. A sensor
+    # annotation — set after layout, never affects placement.
+    sun: str = ""
 
 
 class MEPConflict(BaseModel):
@@ -118,6 +138,8 @@ class GenerationResult(BaseModel):
     cost_estimate: CostEstimate
     ifc_file_url: str
     warnings: list[str]
+    # Overall daylight score 0..100 for the chosen facing (sensor).
+    insolation_score: float = 0.0
 
 
 class ComplianceRequest(BaseModel):

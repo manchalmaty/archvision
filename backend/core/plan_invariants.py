@@ -17,6 +17,7 @@ skipped there rather than forced.
   9. Minimum dimension — a room is wide enough for its furniture, not just its
      area (a 12m² room shaped 7.0×1.7m is "correct" on area yet unusable).
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -102,20 +103,31 @@ def _wet_clusters(wet: list[RoomLayout]) -> int:
     return clusters
 
 
-def check_invariants(rooms: list[RoomLayout]) -> list[Violation]:
+def check_invariants(rooms: list[RoomLayout], openness: str = "closed") -> list[Violation]:
     v: list[Violation] = []
     floors = sorted({r.floor for r in rooms})
     by_floor = {f: [r for r in rooms if r.floor == f] for f in floors}
+    # Open/mixed move the kitchen into the social zone, so it no longer has to sit
+    # on the bath/toilet riser (rule 5). The entry buffer (rule 6) now exists in
+    # every mode — in "open" the hallway is opened up, not removed — so rule 6 is
+    # no longer skipped.
+    wet_types = WET - {RoomType.KITCHEN} if openness != "closed" else WET
 
     for f, fr in by_floor.items():
         # Rule 1 — overlaps + gaps
         for i in range(len(fr)):
             for j in range(i + 1, len(fr)):
                 if _overlaps(fr[i], fr[j]):
-                    v.append(Violation(1, "overlap", f'"{fr[i].name}" overlaps "{fr[j].name}"', fr[i].room_id))
+                    v.append(
+                        Violation(
+                            1, "overlap", f'"{fr[i].name}" overlaps "{fr[j].name}"', fr[i].room_id
+                        )
+                    )
         if fr:
             min_x, min_y = min(r.x for r in fr), min(r.y for r in fr)
-            bbox = (max(r.x + r.width for r in fr) - min_x) * (max(r.y + r.depth for r in fr) - min_y)
+            bbox = (max(r.x + r.width for r in fr) - min_x) * (
+                max(r.y + r.depth for r in fr) - min_y
+            )
             covered = sum(r.width * r.depth for r in fr)
             if bbox > 0 and covered < COVERAGE_MIN * bbox:
                 v.append(Violation(1, "gap", f"floor {f} has {bbox - covered:.1f}m² of gaps"))
@@ -123,7 +135,14 @@ def check_invariants(rooms: list[RoomLayout]) -> list[Violation]:
         # Rule 2 — areas respected
         for r in fr:
             if r.width * r.depth < r.area_m2 * AREA_MIN_FRAC:
-                v.append(Violation(2, "area", f'"{r.name}" is smaller than requested {r.area_m2:.0f}m²', r.room_id))
+                v.append(
+                    Violation(
+                        2,
+                        "area",
+                        f'"{r.name}" is smaller than requested {r.area_m2:.0f}m²',
+                        r.room_id,
+                    )
+                )
 
         # Rule 3 — every room has a door
         for r in fr:
@@ -134,12 +153,15 @@ def check_invariants(rooms: list[RoomLayout]) -> list[Violation]:
         for r in fr:
             min_side = MIN_DIMENSION.get(r.room_type, 1.5)
             if min(r.width, r.depth) < min_side - 0.01:
-                v.append(Violation(
-                    9, "narrow",
-                    f'"{r.name}" is only {min(r.width, r.depth):.2f}m wide '
-                    f"(needs {min_side:.1f}m) — furniture will not fit",
-                    r.room_id,
-                ))
+                v.append(
+                    Violation(
+                        9,
+                        "narrow",
+                        f'"{r.name}" is only {min(r.width, r.depth):.2f}m wide '
+                        f"(needs {min_side:.1f}m) — furniture will not fit",
+                        r.room_id,
+                    )
+                )
 
         buffer_room = next((r for r in fr if r.room_type in BUFFER), None)
 
@@ -150,20 +172,41 @@ def check_invariants(rooms: list[RoomLayout]) -> list[Violation]:
             reached = _reachable(edges, buffer_room.room_id, private_ids)
             for r in fr:
                 if r.room_type not in PRIVATE and r.room_id not in reached:
-                    v.append(Violation(4, "private_transit", f'"{r.name}" is only reachable through a bedroom', r.room_id))
+                    v.append(
+                        Violation(
+                            4,
+                            "private_transit",
+                            f'"{r.name}" is only reachable through a bedroom',
+                            r.room_id,
+                        )
+                    )
 
         # Rule 5 — wet zones share one riser (single cluster)
-        wet = [r for r in fr if r.room_type in WET]
+        wet = [r for r in fr if r.room_type in wet_types]
         if _wet_clusters(wet) > 1:
-            v.append(Violation(5, "wet_split", f"floor {f}: wet rooms are split across {_wet_clusters(wet)} clusters — they cannot share one riser"))
+            v.append(
+                Violation(
+                    5,
+                    "wet_split",
+                    f"floor {f}: wet rooms are split across {_wet_clusters(wet)} clusters — they cannot share one riser",
+                )
+            )
 
-        # Rule 6 — entrance through a buffer (ground floor only)
+        # Rule 6 — entrance through a buffer (ground floor only). The buffer
+        # exists in every openness mode now, so this always applies.
         if f == floors[0]:
             for r in fr:
                 ext = [w for w in WALLS if not _adjacent_rooms(r, w, fr)]
                 has_ext_door = any(d.wall in ext for d in r.doors)
                 if has_ext_door and r.room_type not in BUFFER:
-                    v.append(Violation(6, "entrance_buffer", f'entrance opens directly into "{r.name}" instead of a hallway', r.room_id))
+                    v.append(
+                        Violation(
+                            6,
+                            "entrance_buffer",
+                            f'entrance opens directly into "{r.name}" instead of a hallway',
+                            r.room_id,
+                        )
+                    )
 
     # Rule 8 — mandatory composition (building-wide)
     types = {r.room_type for r in rooms}
@@ -178,6 +221,13 @@ def check_invariants(rooms: list[RoomLayout]) -> list[Violation]:
         upper = [r for r in by_floor[floors[fi]] if r.room_type in WET]
         for u in upper:
             if not any(_stacked_overlap(u, low) >= FOOTPRINT_OVERLAP_MIN for low in lower):
-                v.append(Violation(7, "wet_stack", f'"{u.name}" on floor {floors[fi]} is not above a wet room below it', u.room_id))
+                v.append(
+                    Violation(
+                        7,
+                        "wet_stack",
+                        f'"{u.name}" on floor {floors[fi]} is not above a wet room below it',
+                        u.room_id,
+                    )
+                )
 
     return v

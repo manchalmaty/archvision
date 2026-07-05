@@ -19,6 +19,11 @@ from models import (
 
 WET_ZONES = {RoomType.KITCHEN, RoomType.BATHROOM, RoomType.TOILET}
 
+# Private rooms are never a through-route: the door tree must not adopt another
+# room as a child *of* a bedroom, or you would walk through the bedroom to reach
+# it (invariant rule 4). So bedrooms stay leaves, like wet rooms.
+PRIVATE_ZONES = {RoomType.BEDROOM}
+
 # Rooms that must be on ground floor (plumbing access)
 GROUND_FLOOR_ZONES = {RoomType.KITCHEN, RoomType.BATHROOM, RoomType.TOILET, RoomType.HALLWAY}
 
@@ -85,6 +90,29 @@ USABLE_MIN_SIDE: dict[RoomType, float] = {
 OPEN_TOL = 0.08  # adjacency tolerance (m)
 MIN_CORNER = 0.3  # min clearance from wall corner to opening edge (m)
 
+# Budget ↔ spacious slider (params.spaciousness, 0..1). One intuitive control:
+# room areas scale within ±20%, so the budget end yields smaller rooms AND a
+# smaller footprint (less perimeter → less exterior wall, insulation and heat
+# loss → cheaper), the spacious end larger and pricier. 0.5 is neutral.
+SPACIOUSNESS_AREA_MIN = 0.80
+SPACIOUSNESS_AREA_MAX = 1.20
+
+
+def area_factor(spaciousness: float) -> float:
+    s = min(max(spaciousness, 0.0), 1.0)
+    return SPACIOUSNESS_AREA_MIN + (SPACIOUSNESS_AREA_MAX - SPACIOUSNESS_AREA_MIN) * s
+
+
+def scale_room_areas(rooms: list, spaciousness: float) -> list:
+    """Return room copies with areas scaled by the spaciousness factor."""
+    factor = area_factor(spaciousness)
+    if abs(factor - 1.0) < 1e-9:
+        return rooms
+    return [
+        r.model_copy(update={"area_m2": min(round(r.area_m2 * factor, 2), 200.0)}) for r in rooms
+    ]
+
+
 # Number of windows per room type (0 = none)
 WINDOW_COUNTS: dict[RoomType, int] = {
     RoomType.LIVING_ROOM: 2,
@@ -116,6 +144,13 @@ DOOR_SPECS: dict[RoomType, tuple[float, float]] = {
     RoomType.GARAGE: (2.4, 2.1),  # ворота гаража
 }
 DEFAULT_DOOR = (0.8, 2.0)  # межкомнатная
+
+# A "single volume" social zone (open/mixed planning): the wall between the
+# kitchen and the living room becomes a wide cased opening (no leaf) instead of a
+# door. Width is clamped to this range so it reads as an opening, not a doorway.
+SOCIAL_ROOMS = {RoomType.LIVING_ROOM, RoomType.KITCHEN}
+SOCIAL_OPENING_MIN = 1.6
+SOCIAL_OPENING_MAX = 3.0
 
 
 def _wall_len(room: RoomLayout, wall: str) -> float:
@@ -223,6 +258,7 @@ class LayoutEngine:
 
     def generate(self) -> list[RoomLayout]:
         rooms = self._ensure_essentials(list(self.params.rooms))
+        rooms = scale_room_areas(rooms, getattr(self.params, "spaciousness", 0.5))
         rooms_per_floor = self._distribute_floors(rooms)
         layouts = []
         for floor_idx, floor_rooms in enumerate(rooms_per_floor):
@@ -274,10 +310,18 @@ class LayoutEngine:
         def add_door(child: RoomLayout, parent: RoomLayout, wall: str) -> None:
             dw, dh = DOOR_SPECS.get(child.room_type, DEFAULT_DOOR)
             child.doors.append(
-                DoorSpec(wall=wall, position=_door_pos(child, parent, wall, dw), width=dw, height=dh)
+                DoorSpec(
+                    wall=wall, position=_door_pos(child, parent, wall, dw), width=dw, height=dh
+                )
             )
 
-        root = next((r for r in rooms if r.room_type == RoomType.HALLWAY), rooms[0])
+        # Closed/mixed root at the hallway; open plan has none, so the living
+        # room (the social entry) roots the tree.
+        root = (
+            next((r for r in rooms if r.room_type == RoomType.HALLWAY), None)
+            or next((r for r in rooms if r.room_type == RoomType.LIVING_ROOM), None)
+            or rooms[0]
+        )
 
         # Entrance door for the root, on an external wall.
         radj = {w: _adjacent_rooms(root, w, rooms) for w in WALLS}
@@ -288,8 +332,10 @@ class LayoutEngine:
             dw, dh = DOOR_SPECS.get(root.room_type, DEFAULT_DOOR)
             root.doors.append(
                 DoorSpec(
-                    wall=entrance, position=_place_opening(_wall_len(root, entrance), dw),
-                    width=dw, height=dh,
+                    wall=entrance,
+                    position=_place_opening(_wall_len(root, entrance), dw),
+                    width=dw,
+                    height=dh,
                 )
             )
 
@@ -308,7 +354,7 @@ class LayoutEngine:
                         continue
                     add_door(nb, cur, cw)
                     visited.add(nb.room_id)
-                    if nb.room_type not in WET_ZONES:
+                    if nb.room_type not in WET_ZONES and nb.room_type not in PRIVATE_ZONES:
                         queue.append(nb)
 
         # Pass 2: rooms only reachable through a wet room — connect to any visited
@@ -317,7 +363,9 @@ class LayoutEngine:
             if r.room_id in visited:
                 continue
             for w in WALLS:
-                parent = next((n for n in _adjacent_rooms(r, w, rooms) if n.room_id in visited), None)
+                parent = next(
+                    (n for n in _adjacent_rooms(r, w, rooms) if n.room_id in visited), None
+                )
                 if parent:
                     add_door(r, parent, w)
                     visited.add(r.room_id)
@@ -333,6 +381,54 @@ class LayoutEngine:
             r.doors.append(
                 DoorSpec(wall=w, position=_place_opening(_wall_len(r, w), dw), width=dw, height=dh)
             )
+
+        # Open/mixed planning: dissolve the kitchen↔living wall into one wide
+        # cased opening so they read as a single volume.
+        if getattr(self.params, "openness", "closed") != "closed":
+            self._open_social_zone(rooms)
+
+    def _open_social_zone(self, rooms: list[RoomLayout]) -> None:
+        openness = getattr(self.params, "openness", "closed")
+        k = next((r for r in rooms if r.room_type == RoomType.KITCHEN), None)
+        lv = next((r for r in rooms if r.room_type == RoomType.LIVING_ROOM), None)
+        hall = next((r for r in rooms if r.room_type == RoomType.HALLWAY), None)
+        # Kitchen + living read as one volume in both open and mixed.
+        self._open_pair(rooms, k, lv)
+        # In "open", the entry hallway is opened up to the social volume too —
+        # an entry buffer with no walled corridor.
+        if openness == "open":
+            self._open_pair(rooms, hall, lv or k)
+
+    @staticmethod
+    def _open_pair(rooms: list[RoomLayout], a: RoomLayout | None, b: RoomLayout | None) -> None:
+        """Replace the wall between two adjacent rooms with one wide cased opening."""
+        if not a or not b:
+            return
+        WALLS = ("S", "N", "W", "E")
+        OPP = {"S": "N", "N": "S", "W": "E", "E": "W"}
+        wall = next((w for w in WALLS if b in _adjacent_rooms(a, w, rooms)), None)
+        shared = _shared_len(a, b)
+        if wall is None or shared < SOCIAL_OPENING_MIN:
+            return  # not adjacent (degenerate banding) — leave them separate
+        ow = round(min(max(shared - 2 * MIN_CORNER, SOCIAL_OPENING_MIN), SOCIAL_OPENING_MAX), 2)
+        # The opening sits on BOTH rooms' shared wall (the two coincide on screen),
+        # so each room owns an opening — neither is left "doorless" (rule 3).
+        a.doors = [d for d in a.doors if d.wall != wall]
+        b.doors = [d for d in b.doors if d.wall != OPP[wall]]
+        a.doors.append(
+            DoorSpec(
+                wall=wall, position=_door_pos(a, b, wall, ow), width=ow, height=2.1, kind="opening"
+            )
+        )
+        b.doors.append(
+            DoorSpec(
+                wall=OPP[wall],
+                position=_door_pos(b, a, OPP[wall], ow),
+                width=ow,
+                height=2.1,
+                kind="opening",
+            )
+        )
 
     def _assign_windows(self, layouts: list[RoomLayout]) -> None:
         WALLS = ("S", "N", "W", "E")
@@ -401,7 +497,13 @@ class LayoutEngine:
     # only wet rooms, which forced circulation through a toilet. A compact
     # central corridor is a usable plan for every silhouette; the shape only
     # nudges how wide vs deep the footprint is.
-    _SHAPE_ASPECT = {"square": 1.0, "rectangular": 1.35, "l_shape": 1.3, "u_shape": 1.4, "t_shape": 1.45}
+    _SHAPE_ASPECT = {
+        "square": 1.0,
+        "rectangular": 1.35,
+        "l_shape": 1.3,
+        "u_shape": 1.4,
+        "t_shape": 1.45,
+    }
 
     def _layout_floor(self, floor: int, rooms) -> list[RoomLayout]:
         shape = getattr(self.params, "building_shape", "rectangular")
@@ -524,6 +626,19 @@ class LayoutEngine:
             x += rw
         return round(oy + rh, 3)
 
+    @staticmethod
+    def _balance_bands(others):
+        """Greedy split into two area-balanced bands (no wet/social grouping)."""
+        north, south, an, asth = [], [], 0.0, 0.0
+        for r in sorted(others, key=lambda r: -r.area_m2):
+            if an <= asth:
+                north.append(r)
+                an += r.area_m2
+            else:
+                south.append(r)
+                asth += r.area_m2
+        return north, south
+
     def _layout_central_hall(self, floor: int, rooms, aspect_factor: float = 1.3):
         """Central-corridor plan: a full-width hallway band splits the rooms into
         two rows, one above and one below, so EVERY room opens directly off the
@@ -537,6 +652,9 @@ class LayoutEngine:
             return self._layout_tiled(floor, rooms, aspect_factor=aspect_factor)
         # Upper floors carry no hallway — they still get the two-band, min-size
         # treatment, just without a central corridor strip between the bands.
+        openness = getattr(self.params, "openness", "closed")
+        # Every mode keeps the hallway as an entry buffer; "open" merely opens it
+        # up to the social volume (see _open_social_zone) rather than removing it.
         hall = halls[0] if halls else None
 
         total_area = sum(r.area_m2 for r in rooms)
@@ -545,21 +663,21 @@ class LayoutEngine:
             width = min(width, self.params.plot_width_m)
         width = max(width, 3.0)
 
-        # Split rooms into two bands; keep wet zones together when possible.
-        wet = [r for r in others if r.room_type in WET_ZONES]
-        dry = [r for r in others if r.room_type not in WET_ZONES]
-        if wet and dry:
-            north, south = dry, wet
+        # Split rooms into two bands.
+        #   closed → dry north / wet south (kitchen shares the wet plumbing wall).
+        #   open|mixed → social zone (living+kitchen) north / everything else
+        #     south, so the kitchen sits beside the living room and the two can
+        #     open into a single volume.
+        if openness in ("open", "mixed"):
+            social = [r for r in others if r.room_type in SOCIAL_ROOMS]
+            service = [r for r in others if r.room_type not in SOCIAL_ROOMS]
+            north, south = (
+                (social, service) if (social and service) else self._balance_bands(others)
+            )
         else:
-            pool = sorted(others, key=lambda r: -r.area_m2)
-            north, south, an, asth = [], [], 0.0, 0.0
-            for r in pool:
-                if an <= asth:
-                    north.append(r)
-                    an += r.area_m2
-                else:
-                    south.append(r)
-                    asth += r.area_m2
+            wet = [r for r in others if r.room_type in WET_ZONES]
+            dry = [r for r in others if r.room_type not in WET_ZONES]
+            north, south = (dry, wet) if (wet and dry) else self._balance_bands(others)
 
         # Size the footprint so each band is both deep enough for its deepest
         # room AND wide enough that its narrowest room clears its minimum side.
@@ -567,12 +685,17 @@ class LayoutEngine:
         # Lower bound (width): width >= narrowest_min * band_area / room_area.
         # When the two conflict (too many rooms for one row) the width bound wins
         # and the invariant checker honestly reports the remaining shortfall.
+        # Apply every depth cap first, then every min-side raise, so a later
+        # band's cap can't undo an earlier band's raise — the min-side bound is
+        # the documented winner.
         for band in (north, south):
             if not band:
                 continue
             band_area = sum(r.area_m2 for r in band)
             deepest = max(USABLE_MIN_SIDE.get(r.room_type, 1.5) for r in band)
             width = min(width, band_area / deepest)
+        for band in (north, south):
+            band_area = sum(r.area_m2 for r in band)
             for r in band:
                 need_w = USABLE_MIN_SIDE.get(r.room_type, 1.5)
                 width = max(width, need_w * band_area / r.area_m2)

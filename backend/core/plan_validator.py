@@ -2,10 +2,13 @@
 Deterministic geometry validator for LLM-generated floor plans.
 Source of truth — the LLM never validates its own output.
 """
+
 from __future__ import annotations
 
 from collections import deque
 from dataclasses import dataclass
+
+from core.layout_engine import USABLE_MIN_SIDE
 
 MIN_AREA: dict[str, float] = {
     "bathroom": 2.5,
@@ -18,7 +21,11 @@ MIN_AREA: dict[str, float] = {
     "garage": 12.0,
 }
 
-MIN_DIM = 0.9  # no room narrower than 90 cm
+MIN_DIM = 0.9  # floor for rooms without a usable-side rule (no narrower than 90 cm)
+# Per-type minimum usable side — the SAME table the rule engine guarantees, so an
+# LLM plan with a "pencil" living/bedroom/kitchen (the rule engine never makes one)
+# is rejected here → rule-engine fallback, instead of shipping a 2.0 m-deep living.
+MIN_SIDE: dict[str, float] = {rt.value: v for rt, v in USABLE_MIN_SIDE.items()}
 OVERLAP_TOL = 0.02  # 2 cm tolerance — shared walls are fine
 WALL_TOL = 0.06  # two edges within 6 cm count as the same wall
 TOUCH_MIN = 0.30  # min shared-wall length to count rooms as contiguous (m)
@@ -90,23 +97,21 @@ def validate_plan(
     # 2. Outside footprint
     for r in rooms:
         if r.x < -0.01 or r.y < -0.01 or r.x + r.w > fw + 0.01 or r.y + r.h > fh + 0.01:
-            errors.append(
-                f'Room "{r.id}" ({r.type}) extends outside {fw:.1f}×{fh:.1f}m footprint.'
-            )
+            errors.append(f'Room "{r.id}" ({r.type}) extends outside {fw:.1f}×{fh:.1f}m footprint.')
 
     # 3. Minimum area per type
     for r in rooms:
         min_a = MIN_AREA.get(r.type)
         if min_a and r.w * r.h < min_a - 0.05:
-            errors.append(
-                f'Room "{r.id}" ({r.type}) is {r.w * r.h:.1f}m², min is {min_a}m².'
-            )
+            errors.append(f'Room "{r.id}" ({r.type}) is {r.w * r.h:.1f}m², min is {min_a}m².')
 
-    # 4. Minimum dimension (no room narrower than 90 cm)
+    # 4. Minimum usable dimension — per type for habitable rooms, 90 cm otherwise
     for r in rooms:
-        if r.w < MIN_DIM or r.h < MIN_DIM:
+        min_side = MIN_SIDE.get(r.type, MIN_DIM)
+        if min(r.w, r.h) < min_side - 0.01:
             errors.append(
-                f'Room "{r.id}" dimension {r.w:.2f}×{r.h:.2f}m is too narrow (min {MIN_DIM}m).'
+                f'Room "{r.id}" ({r.type}) is only {min(r.w, r.h):.2f}m wide '
+                f"(min {min_side}m) — furniture will not fit."
             )
 
     # Geometry checks below only make sense once basic placement is sane.

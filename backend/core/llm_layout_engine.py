@@ -2,6 +2,7 @@
 Agentic floor-plan layout: Groq generates JSON → deterministic validator checks →
 errors fed back → repeat up to MAX_ITER. Falls back to LayoutEngine if no API key.
 """
+
 from __future__ import annotations
 
 import json
@@ -12,7 +13,7 @@ import uuid
 from openai import OpenAI
 
 from config import settings
-from core.layout_engine import LayoutEngine
+from core.layout_engine import LayoutEngine, scale_room_areas
 from core.plan_validator import PlanRoom, validate_plan
 from models import BuildingParams, GeoClimateData, RoomLayout, RoomType
 
@@ -36,7 +37,9 @@ HARD RULES (a plan that breaks any of these is rejected and you must redo it):
 4. The hallway sits central and touches every other room along a shared wall of
    at least 0.8 m, so a door fits — EVERY room must be reachable from the hallway.
 5. Minimum areas: bedroom≥9, living_room≥12, kitchen≥6, bathroom≥2.5, toilet≥1.2.
-6. No room narrower than 0.9 m in either dimension.
+6. Minimum SHORTER side (furniture must fit): living_room/bedroom 2.4 m,
+   kitchen 1.8 m, bathroom 1.5 m; other rooms >= 0.9 m. A long, shallow living
+   room (e.g. 8x2 m) is REJECTED.
 
 LAYOUT GUIDANCE:
 - Wet zones (bathroom, toilet, kitchen) grouped together to share plumbing.
@@ -76,8 +79,14 @@ def _estimate_footprint(params: BuildingParams, floor_rooms: list) -> tuple[floa
     return max(w, 3.0), max(h, 3.0)
 
 
-def _build_prompt(floor_num: int, total_floors: int, params: BuildingParams,
-                  floor_rooms: list, fw: float, fh: float) -> str:
+def _build_prompt(
+    floor_num: int,
+    total_floors: int,
+    params: BuildingParams,
+    floor_rooms: list,
+    fw: float,
+    fh: float,
+) -> str:
     room_lines = "\n".join(
         f"  - {r.area_m2:.0f}m²  {r.room_type.value}" + (f" ({r.name})" if r.name else "")
         for r in floor_rooms
@@ -147,7 +156,10 @@ def _layout_floor_llm(
     fw, fh = _estimate_footprint(params, floor_rooms)
     messages: list[dict] = [
         {"role": "system", "content": _SYSTEM},
-        {"role": "user", "content": _build_prompt(floor_num, total_floors, params, floor_rooms, fw, fh)},
+        {
+            "role": "user",
+            "content": _build_prompt(floor_num, total_floors, params, floor_rooms, fw, fh),
+        },
     ]
 
     best_layouts: list[RoomLayout] | None = None
@@ -174,14 +186,18 @@ def _layout_floor_llm(
             afh = float(footprint["h"])
         except Exception as exc:
             logger.warning("JSON parse error floor=%d iter=%d: %s", floor_num, iteration, exc)
-            messages.append({
-                "role": "user",
-                "content": "Invalid JSON. Return ONLY the JSON object — no markdown, no text.",
-            })
+            messages.append(
+                {
+                    "role": "user",
+                    "content": "Invalid JSON. Return ONLY the JSON object — no markdown, no text.",
+                }
+            )
             continue
 
         errors, score = validate_plan(plan_rooms, afw, afh, params.building_shape)
-        logger.info("LLM floor=%d iter=%d score=%d errors=%d", floor_num, iteration, score, len(errors))
+        logger.info(
+            "LLM floor=%d iter=%d score=%d errors=%d", floor_num, iteration, score, len(errors)
+        )
 
         layouts = _to_layouts(plan_rooms, floor=floor_num)
         if len(errors) < best_err_count:
@@ -191,14 +207,16 @@ def _layout_floor_llm(
         if not errors:
             return layouts, 0
 
-        messages.append({
-            "role": "user",
-            "content": (
-                f"Geometry validator found {len(errors)} problem(s):\n"
-                + "\n".join(f"{k + 1}. {e}" for k, e in enumerate(errors))
-                + "\n\nFix ALL problems. Return corrected JSON only."
-            ),
-        })
+        messages.append(
+            {
+                "role": "user",
+                "content": (
+                    f"Geometry validator found {len(errors)} problem(s):\n"
+                    + "\n".join(f"{k + 1}. {e}" for k, e in enumerate(errors))
+                    + "\n\nFix ALL problems. Return corrected JSON only."
+                ),
+            }
+        )
 
     # Still has errors → caller will decide whether to fall back
     return best_layouts, best_err_count
@@ -218,14 +236,22 @@ class LLMLayoutEngine:
 
     def generate(self) -> list[RoomLayout]:
         client = _get_client()
-        if not client:
-            logger.info("No GROQ_API_KEY — using rule-based layout")
+        # Open/mixed planning needs deterministic social-zone geometry (merged
+        # kitchen-living, no central hallway) the LLM prompt does not express, so
+        # those modes always use the rule engine.
+        open_plan = getattr(self.params, "openness", "closed") != "closed"
+        if not client or open_plan:
+            logger.info(
+                "Using rule-based layout (%s)",
+                "no GROQ_API_KEY" if not client else f"openness={self.params.openness}",
+            )
             result = self._rule.generate()
             self.warnings.extend(self._rule.warnings)
             return result
 
         # Reuse existing room prep + multi-floor distribution
         rooms = self._rule._ensure_essentials(list(self.params.rooms))
+        rooms = scale_room_areas(rooms, getattr(self.params, "spaciousness", 0.5))
         rooms_per_floor = self._rule._distribute_floors(rooms)
 
         all_layouts: list[RoomLayout] = []
@@ -234,7 +260,9 @@ class LLMLayoutEngine:
             if not floor_rooms:
                 continue
 
-            result_pair = _layout_floor_llm(client, floor_num, self.params.floors, self.params, floor_rooms)
+            result_pair = _layout_floor_llm(
+                client, floor_num, self.params.floors, self.params, floor_rooms
+            )
 
             if result_pair is None:
                 # Rule-based is a clean validated tiling — an operator detail, not
@@ -248,7 +276,8 @@ class LLMLayoutEngine:
             if err_count > 0:
                 logger.warning(
                     "LLM plan has %d unresolved error(s) on floor=%d — using rule-based",
-                    err_count, floor_num,
+                    err_count,
+                    floor_num,
                 )
                 rule_result = self._rule.generate()
                 self.warnings.extend(self._rule.warnings)
