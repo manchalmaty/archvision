@@ -170,6 +170,52 @@ _L = {
 }
 
 
+# Room-type display labels, matched to the frontend i18n `roomTypes.*` so the PDF
+# reads the same as the on-screen plan. The layout engine stores either a user's
+# custom name or the English-title default of the type (name = custom or
+# room_type.title()); we localize the latter and keep the former verbatim.
+_ROOM_LABELS = {
+    "en": {
+        "living_room": "Living Room",
+        "bedroom": "Bedroom",
+        "kitchen": "Kitchen",
+        "bathroom": "Bathroom",
+        "toilet": "Toilet",
+        "hallway": "Hallway",
+        "utility": "Utility Room",
+        "garage": "Garage",
+    },
+    "ru": {
+        "living_room": "Гостиная",
+        "bedroom": "Спальня",
+        "kitchen": "Кухня",
+        "bathroom": "Ванная",
+        "toilet": "Туалет",
+        "hallway": "Прихожая",
+        "utility": "Хозяйственная",
+        "garage": "Гараж",
+    },
+    "kk": {
+        "living_room": "Қонақ бөлме",
+        "bedroom": "Жатын бөлме",
+        "kitchen": "Ас үй",
+        "bathroom": "Жуынатын бөлме",
+        "toilet": "Дәретхана",
+        "hallway": "Дәліз",
+        "utility": "Шаруашылық бөлме",
+        "garage": "Гараж",
+    },
+}
+
+
+def _room_label(room: RoomLayout, lang: str) -> str:
+    """Localize a generated room name; keep a user's custom name verbatim."""
+    default_en = room.room_type.value.replace("_", " ").title()
+    if room.name and room.name != default_en:
+        return room.name
+    return _ROOM_LABELS.get(lang, _ROOM_LABELS["en"]).get(room.room_type.value, default_en)
+
+
 def _table_style(*extra: tuple) -> TableStyle:
     """Shared base look for every table; pass per-table overrides as extras."""
     return TableStyle(
@@ -215,7 +261,9 @@ def _door_world(r: RoomLayout, door):
     return (r.x + r.width, r.y + p), (r.x + r.width, r.y + p + dw), (-1.0, 0.0), dw
 
 
-def _floor_plan_drawing(rooms: list[RoomLayout], avail_w: float, caption: str) -> Drawing:
+def _floor_plan_drawing(
+    rooms: list[RoomLayout], avail_w: float, caption: str, lang: str = "en"
+) -> Drawing:
     """Vector floor plan: poché walls, doors (swing arc), windows and labels."""
     min_x = min(r.x for r in rooms)
     min_y = min(r.y for r in rooms)
@@ -235,10 +283,17 @@ def _floor_plan_drawing(rooms: list[RoomLayout], avail_w: float, caption: str) -
         return cap_h + pad + (max_y - wy) * scale
 
     for r in rooms:
-        d.add(Rect(
-            sx(r.x), sy(r.y + r.depth), r.width * scale, r.depth * scale,
-            fillColor=_ROOM_FILL, strokeColor=_INK, strokeWidth=_PLAN_WALL_PT,
-        ))
+        d.add(
+            Rect(
+                sx(r.x),
+                sy(r.y + r.depth),
+                r.width * scale,
+                r.depth * scale,
+                fillColor=_ROOM_FILL,
+                strokeColor=_INK,
+                strokeWidth=_PLAN_WALL_PT,
+            )
+        )
 
     for r in rooms:
         for win in r.windows:
@@ -247,7 +302,16 @@ def _floor_plan_drawing(rooms: list[RoomLayout], avail_w: float, caption: str) -
         for door in r.doors:
             (ax, ay), (bx, by), (nx, ny), dwm = _door_world(r, door)
             # erase the wall under the opening, then draw the swing arc + leaf
-            d.add(Line(sx(ax), sy(ay), sx(bx), sy(by), strokeColor=_ROOM_FILL, strokeWidth=_PLAN_WALL_PT + 1.2))
+            d.add(
+                Line(
+                    sx(ax),
+                    sy(ay),
+                    sx(bx),
+                    sy(by),
+                    strokeColor=_ROOM_FILL,
+                    strokeWidth=_PLAN_WALL_PT + 1.2,
+                )
+            )
             a0 = math.atan2(by - ay, bx - ax)
             a1 = math.atan2(ny, nx)
             if a1 - a0 > math.pi:
@@ -259,15 +323,45 @@ def _floor_plan_drawing(rooms: list[RoomLayout], avail_w: float, caption: str) -
                 ang = a0 + (a1 - a0) * i / 8
                 pts += [sx(ax + dwm * math.cos(ang)), sy(ay + dwm * math.sin(ang))]
             d.add(PolyLine(pts, strokeColor=_DOOR, strokeWidth=0.5))
-            d.add(Line(sx(ax), sy(ay), sx(ax + nx * dwm), sy(ay + ny * dwm),
-                       strokeColor=_DOOR, strokeWidth=0.9))
+            d.add(
+                Line(
+                    sx(ax),
+                    sy(ay),
+                    sx(ax + nx * dwm),
+                    sy(ay + ny * dwm),
+                    strokeColor=_DOOR,
+                    strokeWidth=0.9,
+                )
+            )
 
     for r in rooms:
         cx, cy = sx(r.x + r.width / 2), sy(r.y + r.depth / 2)
-        d.add(String(cx, cy + 2, r.name, textAnchor="middle", fontName=FONT_BOLD, fontSize=7, fillColor=_LABEL))
-        d.add(String(cx, cy - 7, f"{r.area_m2:.1f} m²", textAnchor="middle", fontName=FONT, fontSize=6, fillColor=_MUTED))
+        d.add(
+            String(
+                cx,
+                cy + 2,
+                _room_label(r, lang),
+                textAnchor="middle",
+                fontName=FONT_BOLD,
+                fontSize=7,
+                fillColor=_LABEL,
+            )
+        )
+        d.add(
+            String(
+                cx,
+                cy - 7,
+                f"{r.width * r.depth:.1f} m²",
+                textAnchor="middle",
+                fontName=FONT,
+                fontSize=6,
+                fillColor=_MUTED,
+            )
+        )
 
-    d.add(String(pad, 4, caption, fontName=FONT, fontSize=7.5, fillColor=colors.HexColor("#374151")))
+    d.add(
+        String(pad, 4, caption, fontName=FONT, fontSize=7.5, fillColor=colors.HexColor("#374151"))
+    )
     return d
 
 
@@ -307,7 +401,7 @@ def generate_pdf(result: GenerationResult, lang: str = "en") -> bytes:
             area = sum(r.width * r.depth for r in fr)
             caption = f"{t['floor']} {f} · {area:.1f} m²"
             try:
-                story.append(_floor_plan_drawing(fr, avail_w, caption))
+                story.append(_floor_plan_drawing(fr, avail_w, caption, lang))
                 story.append(Spacer(1, 3 * mm))
             except Exception:
                 logger.exception("Failed to render floor plan for floor %s", f)
@@ -336,9 +430,14 @@ def generate_pdf(result: GenerationResult, lang: str = "en") -> bytes:
     # Rooms
     story.append(Paragraph(t["rooms"], styles["h2"]))
     rows = [[t["room"], t["floor"], t["dims"], t["area"]]]
-    for r in sorted(result.rooms, key=lambda r: (r.floor, r.name)):
+    for r in sorted(result.rooms, key=lambda r: (r.floor, _room_label(r, lang))):
         rows.append(
-            [r.name, str(r.floor), f"{r.width:.2f} × {r.depth:.2f} m", f"{r.area_m2:.1f} m²"]
+            [
+                _room_label(r, lang),
+                str(r.floor),
+                f"{r.width:.2f} × {r.depth:.2f} m",
+                f"{r.width * r.depth:.1f} m²",
+            ]
         )
     story.append(Table(rows, colWidths=[70 * mm, 20 * mm, 45 * mm, 25 * mm], style=_TABLE_STYLE))
 
