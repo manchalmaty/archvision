@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useStore } from "../store/useStore";
 import { ifcDownloadUrl, pdfReportUrl } from "../api/client";
+import { Chevron, Reveal } from "./disclosure";
 
 type Tab = "ANALYSIS" | "MEP" | "EXPORT";
 
@@ -10,16 +11,20 @@ function planQualityScore(result: import("../types").GenerationResult): {
   labelKey: string;
   color: string;
 } {
-  let score = 100;
+  let issueScore = 100;
   const high = result.mep_conflicts.filter((c) => c.severity === "HIGH").length;
   const med = result.mep_conflicts.filter((c) => c.severity === "MEDIUM").length;
   const errors = result.compliance_issues.filter((i) => i.severity === "ERROR").length;
   const warns = result.compliance_issues.filter((i) => i.severity === "WARNING").length;
-  score -= Math.min(high * 5, 30);
-  score -= Math.min(med * 2, 10);
-  score -= errors * 10;
-  score -= warns * 3;
-  score = Math.max(0, score);
+  issueScore -= Math.min(high * 5, 30);
+  issueScore -= Math.min(med * 2, 10);
+  issueScore -= errors * 10;
+  issueScore -= warns * 3;
+  issueScore = Math.max(0, issueScore);
+  // Fold in daylight so the headline score reflects its own insolation metric:
+  // a clean but poorly-lit plan should not read the same as a clean, sunny one.
+  const insol = result.insolation_score ?? 100;
+  const score = Math.round(0.7 * issueScore + 0.3 * insol);
   if (score >= 85) return { score, labelKey: "results.qualityGood", color: "#15803d" };
   if (score >= 65) return { score, labelKey: "results.qualityFair", color: "#a16207" };
   return { score, labelKey: "results.qualityReview", color: "#dc2626" };
@@ -27,53 +32,71 @@ function planQualityScore(result: import("../types").GenerationResult): {
 
 function Accordion({
   title,
-  defaultOpen = true,
+  badge,
+  defaultOpen = false,
   children,
 }: {
   title: string;
+  badge?: React.ReactNode;
   defaultOpen?: boolean;
   children: React.ReactNode;
 }) {
   const [open, setOpen] = useState(defaultOpen);
   return (
-    <div style={{ borderBottom: "1px solid #e2e8f0", marginBottom: 2 }}>
+    <div className="border-b border-surface-border">
       <button
         onClick={() => setOpen(!open)}
-        style={{
-          width: "100%",
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          padding: "10px 0",
-          background: "none",
-          border: "none",
-          cursor: "pointer",
-          color: "#4b5563",
-        }}
+        className="w-full flex items-center justify-between gap-2 py-[11px] px-1 rounded-md hover:bg-slate-50 transition-colors group"
       >
-        <span
-          style={{
-            fontSize: 11,
-            fontWeight: 600,
-            textTransform: "uppercase",
-            letterSpacing: "0.08em",
-          }}
-        >
+        <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-500 group-hover:text-slate-700 transition-colors">
           {title}
         </span>
-        <span
-          style={{
-            fontSize: 14,
-            display: "inline-block",
-            transform: open ? "rotate(180deg)" : "rotate(0deg)",
-            transition: "transform 0.2s",
-          }}
-        >
-          ▾
+        <span className="flex items-center gap-2 text-slate-400">
+          {badge}
+          <Chevron open={open} />
         </span>
       </button>
-      {open && <div style={{ paddingBottom: 14 }}>{children}</div>}
+      <Reveal open={open}>
+        <div className="pb-3.5 pt-0.5">{children}</div>
+      </Reveal>
     </div>
+  );
+}
+
+// A tiny status pill — green tick when clean, red count when there are issues.
+// Color carries the status (Vercel/Linear), so a collapsed section still reads.
+function StatusBadge({ count }: { count: number }) {
+  const ok = count === 0;
+  return ok ? (
+    <span className="inline-flex items-center justify-center min-w-[18px] rounded-full px-1.5 py-px bg-emerald-50 border border-emerald-300 text-emerald-700">
+      <svg
+        viewBox="0 0 12 12"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth={2}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        className="w-3 h-3"
+      >
+        <path d="M2.5 6.5l2.5 2.5 4.5-5" />
+      </svg>
+    </span>
+  ) : (
+    <span className="inline-flex items-center gap-1 min-w-[18px] justify-center rounded-full px-1.5 py-px bg-red-50 border border-red-200 text-red-700 text-[11px] font-bold">
+      <svg
+        viewBox="0 0 12 12"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth={1.5}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        className="w-3 h-3"
+      >
+        <path d="M6 1.2L11 10H1L6 1.2z" />
+        <path d="M6 4.8v2.4M6 8.9v.05" />
+      </svg>
+      {count}
+    </span>
   );
 }
 
@@ -89,6 +112,7 @@ function GeoCard() {
     { label: t("results.insulationThickness"), value: `${g.insulation_thickness_mm} mm` },
     { label: t("results.snowLoad"), value: `${g.snow_load_kpa} kPa` },
     { label: t("results.windLoad"), value: `${g.wind_load_kpa} kPa` },
+    { label: t("daylight.score"), value: `${Math.round(result.insolation_score)}/100` },
   ];
   return (
     <div>
@@ -112,37 +136,46 @@ function GeoCard() {
   );
 }
 
-function CostCard() {
+// The headline figure — always visible (Stripe-style): big, ink-coloured (color
+// is reserved for status), local currency primary with USD as the quiet second line.
+function CostHero() {
+  const { t } = useTranslation();
+  const { result } = useStore();
+  if (!result) return null;
+  const c = result.cost_estimate;
+  const usd = `$${c.total_cost_usd.toLocaleString()}`;
+  const local = `${c.total_cost_local.toLocaleString()} ${c.currency}`;
+  const isUsd = c.currency === "USD";
+  return (
+    <div className="px-0.5 pt-1 pb-4" key={result.project_id}>
+      <p className="text-[10px] text-slate-400 uppercase tracking-[0.1em] mb-1.5">
+        {t("results.costEstimate")}
+      </p>
+      <p
+        className="font-display font-bold text-slate-900 leading-none tracking-tight text-[38px]"
+        style={{ fontVariantNumeric: "tabular-nums", animation: "fade-up 0.35s ease-out" }}
+      >
+        {isUsd ? usd : local}
+      </p>
+      {!isUsd && (
+        <p
+          className="font-mono text-[13px] text-slate-400 mt-1.5"
+          style={{ animation: "fade-up 0.35s ease-out 0.06s backwards" }}
+        >
+          ≈ {usd}
+        </p>
+      )}
+    </div>
+  );
+}
+
+function CostBreakdown() {
   const { t } = useTranslation();
   const { result } = useStore();
   if (!result) return null;
   const c = result.cost_estimate;
   return (
     <div>
-      <div
-        style={{
-          textAlign: "center",
-          marginBottom: 10,
-          padding: "12px",
-          background: "#ffffff",
-          borderRadius: 8,
-        }}
-      >
-        <p
-          style={{
-            fontSize: 30,
-            fontWeight: 700,
-            color: "#1f2937",
-            fontFamily: "monospace",
-            lineHeight: 1.1,
-          }}
-        >
-          ${c.total_cost_usd.toLocaleString()}
-        </p>
-        <p style={{ fontSize: 13, color: "#4b5563", marginTop: 4 }}>
-          ≈ {c.total_cost_local.toLocaleString()} {c.currency}
-        </p>
-      </div>
       <div style={{ display: "flex", flexDirection: "column", gap: 2, marginBottom: 10 }}>
         {Object.entries(c.breakdown).map(([k, v]) => (
           <div
@@ -175,7 +208,7 @@ function CostCard() {
           <div
             key={label}
             style={{
-              background: "#ffffff",
+              background: "#f8fafc",
               borderRadius: 6,
               padding: "7px 4px",
               textAlign: "center",
@@ -234,7 +267,7 @@ function ComplianceCard() {
               fontWeight: 700,
               ...(issue.severity === "ERROR"
                 ? { background: "#fef2f2", border: "1px solid #dc2626", color: "#b91c1c" }
-                : { background: "#fff7ed", border: "1px solid #0284c7", color: "#c2410c" }),
+                : { background: "#fff7ed", border: "1px solid #ea580c", color: "#c2410c" }),
             }}
           >
             {issue.severity}
@@ -257,7 +290,7 @@ function WarningsSection() {
     <Accordion title={t("results.warnings", { count: result.warnings.length })} defaultOpen>
       <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
         {result.warnings.map((w, i) => (
-          <p key={i} style={{ fontSize: 13, color: "#fbbf24" }}>
+          <p key={i} style={{ fontSize: 13, color: "#b45309" }}>
             ⚠ {w}
           </p>
         ))}
@@ -272,11 +305,31 @@ function MEPTab() {
   if (!result) return null;
   const conflicts = result.mep_conflicts;
 
+  const disclaimer = (
+    <div
+      style={{
+        background: "#ecfeff",
+        border: "1px solid #06b6d4",
+        borderRadius: 8,
+        padding: "8px 10px",
+        fontSize: 11,
+        lineHeight: 1.4,
+        color: "#155e75",
+        marginBottom: 8,
+      }}
+    >
+      {t("results.mepDraftNote")}
+    </div>
+  );
+
   if (conflicts.length === 0) {
     return (
-      <div style={{ padding: "40px 16px", textAlign: "center" }}>
-        <p style={{ fontSize: 36, marginBottom: 8 }}>✓</p>
-        <p style={{ fontSize: 14, color: "#15803d" }}>{t("results.noClashes")}</p>
+      <div style={{ paddingTop: 8 }}>
+        {disclaimer}
+        <div style={{ padding: "28px 16px", textAlign: "center" }}>
+          <p style={{ fontSize: 36, marginBottom: 8 }}>✓</p>
+          <p style={{ fontSize: 14, color: "#15803d" }}>{t("results.noClashes")}</p>
+        </div>
       </div>
     );
   }
@@ -289,12 +342,13 @@ function MEPTab() {
     if (sev === "HIGH")
       return { background: "#fef2f2", border: "1px solid #dc2626", color: "#b91c1c" };
     if (sev === "MEDIUM")
-      return { background: "#fff7ed", border: "1px solid #0284c7", color: "#c2410c" };
+      return { background: "#fff7ed", border: "1px solid #ea580c", color: "#c2410c" };
     return { background: "#fefce8", border: "1px solid #ca8a04", color: "#a16207" };
   };
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 8, paddingTop: 8 }}>
+      {disclaimer}
       {/* Summary chips */}
       <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 6 }}>
         {high > 0 && (
@@ -434,7 +488,7 @@ interface Props {
 export function ResultsPanel({ onClose }: Props) {
   const { t } = useTranslation();
   const [tab, setTab] = useState<Tab>("ANALYSIS");
-  const { result } = useStore();
+  const { result, history, undoResult } = useStore();
   if (!result) return null;
 
   const tabs: { id: Tab; label: string }[] = [
@@ -449,7 +503,7 @@ export function ResultsPanel({ onClose }: Props) {
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
       {/* Panel header */}
-      <div style={{ flexShrink: 0, borderBottom: "1px solid #e2e8f0", background: "#f1f5f9" }}>
+      <div className="flex-shrink-0 border-b border-surface-border bg-surface-panel">
         <div
           style={{
             display: "flex",
@@ -489,43 +543,36 @@ export function ResultsPanel({ onClose }: Props) {
               );
             })()}
           </div>
-          <button
-            onClick={onClose}
-            style={{
-              background: "none",
-              border: "none",
-              cursor: "pointer",
-              color: "#9ca3af",
-              fontSize: 20,
-              lineHeight: 1,
-              padding: "0 2px",
-              transition: "color 0.15s",
-            }}
-            onMouseEnter={(e) => (e.currentTarget.style.color = "#4b5563")}
-            onMouseLeave={(e) => (e.currentTarget.style.color = "#9ca3af")}
-            title={t("results.closePanel")}
-          >
-            ×
-          </button>
+          <div style={{ display: "flex", alignItems: "center", gap: 2 }}>
+            {history.length > 0 && (
+              <button
+                onClick={undoResult}
+                className="flex items-center gap-1 px-2 py-0.5 rounded-[7px] border border-surface-border text-slate-500 text-xs font-semibold transition-all duration-150 hover:text-brand-600 hover:border-brand-100 hover:bg-brand-50"
+                title={t("results.undoVersion")}
+              >
+                ↶ {history.length}
+              </button>
+            )}
+            <button
+              onClick={onClose}
+              className="px-0.5 text-xl leading-none text-slate-400 hover:text-slate-600 transition-colors"
+              title={t("results.closePanel")}
+            >
+              ×
+            </button>
+          </div>
         </div>
         {/* Tabs */}
-        <div style={{ display: "flex", padding: "6px 16px 0" }}>
+        <div className="flex px-4 pt-1.5">
           {tabs.map(({ id, label }) => (
             <button
               key={id}
               onClick={() => setTab(id)}
-              style={{
-                background: "none",
-                border: "none",
-                borderBottom: tab === id ? "2px solid #0284c7" : "2px solid transparent",
-                color: tab === id ? "#1f2937" : "#6b7280",
-                fontSize: 12,
-                fontWeight: 600,
-                letterSpacing: "0.04em",
-                padding: "6px 14px",
-                cursor: "pointer",
-                transition: "color 0.15s",
-              }}
+              className={`px-3.5 py-1.5 text-xs font-semibold tracking-[0.04em] border-b-2 transition-colors duration-150 ${
+                tab === id
+                  ? "border-brand-500 text-slate-800"
+                  : "border-transparent text-slate-500 hover:text-slate-700"
+              }`}
             >
               {label}
             </button>
@@ -538,14 +585,16 @@ export function ResultsPanel({ onClose }: Props) {
         {tab === "ANALYSIS" && (
           <div>
             <WarningsSection />
-            <Accordion title={t("results.geoClimate")} defaultOpen>
-              <GeoCard />
+            <CostHero />
+            <Accordion title={t("results.costBreakdown")}>
+              <CostBreakdown />
             </Accordion>
-            <Accordion title={t("results.costEstimate")} defaultOpen>
-              <CostCard />
+            <Accordion title={t("results.geoClimate")}>
+              <GeoCard />
             </Accordion>
             <Accordion
               title={t("results.compliance", { count: result.compliance_issues.length })}
+              badge={<StatusBadge count={result.compliance_issues.length} />}
               defaultOpen={result.compliance_issues.length > 0}
             >
               <ComplianceCard />

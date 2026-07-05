@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { ParameterForm } from "./components/ParameterForm";
 import { ThreeViewer } from "./components/ThreeViewer";
@@ -12,12 +12,14 @@ export default function App() {
   const { t, i18n } = useTranslation();
   const { params, setResult, setGenerating, isGenerating, result, resultStale, error, setError } =
     useStore();
-  const [rightOpen, setRightOpen] = useState(false);
+  // Panel-open lives in the store so the 2D viewer can offset its zoom widget.
+  const rightOpen = useStore((s) => s.rightPanelOpen);
+  const setRightOpen = useStore((s) => s.setRightPanelOpen);
   const abortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
     if (result) setRightOpen(true);
-  }, [result]);
+  }, [result, setRightOpen]);
 
   const handleGenerate = async () => {
     abortRef.current = new AbortController();
@@ -47,59 +49,19 @@ export default function App() {
       {/* Header */}
       <header className="border-b border-surface-border px-6 py-3 flex items-center justify-between flex-shrink-0">
         <div className="flex items-center gap-3">
-          {/* Brand mark — triangular "A" / roof over a blueprint crosshair */}
-          <div className="w-9 h-9 rounded-md bg-slate-900 flex items-center justify-center flex-shrink-0">
-            <svg viewBox="0 0 32 32" className="w-9 h-9">
-              <line
-                x1="3"
-                y1="11"
-                x2="29"
-                y2="11"
-                stroke="#38bdf8"
-                strokeWidth="0.7"
-                opacity="0.5"
-              />
-              <line
-                x1="3"
-                y1="22"
-                x2="29"
-                y2="22"
-                stroke="#38bdf8"
-                strokeWidth="0.7"
-                opacity="0.5"
-              />
-              <line
-                x1="16"
-                y1="3"
-                x2="16"
-                y2="29"
-                stroke="#38bdf8"
-                strokeWidth="0.7"
-                opacity="0.5"
-              />
-              <path
-                d="M16 7 L25 25 H7 Z"
-                fill="none"
-                stroke="#ffffff"
-                strokeWidth="2.2"
-                strokeLinejoin="round"
-              />
-              <line x1="12" y1="19.5" x2="20" y2="19.5" stroke="#38bdf8" strokeWidth="2.2" />
+          {/* Brand mark — the "AV" monogram, white on ArchVision red */}
+          <div className="w-9 h-9 rounded-md bg-brand-500 flex items-center justify-center flex-shrink-0">
+            <svg viewBox="0 0 220 140" className="w-6 h-6" fill="#ffffff" aria-hidden="true">
+              <path d="M14 120 L30 120 L58 22 L46 22 Z" />
+              <path d="M62 22 L74 22 L102 120 L86 120 Z" />
+              <rect x="40" y="80" width="42" height="13" />
+              <path d="M134 22 L147 22 L176 120 L164 120 Z" />
+              <path d="M198 22 L211 22 L190 120 L178 120 Z" />
             </svg>
           </div>
           <div>
             <h1 className="font-display text-lg font-bold tracking-tight text-slate-900 leading-none">
-              ArchVision
-              <span
-                style={{
-                  backgroundImage: "linear-gradient(135deg, #2dd4bf 0%, #1e3a8a 100%)",
-                  WebkitBackgroundClip: "text",
-                  backgroundClip: "text",
-                  color: "transparent",
-                }}
-              >
-                &nbsp;AI
-              </span>
+              ArchVision<span className="text-brand-500">&nbsp;AI</span>
             </h1>
             <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-slate-500 mt-0.5">
               {t("app.subtitle")}
@@ -132,24 +94,12 @@ export default function App() {
       {/* Workspace */}
       <div style={{ display: "flex", flex: 1, overflow: "hidden", position: "relative" }}>
         {/* Left panel — fixed 280px, never moves */}
-        <aside
-          style={{
-            width: 280,
-            flexShrink: 0,
-            overflowY: "auto",
-            borderRight: "1px solid #e2e8f0",
-            padding: "16px 16px 0",
-            display: "flex",
-            flexDirection: "column",
-            gap: "12px",
-            background: "#f1f5f9",
-          }}
-        >
+        <aside className="w-[280px] flex-shrink-0 overflow-y-auto border-r border-surface-border bg-surface-panel px-4 pt-4 pb-0 flex flex-col gap-3">
           <ParameterForm onGenerate={handleGenerate} />
         </aside>
 
         {/* Center — always fills remaining space, never shifts */}
-        <main style={{ flex: 1, position: "relative", background: "#f8fafc", overflow: "hidden" }}>
+        <main className="flex-1 relative bg-surface-dark overflow-hidden">
           <ThreeViewer />
           {!result && !isGenerating && (
             <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
@@ -239,31 +189,12 @@ export default function App() {
               }}
             >
               {error && (
-                <div
-                  style={{
-                    background: "#fef2f2",
-                    border: "1px solid #fecaca",
-                    borderRadius: 8,
-                    boxShadow: "0 1px 2px rgba(0,0,0,0.06)",
-                    padding: "10px 14px",
-                    display: "flex",
-                    alignItems: "flex-start",
-                    gap: 10,
-                  }}
-                >
-                  <span style={{ fontSize: 13, color: "#b91c1c", lineHeight: 1.4 }}>{error}</span>
+                <div className="bg-red-50 border border-red-200 rounded-lg shadow-sm px-3.5 py-2.5 flex items-start gap-2.5">
+                  <span className="text-[13px] text-red-700 leading-snug">{error}</span>
                   <button
                     onClick={() => setError(null)}
                     aria-label={t("app.dismissError")}
-                    style={{
-                      background: "none",
-                      border: "none",
-                      color: "#dc2626",
-                      cursor: "pointer",
-                      fontSize: 16,
-                      lineHeight: 1,
-                      padding: 0,
-                    }}
+                    className="text-red-600 hover:text-red-800 text-base leading-none p-0 transition-colors"
                   >
                     ×
                   </button>
@@ -290,20 +221,7 @@ export default function App() {
           {result && !rightOpen && (
             <button
               onClick={() => setRightOpen(true)}
-              style={{
-                position: "absolute",
-                bottom: 16,
-                right: 16,
-                background: "#e2e8f0",
-                border: "1px solid #cbd5e1",
-                borderRadius: 8,
-                color: "#4b5563",
-                fontSize: 12,
-                fontWeight: 600,
-                padding: "6px 12px",
-                cursor: "pointer",
-                zIndex: 5,
-              }}
+              className="absolute bottom-4 right-4 z-[5] bg-surface-border border border-slate-300 rounded-lg text-slate-600 text-xs font-semibold px-3 py-1.5 hover:bg-slate-300 transition-colors"
             >
               {t("app.showResults")}
             </button>
@@ -312,20 +230,7 @@ export default function App() {
 
         {/* Right panel — absolutely positioned, overlays center, does NOT shift flex layout */}
         {result && rightOpen && (
-          <aside
-            style={{
-              position: "absolute",
-              right: 0,
-              top: 0,
-              bottom: 0,
-              width: 320,
-              background: "#f1f5f9",
-              borderLeft: "1px solid #e2e8f0",
-              zIndex: 10,
-              display: "flex",
-              flexDirection: "column",
-            }}
-          >
+          <aside className="absolute right-0 top-0 bottom-0 w-[320px] bg-surface-panel border-l border-surface-border z-10 flex flex-col">
             <ResultsPanel onClose={() => setRightOpen(false)} />
           </aside>
         )}
