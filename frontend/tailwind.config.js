@@ -4,17 +4,17 @@ export default {
   theme: {
     extend: {
       colors: {
-        // Single accent — "blueprint blue" (matches the brand logo).
-        // Reuses the `brand` token name so existing bg-brand-*/text-brand-*
-        // utilities follow the accent with no per-component edits.
+        // Single accent — ArchVision red (the "AV" brand mark). Reuses the
+        // `brand` token name so every bg-brand-*/text-brand-*/border-brand-*
+        // utility follows the accent with no per-component edits.
         brand: {
-          50: "#f0f9ff",
-          100: "#e0f2fe",
-          400: "#38bdf8",
-          500: "#0ea5e9",
-          600: "#0284c7",
-          700: "#0369a1",
-          900: "#0c4a6e",
+          50: "#fef2f1",
+          100: "#fcdcd9",
+          400: "#f15a4f",
+          500: "#e0261c", // ArchVision red
+          600: "#c81f15", // primary button / hover-from
+          700: "#a51810",
+          900: "#5e0d09",
         },
         // Cool "drafting paper" surfaces
         surface: {

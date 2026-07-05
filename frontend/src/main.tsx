@@ -14,7 +14,7 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
         style: {
           background: "#ffffff",
           color: "#1f2937",
-          border: "1px solid #e2e8f0",
+          border: "1px solid var(--surface-border)",
           boxShadow: "0 4px 12px rgba(0,0,0,0.08)",
         },
       }}

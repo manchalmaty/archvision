@@ -3,6 +3,15 @@
 @tailwind utilities;
 
 @layer base {
+  /* Theme tokens exposed as CSS variables so inline JS style objects (Toaster,
+     SVG strokes, gradients) share the same single source as Tailwind classes. */
+  :root {
+    --brand-500: theme("colors.brand.500");
+    --brand-600: theme("colors.brand.600");
+    --surface-border: theme("colors.surface.border");
+    --surface-panel: theme("colors.surface.panel");
+  }
+
   body {
     @apply bg-surface-dark text-slate-800 font-sans antialiased;
     font-size: 13px;
@@ -92,5 +101,92 @@
   .badge-ok {
     @apply inline-flex items-center gap-1 bg-emerald-50 border border-emerald-300
            text-emerald-700 text-xs px-2 py-1 rounded-full;
+  }
+
+  /* Brand range slider: the filled portion is a background-image whose
+     background-size follows the value (set inline), so the fill animates
+     smoothly — background-size IS transitionable, gradients are not. */
+  .range-brand {
+    appearance: none;
+    -webkit-appearance: none;
+    height: 6px;
+    border-radius: 9999px;
+    background-color: theme("colors.surface.border");
+    background-image: linear-gradient(theme("colors.brand.500"), theme("colors.brand.500"));
+    background-repeat: no-repeat;
+    transition: background-size 0.2s ease-out;
+    cursor: pointer;
+  }
+  .range-brand::-webkit-slider-thumb {
+    appearance: none;
+    -webkit-appearance: none;
+    width: 16px;
+    height: 16px;
+    border-radius: 9999px;
+    background: #fff;
+    border: 2px solid theme("colors.brand.500");
+    box-shadow: 0 1px 3px rgb(15 23 42 / 0.25);
+    transition:
+      transform 0.15s ease,
+      box-shadow 0.15s ease;
+  }
+  .range-brand::-moz-range-thumb {
+    width: 16px;
+    height: 16px;
+    border-radius: 9999px;
+    background: #fff;
+    border: 2px solid theme("colors.brand.500");
+    box-shadow: 0 1px 3px rgb(15 23 42 / 0.25);
+    transition:
+      transform 0.15s ease,
+      box-shadow 0.15s ease;
+  }
+  .range-brand:hover::-webkit-slider-thumb {
+    transform: scale(1.12);
+  }
+  .range-brand:active::-webkit-slider-thumb {
+    transform: scale(1.2);
+    box-shadow: 0 0 0 5px theme("colors.brand.500" / 14%);
+  }
+  .range-brand:hover::-moz-range-thumb {
+    transform: scale(1.12);
+  }
+  .range-brand:active::-moz-range-thumb {
+    transform: scale(1.2);
+    box-shadow: 0 0 0 5px theme("colors.brand.500" / 14%);
+  }
+
+  /* Floating metrics card (2D viewer hover): layered depth + a soft rise-in. */
+  .hover-card {
+    background: #fff;
+    border: 1px solid var(--surface-border);
+    border-radius: 12px;
+    box-shadow:
+      0 0 0 1px rgb(15 23 42 / 0.04),
+      0 2px 8px rgb(15 23 42 / 0.08),
+      0 12px 32px rgb(15 23 42 / 0.14);
+    animation: hover-card-in 0.16s ease-out;
+  }
+}
+
+@keyframes hover-card-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
   }
 }

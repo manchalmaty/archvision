@@ -10,6 +10,8 @@ export type RoomType =
 
 export type CountryCode = "RU" | "KZ" | "UA" | "BY" | "UZ" | "DE" | "US" | "OTHER";
 
+export type Facing = "N" | "NE" | "E" | "SE" | "S" | "SW" | "W" | "NW";
+
 export interface RoomInput {
   room_type: RoomType;
   area_m2: number;
@@ -17,6 +19,11 @@ export interface RoomInput {
 }
 
 export type BuildingShape = "rectangular" | "square" | "l_shape" | "u_shape" | "t_shape";
+
+// Social-zone openness (a preference): closed = every room walled; mixed =
+// kitchen+living open as one volume but bedrooms behind a hallway; open = no
+// hallway, entrance into the social volume.
+export type Openness = "closed" | "mixed" | "open";
 
 export interface BuildingParams {
   rooms: RoomInput[];
@@ -26,6 +33,13 @@ export interface BuildingParams {
   plot_width_m?: number;
   plot_depth_m?: number;
   building_shape: BuildingShape;
+  openness: Openness;
+  // Budget ↔ spacious (0..1): 0 = compact + small rooms (cheap), 1 = spread +
+  // large rooms (pricey). 0.5 = neutral.
+  spaciousness: number;
+  facing: Facing;
+  // Auto-rotate the finished plan to the orientation with the best daylight.
+  auto_orient: boolean;
 }
 
 export interface GeoClimateData {
@@ -44,6 +58,9 @@ export interface DoorSpec {
   position: number;
   width: number;
   height: number;
+  // "opening" = a wide cased gap (no swing leaf), used for the open kitchen↔living
+  // boundary; "door" (or absent) = a normal hinged door.
+  kind?: "door" | "opening";
 }
 
 export interface WindowSpec {
@@ -66,6 +83,7 @@ export interface RoomLayout {
   area_m2: number;
   doors: DoorSpec[];
   windows: WindowSpec[];
+  sun?: "good" | "ok" | "poor" | "";
 }
 
 export interface MEPConflict {
@@ -114,4 +132,5 @@ export interface GenerationResult {
   cost_estimate: CostEstimate;
   ifc_file_url: string;
   warnings: string[];
+  insolation_score: number;
 }
