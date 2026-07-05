@@ -12,7 +12,10 @@ from config import settings
 from core.cost_estimator import CostEstimator
 from core.geo_calculator import GeoClimateCalculator
 from core.ifc_generator import IFCGenerator
+from core.insolation import annotate as annotate_insolation
+from core.insolation import score as insolation_score
 from core.llm_layout_engine import LLMLayoutEngine
+from core.orientation import best_turns, rotate_layout
 from mep.clash_detector import ClashDetector
 from mep.pipe_router import PipeRouter
 from models import (
@@ -61,6 +64,16 @@ async def generate_plan(params: BuildingParams):
     rooms = layout_engine.generate()
     warnings.extend(layout_engine.warnings)
 
+    # 3a. Orientation actuator (optional) — hard-rotate the finished plan to the
+    # quarter-turn that best faces rooms to the sun, then reassign openings.
+    if params.auto_orient:
+        turns = best_turns(rooms, params.facing, params.plot_width_m, params.plot_depth_m)
+        if turns:
+            rotate_layout(rooms, turns)
+
+    # 3b. Daylight sensor — annotate each room's sun rating for the given facing.
+    annotate_insolation(rooms, params.facing)
+
     # 4. MEP routing and clash detection
     pipe_router = PipeRouter(rooms, params.floors, geo_data)
     pipes = pipe_router.route()
@@ -88,6 +101,7 @@ async def generate_plan(params: BuildingParams):
         cost_estimate=cost,
         ifc_file_url=ifc_url,
         warnings=warnings,
+        insolation_score=insolation_score(rooms, params.facing),
     )
 
     # Persist the result next to the IFC so /report/{id} (and later project
