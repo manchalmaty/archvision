@@ -11,7 +11,9 @@ from typing import Optional
 
 from models import GeoClimateData, RoomLayout, RoomType
 
-WET_ZONES = {RoomType.KITCHEN, RoomType.BATHROOM, RoomType.TOILET}
+# Wet points that need plumbing — kitchen, bathroom, toilet, and the laundry
+# (utility). Laundry is included so its supply/drain shows up in the draft.
+WET_ZONES = {RoomType.KITCHEN, RoomType.BATHROOM, RoomType.TOILET, RoomType.UTILITY}
 GRID_STEP = 0.5  # metres per grid cell
 FLOOR_HEIGHT = 3.0  # metres per storey
 
