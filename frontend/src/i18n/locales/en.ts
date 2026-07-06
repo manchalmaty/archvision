@@ -29,7 +29,7 @@ export default {
     custom: "Custom set",
     kids: "Children",
     roomsSummary: "{{count}} rooms · {{area}} m²",
-    editManually: "Edit rooms manually",
+    editManually: "Edit manually",
     hide: "Hide",
   },
   form: {

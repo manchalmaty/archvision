@@ -29,7 +29,7 @@ export default {
     custom: "Свой набор",
     kids: "Детей",
     roomsSummary: "{{count}} комнат · {{area}} м²",
-    editManually: "Настроить комнаты вручную",
+    editManually: "Настроить вручную",
     hide: "Свернуть",
   },
   form: {
@@ -63,7 +63,7 @@ export default {
   },
   openness: {
     title: "Открытость планировки",
-    closed: "Изолированная",
+    closed: "Закрытая",
     mixed: "Смешанная",
     open: "Открытая",
     closedDesc: "Все комнаты за стенами",

@@ -507,18 +507,18 @@ export function ParameterForm({ onGenerate }: Props) {
         <button
           type="button"
           onClick={() => setRoomsOpen((v) => !v)}
-          className="w-full flex items-center justify-between mb-2 text-left"
+          className="w-full flex flex-wrap items-center justify-between gap-x-2 gap-y-0.5 mb-2 text-left"
         >
           <h2 className="text-sm font-semibold text-slate-700 uppercase tracking-wider">
             {t("form.rooms")}
-            <span className="ml-2 text-brand-500 font-mono normal-case text-xs">
+            <span className="ml-2 text-brand-500 font-mono normal-case text-xs whitespace-nowrap">
               {t("presets.roomsSummary", {
                 count: params.rooms.length,
                 area: totalArea.toFixed(0),
               })}
             </span>
           </h2>
-          <span className="text-xs text-brand-600 hover:text-brand-700 transition-colors flex-shrink-0 inline-flex items-center gap-1">
+          <span className="text-xs text-brand-600 hover:text-brand-700 transition-colors flex-shrink-0 inline-flex items-center gap-1 whitespace-nowrap">
             {roomsOpen ? t("presets.hide") : t("presets.editManually")}
             <Chevron open={roomsOpen} />
           </span>

@@ -29,7 +29,7 @@ export default {
     custom: "Өз жиынтығы",
     kids: "Балалар",
     roomsSummary: "{{count}} бөлме · {{area}} м²",
-    editManually: "Бөлмелерді қолмен реттеу",
+    editManually: "Қолмен реттеу",
     hide: "Жасыру",
   },
   form: {
@@ -63,7 +63,7 @@ export default {
   },
   openness: {
     title: "Жоспар ашықтығы",
-    closed: "Оқшауланған",
+    closed: "Жабық",
     mixed: "Аралас",
     open: "Ашық",
     closedDesc: "Барлық бөлме қабырғада",
