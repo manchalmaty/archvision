@@ -15,6 +15,7 @@ export default {
     staleParams: "Parameters changed — regenerate to update the plan",
     shareLoadFailed: "Could not load the shared project",
     rateLimited: "Too many generations — please wait a minute and try again",
+    openParams: "Open parameters",
     disclaimer:
       "Schematic design for preliminary assessment. Requires certification by a licensed architect.",
   },

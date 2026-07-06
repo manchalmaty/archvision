@@ -10,6 +10,7 @@ import {
 } from "./roomColors";
 import { floorRooms, roomsBBox, clampPos, type BBox } from "./planGeometry";
 import { roomDisplayName } from "./roomName";
+import { useIsDesktop } from "./useMediaQuery";
 import type { RoomLayout, MEPConflict, DoorSpec, WindowSpec } from "../types";
 
 const WALL_T = 0.18; // wall line thickness in plan units (m)
@@ -589,6 +590,10 @@ export function PlanView2D() {
   const panRef = useRef<{ sx: number; sy: number; vb: VB; wpp: number } | null>(null);
   const movedRef = useRef(false);
   const [hover, setHover] = useState<HoverInfo | null>(null);
+  const isDesktop = useIsDesktop();
+  // Two-finger pinch state: pointer positions + the viewBox/distance at pinch start.
+  const touchesRef = useRef(new Map<number, { x: number; y: number }>());
+  const pinchRef = useRef<{ dist: number; vb: VB; wx: number; wy: number } | null>(null);
 
   const rooms = useMemo(() => floorRooms(result, activeFloor), [result, activeFloor]);
   const bbox = useMemo(() => roomsBBox(rooms), [rooms]);
@@ -637,16 +642,45 @@ export function PlanView2D() {
     });
 
   const onPointerDown = (e: React.PointerEvent<SVGSVGElement>) => {
-    if (e.button !== 0) return;
+    if (e.pointerType === "mouse" && e.button !== 0) return;
     const svg = svgRef.current;
     const ctm = svg?.getScreenCTM();
     if (!svg || !ctm) return;
+    if (e.pointerType === "touch") {
+      setHover(null); // synthesized mousemove after tap would pin the card
+      touchesRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      if (touchesRef.current.size === 2) {
+        // Second finger down → switch from pan to pinch around the midpoint.
+        const [a, b] = [...touchesRef.current.values()];
+        const mid = new DOMPoint((a.x + b.x) / 2, (a.y + b.y) / 2).matrixTransform(ctm.inverse());
+        pinchRef.current = {
+          dist: Math.hypot(a.x - b.x, a.y - b.y),
+          vb: view,
+          wx: mid.x,
+          wy: mid.y,
+        };
+        panRef.current = null;
+        movedRef.current = true;
+        svg.setPointerCapture(e.pointerId);
+        return;
+      }
+    }
     movedRef.current = false;
     panRef.current = { sx: e.clientX, sy: e.clientY, vb: view, wpp: ctm.inverse().a };
     svg.setPointerCapture(e.pointerId);
   };
 
   const onPointerMove = (e: React.PointerEvent<SVGSVGElement>) => {
+    if (touchesRef.current.has(e.pointerId)) {
+      touchesRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    }
+    const pinch = pinchRef.current;
+    if (pinch && touchesRef.current.size === 2) {
+      const [a, b] = [...touchesRef.current.values()];
+      const dist = Math.hypot(a.x - b.x, a.y - b.y);
+      if (dist > 1) setVb(zoomViewBox(pinch.vb, pinch.dist / dist, pinch.wx, pinch.wy));
+      return;
+    }
     const p = panRef.current;
     if (!p) return;
     const dx = e.clientX - p.sx;
@@ -656,8 +690,14 @@ export function PlanView2D() {
     setVb({ x: p.vb.x - dx * p.wpp, y: p.vb.y - dy * p.wpp, w: p.vb.w, h: p.vb.h });
   };
 
-  const onPointerUp = () => {
-    panRef.current = null;
+  const onPointerUp = (e: React.PointerEvent<SVGSVGElement>) => {
+    touchesRef.current.delete(e.pointerId);
+    // Ending a pinch does NOT resume panning with the remaining finger —
+    // its start point is stale and the plan would jump; lift and pan again.
+    if (pinchRef.current) panRef.current = null;
+    if (touchesRef.current.size < 2) pinchRef.current = null;
+    if (!touchesRef.current.size) panRef.current = null;
+    if (e.pointerType === "mouse") panRef.current = null;
   };
 
   // Grid rects oversized: with preserveAspectRatio="meet" the visible world
@@ -668,12 +708,16 @@ export function PlanView2D() {
   const bgH = view.h * 5;
 
   return (
-    // The results panel overlays the workspace from the right; shrinking this
-    // container (instead of letting the plan hide underneath) keeps the whole
-    // floor plan visible — the svg re-centres in the uncovered area.
+    // The results panel overlays the workspace (right column on desktop,
+    // bottom sheet on mobile); shrinking this container instead of letting the
+    // plan hide underneath keeps the whole floor plan visible — the svg
+    // re-centres in the uncovered area.
     <div
-      className="absolute inset-y-0 left-0 transition-[right] duration-200"
-      style={{ right: rightPanelOpen ? 320 : 0 }}
+      className="absolute inset-0 transition-[right,bottom] duration-200"
+      style={{
+        right: rightPanelOpen && isDesktop ? 320 : 0,
+        bottom: rightPanelOpen && !isDesktop ? "60vh" : 0,
+      }}
     >
       <svg
         ref={svgRef}

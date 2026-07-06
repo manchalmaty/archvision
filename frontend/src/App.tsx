@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useRef } from "react";
+import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ParameterForm } from "./components/ParameterForm";
 import { ResultsPanel } from "./components/ResultsPanel";
@@ -32,6 +32,8 @@ export default function App() {
   const rightOpen = useStore((s) => s.rightPanelOpen);
   const setRightOpen = useStore((s) => s.setRightPanelOpen);
   const abortRef = useRef<AbortController | null>(null);
+  // Mobile-only: the parameter form lives in a slide-in drawer below md.
+  const [drawerOpen, setDrawerOpen] = useState(false);
 
   useEffect(() => {
     if (result) setRightOpen(true);
@@ -64,6 +66,7 @@ export default function App() {
 
   const handleGenerate = async () => {
     abortRef.current = new AbortController();
+    setDrawerOpen(false); // reveal the canvas on mobile while it generates
     setGenerating(true);
     setError(null);
     try {
@@ -92,8 +95,25 @@ export default function App() {
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100vh", overflow: "hidden" }}>
       {/* Header */}
-      <header className="border-b border-surface-border px-6 py-3 flex items-center justify-between flex-shrink-0">
-        <div className="flex items-center gap-3">
+      <header className="border-b border-surface-border px-3 sm:px-6 py-3 flex items-center justify-between flex-shrink-0">
+        <div className="flex items-center gap-2 sm:gap-3">
+          {/* Mobile: hamburger opens the parameter drawer */}
+          <button
+            onClick={() => setDrawerOpen(true)}
+            aria-label={t("app.openParams")}
+            className="md:hidden w-9 h-9 flex items-center justify-center rounded-lg border border-surface-border text-slate-600 active:bg-surface-panel"
+          >
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth={2}
+              strokeLinecap="round"
+              className="w-5 h-5"
+            >
+              <path d="M4 7h16M4 12h16M4 17h16" />
+            </svg>
+          </button>
           {/* Brand mark — the "AV" monogram, white on ArchVision red */}
           <div className="w-9 h-9 rounded-md bg-brand-500 flex items-center justify-center flex-shrink-0">
             <svg viewBox="0 0 220 140" className="w-6 h-6" fill="#ffffff" aria-hidden="true">
@@ -108,7 +128,7 @@ export default function App() {
             <h1 className="font-display text-lg font-bold tracking-tight text-slate-900 leading-none">
               ArchVision<span className="text-brand-500">&nbsp;AI</span>
             </h1>
-            <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-slate-500 mt-0.5">
+            <p className="hidden sm:block font-mono text-[10px] uppercase tracking-[0.18em] text-slate-500 mt-0.5">
               {t("app.subtitle")}
             </p>
           </div>
@@ -131,7 +151,7 @@ export default function App() {
               </button>
             ))}
           </div>
-          <span className="text-xs text-slate-500 border border-surface-border rounded px-2 py-1">
+          <span className="hidden sm:inline-block text-xs text-slate-500 border border-surface-border rounded px-2 py-1">
             Beta
           </span>
         </div>
@@ -139,8 +159,20 @@ export default function App() {
 
       {/* Workspace */}
       <div style={{ display: "flex", flex: 1, overflow: "hidden", position: "relative" }}>
-        {/* Left panel — fixed 280px, never moves */}
-        <aside className="w-[280px] flex-shrink-0 overflow-y-auto border-r border-surface-border bg-surface-panel px-4 pt-4 pb-0 flex flex-col gap-3">
+        {/* Mobile backdrop behind the drawer */}
+        {drawerOpen && (
+          <div
+            className="fixed inset-0 bg-black/30 z-30 md:hidden"
+            onClick={() => setDrawerOpen(false)}
+          />
+        )}
+        {/* Left panel — static 280px column on desktop, slide-in drawer below md */}
+        <aside
+          className={`fixed inset-y-0 left-0 z-40 w-[300px] max-w-[85vw] transform transition-transform duration-200 shadow-xl
+            ${drawerOpen ? "translate-x-0" : "-translate-x-full"}
+            md:static md:z-auto md:w-[280px] md:translate-x-0 md:shadow-none md:transform-none
+            flex-shrink-0 overflow-y-auto border-r border-surface-border bg-surface-panel px-4 pt-4 pb-0 flex flex-col gap-3`}
+        >
           <ParameterForm onGenerate={handleGenerate} />
         </aside>
 
@@ -276,9 +308,14 @@ export default function App() {
           )}
         </main>
 
-        {/* Right panel — absolutely positioned, overlays center, does NOT shift flex layout */}
+        {/* Right panel — overlay column on desktop, bottom sheet below md;
+            absolutely positioned so it never shifts the flex layout */}
         {result && rightOpen && (
-          <aside className="absolute right-0 top-0 bottom-0 w-[320px] bg-surface-panel border-l border-surface-border z-10 flex flex-col">
+          <aside
+            className="absolute z-10 flex flex-col bg-surface-panel border-surface-border
+              max-md:inset-x-0 max-md:bottom-0 max-md:h-[60vh] max-md:rounded-t-2xl max-md:border-t max-md:shadow-2xl
+              md:right-0 md:top-0 md:bottom-0 md:w-[320px] md:border-l"
+          >
             <ResultsPanel onClose={() => setRightOpen(false)} />
           </aside>
         )}
