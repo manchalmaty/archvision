@@ -13,8 +13,23 @@ export const FAMILY_KIDS_MIN = 1;
 export const FAMILY_KIDS_MAX = 4;
 export const FAMILY_KIDS_DEFAULT = 2;
 
+// One-car heated bay (~3.5×6.3 m). The layout engine gives the garage its own
+// full-width band at the back, so any preset can carry one without starving
+// the wet band.
+export const GARAGE_AREA_M2 = 22;
+
 /** Build a complete, invariant-friendly room program for a household preset. */
-export function buildPresetRooms(preset: HouseholdPreset, kids = FAMILY_KIDS_DEFAULT): RoomInput[] {
+export function buildPresetRooms(
+  preset: HouseholdPreset,
+  kids = FAMILY_KIDS_DEFAULT,
+  garage = false
+): RoomInput[] {
+  const rooms = basePresetRooms(preset, kids);
+  if (garage) rooms.push({ room_type: "garage", area_m2: GARAGE_AREA_M2 });
+  return rooms;
+}
+
+function basePresetRooms(preset: HouseholdPreset, kids: number): RoomInput[] {
   switch (preset) {
     case "single":
       return [

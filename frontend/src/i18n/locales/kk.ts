@@ -37,6 +37,8 @@ export default {
     rentalDesc: "Жалға берілетін екі жатын бөлме",
     custom: "Өз жиынтығы",
     kids: "Балалар",
+    garage: "Гараж",
+    garageHint: "1 көлікке · +22 м²",
     roomsSummary: "{{count}} бөлме · {{area}} м²",
     editManually: "Қолмен реттеу",
     hide: "Жасыру",

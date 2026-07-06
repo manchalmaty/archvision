@@ -32,6 +32,7 @@ Visual/browser check: API path prefix is `/api/v1` (e.g. `POST /api/v1/generate-
 - `USABLE_MIN_SIDE` dict — shared between layout engine and invariant checker (single source of truth for minimum room dimension per type)
 - `_layout_central_hall()` — main layout function for all shapes
 - `_assign_floor_doors()` + `_assign_windows()` — BFS door tree rooted at hallway; hallway gets exactly ONE entrance door on external wall
+- **Garage band (DONE 2026-07-07)**: a garage is a footprint outlier — it gets its OWN full-width band at the back (max-y = north = cold-side thermal buffer), never inside the two shared bands (it used to inflate the min-side width raise until the wet band collapsed — the "kitchen ~1.3 m" shortfall, now fixed). Garage doors are planned in `_assign_garage_doors`, not grown by the BFS: 2.4 m vehicle gate on an external wall (corner-aligned, so the window fits beside it) + person-door into a mudroom-order neighbour (`_GARAGE_DOOR_PREF`: utility > kitchen > hallway > living; bath/toilet and bedrooms last — a bedroom parent would trip rule 4). Garage is pinned to the ground floor in `_distribute_floors` (cars do not climb stairs). `_assign_windows` skips a window that would land inside any same-wall door (the gate case). Tests: `backend/tests/test_garage_band.py`.
 - `LLMLayoutEngine` in `llm_layout_engine.py` wraps `LayoutEngine` with Groq agentic loop (5 iterations → fallback to rule-based)
 
 ### Invariants (`backend/core/plan_invariants.py`)
@@ -41,7 +42,7 @@ Visual/browser check: API path prefix is `/api/v1` (e.g. `POST /api/v1/generate-
 3. Every room has a door
 4. No transit through bedroom to reach circulation
 5. Wet zones share one riser per floor
-6. Entrance via hallway buffer
+6. Entrance via hallway buffer (`EXT_DOOR_OK` exempts the garage — a vehicle gate is not the pedestrian entrance, the garage is its own unheated buffer)
 7. Wet-over-wet across floors
 8. Mandatory: kitchen + bathroom/toilet
 9. Min usable dimension (uses `USABLE_MIN_SIDE`)
@@ -73,8 +74,9 @@ The room solver stays **blind to sun** (it places by function: wet/social/privat
 - **Headline quality score** (`ResultsPanel.planQualityScore`) now folds in daylight: `round(0.7·issueScore + 0.3·insolation_score)`, so a clean-but-dim plan no longer reads the same "100" as a sunny one.
 
 ### Household presets (`frontend/src/presets.ts`)
-- `couple` / `family` / `single` / `rental` → `buildPresetRooms(preset, kids?)`
+- `couple` / `family` / `single` / `rental` → `buildPresetRooms(preset, kids?, garage?)`
 - Family preset: `kids` param (1–4) controls bedroom count
+- **Garage = preset modifier** (like `kids`, but valid for EVERY preset): a switch in `ParameterForm` appends a one-car garage (`GARAGE_AREA_M2 = 22`) to the active program without dropping to "custom". Persisted in `archvision_preset_v1` next to `familyKids`. On "custom" the toggle adds/removes the garage room in place (hand-edits survive; a hand-added garage is never duplicated). The switch reflects the ACTUAL program (`rooms.some(garage)`), not just the stored flag.
 - Manual edits set `preset: "custom"` in store (in-memory only)
 - Only an explicitly chosen preset is persisted (`localStorage` key `archvision_preset_v1`); `"custom"` is NOT written on every keystroke. On load `deriveActivePreset()` re-derives `"custom"` when stored rooms no longer match the stored preset's program — this keeps room-edit persistence to one debounced write. `DEFAULT_PARAMS` equals the `couple` program so a fresh load resolves to `couple`.
 
@@ -120,8 +122,8 @@ backend/
   tests/                  ← pytest; run with `pytest`
 
 frontend/src/
-  presets.ts              ← buildPresetRooms(), FAMILY_KIDS_* constants
-  store/useStore.ts       ← Zustand; preset + familyKids state; saveParams debounced 300ms
+  presets.ts              ← buildPresetRooms(), FAMILY_KIDS_* + GARAGE_AREA_M2 constants
+  store/useStore.ts       ← Zustand; preset + familyKids + garage state; saveParams debounced 300ms
   components/
     ParameterForm.tsx     ← preset picker (primary), rooms collapsible (advanced)
     PlanView2D.tsx        ← 2D canvas; MEP layer, sun badges, Finch-style hover metrics card
@@ -150,9 +152,9 @@ frontend/src/
 - uvicorn `--reload` on this machine has silently served STALE code — after backend edits, verify a changed endpoint responds new-style (e.g. tokenless `/projects` → `[]`), else restart the process.
 - pydantic-settings v2 with `env_file` FORBIDS unknown keys by default — removing a setting while operators' `.env` still has it crashes startup; `extra="ignore"` is set in `config.py`, keep it.
 
-## Known issues / current work (as of 2026-06-18)
-- Habitable min side is **2.4 m** (`USABLE_MIN_SIDE`) and that is the engine's FEASIBLE floor, not a preference: raising living/bedroom to 2.6–2.7 starves the wet band below the kitchen's min (the shared central-hall width is driven up by the narrowest habitable room), making the engine's own output fail rule 9. 2.6–2.7 needs a 3-band / garage-in-own-band redesign. The LLM path is now gated by the SAME table via `plan_validator.MIN_SIDE` (derived from `USABLE_MIN_SIDE`), so LLM "pencil" rooms (2.0–2.3 m) are rejected → rule-engine fallback.
-- Garage-heavy / small-bedroom programs still hit an honest wet-band shortfall (kitchen ~1.3 m); flagged by rule 9 + the validator, shipped as best-effort.
+## Known issues / current work (as of 2026-07-07)
+- Habitable min side is **2.4 m** (`USABLE_MIN_SIDE`) and that is the engine's FEASIBLE floor, not a preference: raising living/bedroom to 2.6–2.7 starves the wet band below the kitchen's min (the shared central-hall width is driven up by the narrowest habitable room), making the engine's own output fail rule 9. The garage half of the redesign is DONE (garage band); 2.6–2.7 still needs the shared-width coupling between the two remaining bands rethought. The LLM path is gated by the SAME table via `plan_validator.MIN_SIDE` (derived from `USABLE_MIN_SIDE`), so LLM "pencil" rooms (2.0–2.3 m) are rejected → rule-engine fallback.
+- ~~Garage-heavy programs hit an honest wet-band shortfall (kitchen ~1.3 m)~~ — FIXED 2026-07-07 by the garage band (see Layout engine section); small-bedroom-only programs can still trip rule 9, shipped as best-effort.
 - Conflict dots on 2D plan have hover tooltips (severity + description + localized `mepHints.*` hint) via the shared floating `hover-card`; hit area is a transparent r=0.34 circle with `cursor: help` (DONE 2026-07-03)
 
 ### Displayed area = ACTUAL footprint (single definition)

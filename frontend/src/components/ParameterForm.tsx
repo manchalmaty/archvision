@@ -206,6 +206,7 @@ export function ParameterForm({ onGenerate }: Props) {
     familyKids,
     applyPreset,
     setFamilyKids,
+    setGarage,
     setParams,
     addRoom,
     updateRoom,
@@ -213,6 +214,7 @@ export function ParameterForm({ onGenerate }: Props) {
     isGenerating,
   } = useStore();
   const [roomsOpen, setRoomsOpen] = useState(false);
+  const hasGarage = params.rooms.some((r) => r.room_type === "garage");
 
   const totalArea = params.rooms.reduce((s, r) => s + r.area_m2, 0);
   // Rough usable capacity: plot footprint × floors (packing always fits less).
@@ -307,6 +309,32 @@ export function ParameterForm({ onGenerate }: Props) {
             </div>
           </div>
         )}
+
+        {/* Garage — a preset modifier like the kid count, valid for every
+            household. The engine gives it its own band, so it never squeezes
+            the living rooms. The switch reflects the actual program (a hand-
+            added garage in custom mode reads as ON). */}
+        <div className="flex items-center justify-between mt-2.5 px-1">
+          <div className="min-w-0">
+            <span className="text-xs text-slate-600">{t("presets.garage")}</span>
+            <span className="text-[10px] text-slate-400 ml-1.5">{t("presets.garageHint")}</span>
+          </div>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={hasGarage}
+            onClick={() => setGarage(!hasGarage)}
+            className={`relative shrink-0 w-9 h-5 rounded-full transition-colors ${
+              hasGarage ? "bg-brand-500" : "bg-slate-300"
+            }`}
+          >
+            <span
+              className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${
+                hasGarage ? "translate-x-4" : ""
+              }`}
+            />
+          </button>
+        </div>
       </div>
 
       {/* Preferences — the high-value, easy choices stay visible. Shape and site

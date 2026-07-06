@@ -106,31 +106,91 @@ describe("localStorage persistence", () => {
 describe("deriveActivePreset", () => {
   it("keeps the stored preset when rooms still match its program", () => {
     const rooms = buildPresetRooms("couple");
-    expect(deriveActivePreset(rooms, { preset: "couple", familyKids: 2 })).toEqual({
-      preset: "couple",
-      familyKids: 2,
-    });
+    expect(
+      deriveActivePreset(rooms, { preset: "couple", familyKids: 2, garage: false })
+    ).toEqual({ preset: "couple", familyKids: 2, garage: false });
   });
 
   it("re-derives custom when stored rooms no longer match the preset", () => {
     const rooms = buildPresetRooms("couple").slice(0, 3); // hand-edited away
-    expect(deriveActivePreset(rooms, { preset: "couple", familyKids: 2 }).preset).toBe("custom");
+    expect(
+      deriveActivePreset(rooms, { preset: "couple", familyKids: 2, garage: false }).preset
+    ).toBe("custom");
   });
 
   it("treats a hand-named preset room as custom", () => {
     const rooms = buildPresetRooms("single");
     rooms[0] = { ...rooms[0], name: "Studio" };
-    expect(deriveActivePreset(rooms, { preset: "single", familyKids: 2 }).preset).toBe("custom");
+    expect(
+      deriveActivePreset(rooms, { preset: "single", familyKids: 2, garage: false }).preset
+    ).toBe("custom");
   });
 
   it("matches the family program for the stored kid count", () => {
     const rooms = buildPresetRooms("family", 3);
-    expect(deriveActivePreset(rooms, { preset: "family", familyKids: 3 }).preset).toBe("family");
-    expect(deriveActivePreset(rooms, { preset: "family", familyKids: 2 }).preset).toBe("custom");
+    expect(
+      deriveActivePreset(rooms, { preset: "family", familyKids: 3, garage: false }).preset
+    ).toBe("family");
+    expect(
+      deriveActivePreset(rooms, { preset: "family", familyKids: 2, garage: false }).preset
+    ).toBe("custom");
   });
 
   it("passes through an already-custom program untouched", () => {
     const rooms = buildPresetRooms("rental");
-    expect(deriveActivePreset(rooms, { preset: "custom", familyKids: 2 }).preset).toBe("custom");
+    expect(
+      deriveActivePreset(rooms, { preset: "custom", familyKids: 2, garage: false }).preset
+    ).toBe("custom");
+  });
+
+  it("matches the preset program with the garage modifier on", () => {
+    const rooms = buildPresetRooms("couple", 2, true);
+    expect(
+      deriveActivePreset(rooms, { preset: "couple", familyKids: 2, garage: true }).preset
+    ).toBe("couple");
+    expect(
+      deriveActivePreset(rooms, { preset: "couple", familyKids: 2, garage: false }).preset
+    ).toBe("custom");
+  });
+});
+
+describe("garage preset modifier", () => {
+  it("appends one garage to the active preset program", () => {
+    useStore.getState().applyPreset("couple");
+    useStore.getState().setGarage(true);
+    const rooms = useStore.getState().params.rooms;
+    expect(rooms.filter((r) => r.room_type === "garage")).toHaveLength(1);
+    expect(useStore.getState().preset).toBe("couple"); // still a preset, not custom
+  });
+
+  it("survives a preset switch", () => {
+    useStore.getState().setGarage(true);
+    useStore.getState().applyPreset("family");
+    const rooms = useStore.getState().params.rooms;
+    expect(rooms.some((r) => r.room_type === "garage")).toBe(true);
+  });
+
+  it("removes the garage when toggled off", () => {
+    useStore.getState().setGarage(true);
+    useStore.getState().setGarage(false);
+    expect(useStore.getState().params.rooms.some((r) => r.room_type === "garage")).toBe(false);
+  });
+
+  it("does not duplicate a hand-added garage in custom mode", () => {
+    useStore.getState().addRoom({ room_type: "garage", area_m2: 30 }); // → custom
+    useStore.getState().setGarage(true);
+    const rooms = useStore.getState().params.rooms;
+    expect(rooms.filter((r) => r.room_type === "garage")).toHaveLength(1);
+    expect(rooms.find((r) => r.room_type === "garage")!.area_m2).toBe(30); // untouched
+  });
+
+  it("keeps custom hand-edits when toggling the garage off", () => {
+    useStore.getState().updateRoom(0, { area_m2: 33 }); // → custom
+    useStore.getState().setGarage(true);
+    useStore.getState().setGarage(false);
+    const s = useStore.getState();
+    expect(s.preset).toBe("custom");
+    expect(s.params.rooms[0].area_m2).toBe(33);
+    expect(s.params.rooms.some((r) => r.room_type === "garage")).toBe(false);
   });
 });

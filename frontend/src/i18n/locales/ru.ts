@@ -37,6 +37,8 @@ export default {
     rentalDesc: "Две сдаваемые спальни",
     custom: "Свой набор",
     kids: "Детей",
+    garage: "Гараж",
+    garageHint: "на 1 авто · +22 м²",
     roomsSummary: "{{count}} комнат · {{area}} м²",
     editManually: "Настроить вручную",
     hide: "Свернуть",

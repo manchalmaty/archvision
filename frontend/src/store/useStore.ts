@@ -1,6 +1,11 @@
 import { create } from "zustand";
 import type { BuildingParams, GenerationResult, RoomInput } from "../types";
-import { buildPresetRooms, FAMILY_KIDS_DEFAULT, type HouseholdPreset } from "../presets";
+import {
+  buildPresetRooms,
+  FAMILY_KIDS_DEFAULT,
+  GARAGE_AREA_M2,
+  type HouseholdPreset,
+} from "../presets";
 
 const STORAGE_KEY = "archvision_params_v1";
 const PRESET_KEY = "archvision_preset_v1";
@@ -8,19 +13,31 @@ const PRESET_KEY = "archvision_preset_v1";
 /** "custom" = the room list has been hand-edited away from any preset program. */
 export type ActivePreset = HouseholdPreset | "custom";
 
-function loadPreset(): { preset: ActivePreset; familyKids: number } {
+interface StoredPreset {
+  preset: ActivePreset;
+  familyKids: number;
+  garage: boolean;
+}
+
+const PRESET_DEFAULTS: StoredPreset = {
+  preset: "couple",
+  familyKids: FAMILY_KIDS_DEFAULT,
+  garage: false,
+};
+
+function loadPreset(): StoredPreset {
   try {
     const raw = localStorage.getItem(PRESET_KEY);
-    if (raw) return { preset: "couple", familyKids: FAMILY_KIDS_DEFAULT, ...JSON.parse(raw) };
+    if (raw) return { ...PRESET_DEFAULTS, ...JSON.parse(raw) };
   } catch {
     /* ignore */
   }
-  return { preset: "couple", familyKids: FAMILY_KIDS_DEFAULT };
+  return PRESET_DEFAULTS;
 }
 
-function savePreset(preset: ActivePreset, familyKids: number) {
+function savePreset(preset: ActivePreset, familyKids: number, garage: boolean) {
   try {
-    localStorage.setItem(PRESET_KEY, JSON.stringify({ preset, familyKids }));
+    localStorage.setItem(PRESET_KEY, JSON.stringify({ preset, familyKids, garage }));
   } catch {
     /* storage unavailable — non-fatal */
   }
@@ -31,19 +48,16 @@ function savePreset(preset: ActivePreset, familyKids: number) {
 // "custom" on every keystroke (which would hammer localStorage), we re-derive it
 // on load by comparing the stored rooms against the stored preset's program.
 // DEFAULT_PARAMS equals the `couple` program, so a fresh load resolves to couple.
-export function deriveActivePreset(
-  rooms: RoomInput[],
-  stored: { preset: ActivePreset; familyKids: number }
-): { preset: ActivePreset; familyKids: number } {
+export function deriveActivePreset(rooms: RoomInput[], stored: StoredPreset): StoredPreset {
   if (stored.preset === "custom") return stored;
-  const program = buildPresetRooms(stored.preset, stored.familyKids);
+  const program = buildPresetRooms(stored.preset, stored.familyKids, stored.garage);
   const matches =
     rooms.length === program.length &&
     program.every(
       (p, i) =>
         rooms[i].room_type === p.room_type && rooms[i].area_m2 === p.area_m2 && !rooms[i].name
     );
-  return matches ? stored : { preset: "custom", familyKids: stored.familyKids };
+  return matches ? stored : { ...stored, preset: "custom" };
 }
 
 const DEFAULT_PARAMS: BuildingParams = {
@@ -95,6 +109,8 @@ interface AppState {
   /** Household preset driving the room program, or "custom" once hand-edited. */
   preset: ActivePreset;
   familyKids: number;
+  /** Preset modifier: append a one-car garage to whichever preset is active. */
+  garage: boolean;
   result: GenerationResult | null;
   /** Previous plans (newest first) so a worse regenerate can be reverted. */
   history: GenerationResult[];
@@ -113,6 +129,7 @@ interface AppState {
   setParams: (p: Partial<BuildingParams>) => void;
   applyPreset: (preset: HouseholdPreset) => void;
   setFamilyKids: (kids: number) => void;
+  setGarage: (v: boolean) => void;
   addRoom: (r: RoomInput) => void;
   updateRoom: (index: number, r: Partial<RoomInput>) => void;
   removeRoom: (index: number) => void;
@@ -135,6 +152,7 @@ export const useStore = create<AppState>((set) => ({
   params: _initialParams,
   preset: _preset.preset,
   familyKids: _preset.familyKids,
+  garage: _preset.garage,
   result: null,
   history: [],
   resultStale: false,
@@ -159,9 +177,9 @@ export const useStore = create<AppState>((set) => ({
   // Picking a preset replaces the whole room program with a sane, complete one.
   applyPreset: (preset) =>
     set((s) => {
-      const params = { ...s.params, rooms: buildPresetRooms(preset, s.familyKids) };
+      const params = { ...s.params, rooms: buildPresetRooms(preset, s.familyKids, s.garage) };
       saveParams(params);
-      savePreset(preset, s.familyKids);
+      savePreset(preset, s.familyKids, s.garage);
       return { params, preset, resultStale: s.result !== null };
     }),
 
@@ -171,13 +189,36 @@ export const useStore = create<AppState>((set) => ({
       const familyKids = Math.max(1, Math.min(4, Math.round(kids)));
       const next: Partial<AppState> = { familyKids };
       if (s.preset === "family") {
-        const params = { ...s.params, rooms: buildPresetRooms("family", familyKids) };
+        const params = { ...s.params, rooms: buildPresetRooms("family", familyKids, s.garage) };
         saveParams(params);
         next.params = params;
         next.resultStale = s.result !== null;
       }
-      savePreset(s.preset, familyKids);
+      savePreset(s.preset, familyKids, s.garage);
       return next;
+    }),
+
+  // Preset modifier, like familyKids but for every preset. On a preset the
+  // program is rebuilt; on "custom" the garage room is added/removed in place
+  // so the user's hand-edited rooms survive the toggle.
+  setGarage: (v) =>
+    set((s) => {
+      const garage = Boolean(v);
+      let rooms: RoomInput[];
+      if (s.preset === "custom") {
+        const has = s.params.rooms.some((r) => r.room_type === "garage");
+        rooms = garage
+          ? has
+            ? s.params.rooms
+            : [...s.params.rooms, { room_type: "garage", area_m2: GARAGE_AREA_M2 }]
+          : s.params.rooms.filter((r) => r.room_type !== "garage");
+      } else {
+        rooms = buildPresetRooms(s.preset, s.familyKids, garage);
+      }
+      const params = { ...s.params, rooms };
+      saveParams(params);
+      savePreset(s.preset, s.familyKids, garage);
+      return { params, garage, resultStale: s.result !== null };
     }),
 
   // Manual room edits move the program off any preset and onto "custom". Only

@@ -37,6 +37,8 @@ export default {
     rentalDesc: "Two lettable bedrooms",
     custom: "Custom set",
     kids: "Children",
+    garage: "Garage",
+    garageHint: "one-car bay · +22 m²",
     roomsSummary: "{{count}} rooms · {{area}} m²",
     editManually: "Edit manually",
     hide: "Hide",
