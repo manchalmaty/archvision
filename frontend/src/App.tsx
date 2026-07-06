@@ -1,12 +1,17 @@
-import { useEffect, useRef } from "react";
+import { lazy, Suspense, useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { ParameterForm } from "./components/ParameterForm";
-import { ThreeViewer } from "./components/ThreeViewer";
 import { ResultsPanel } from "./components/ResultsPanel";
 import { useStore } from "./store/useStore";
 import { generatePlan, getErrorMessage, isCancelError } from "./api/client";
 import { LANGUAGES } from "./i18n";
 import toast from "react-hot-toast";
+
+// three.js is ~2/3 of the bundle; splitting the viewer keeps the form
+// interactive on first paint while the workspace chunk streams in.
+const ThreeViewer = lazy(() =>
+  import("./components/ThreeViewer").then((m) => ({ default: m.ThreeViewer }))
+);
 
 export default function App() {
   const { t, i18n } = useTranslation();
@@ -100,7 +105,9 @@ export default function App() {
 
         {/* Center — always fills remaining space, never shifts */}
         <main className="flex-1 relative bg-surface-dark overflow-hidden">
-          <ThreeViewer />
+          <Suspense fallback={null}>
+            <ThreeViewer />
+          </Suspense>
           {!result && !isGenerating && (
             <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
               <div className="text-center text-slate-600 max-w-xs">
