@@ -159,6 +159,11 @@ class TestMisc:
         assert r.status_code == 200
         assert r.json()["status"] == "ok"
 
+    def test_request_id_header_unique_per_request(self):
+        a = client.get("/health").headers["x-request-id"]
+        b = client.get("/health").headers["x-request-id"]
+        assert a and b and a != b
+
     def test_countries_list(self):
         r = client.get("/api/v1/countries")
         assert r.status_code == 200
