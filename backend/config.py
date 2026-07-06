@@ -1,9 +1,11 @@
 from functools import lru_cache
 
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
+    model_config = SettingsConfigDict(env_file=".env")
+
     # Supabase
     SUPABASE_URL: str = ""
     SUPABASE_KEY: str = ""
@@ -18,9 +20,6 @@ class Settings(BaseSettings):
     # App
     IFC_OUTPUT_DIR: str = "./generated"
     CORS_ORIGINS: list[str] = ["http://localhost:3000", "http://localhost:5173"]
-
-    class Config:
-        env_file = ".env"
 
 
 @lru_cache
