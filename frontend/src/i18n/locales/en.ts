@@ -150,6 +150,7 @@ export default {
     howToFix: "How to fix?",
     downloadIfc: "↓ Download IFC",
     exportPdf: "↓ Export PDF",
+    exportPng: "↓ Plan as PNG",
     copyLink: "🔗 Copy share link",
     linkCopied: "Link copied!",
     linkCopyFailed: "Could not copy the link",

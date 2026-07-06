@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import toast from "react-hot-toast";
 import { useStore } from "../store/useStore";
 import { ifcDownloadUrl, pdfReportUrl, shareUrl } from "../api/client";
+import { exportPlanPng } from "./planExport";
 import { Chevron, Reveal } from "./disclosure";
 
 type Tab = "ANALYSIS" | "MEP" | "EXPORT";
@@ -453,6 +454,7 @@ function MEPTab() {
 function ExportTab() {
   const { t, i18n } = useTranslation();
   const { result } = useStore();
+  const viewMode = useStore((s) => s.viewMode);
   if (!result) return null;
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 10, paddingTop: 8 }}>
@@ -472,6 +474,16 @@ function ExportTab() {
       >
         {t("results.exportPdf")}
       </a>
+      {/* Exporter only exists while the 2D svg is mounted */}
+      {viewMode === "2d" && (
+        <button
+          onClick={exportPlanPng}
+          className="btn-secondary"
+          style={{ textAlign: "center", fontSize: 14, padding: "11px", display: "block" }}
+        >
+          {t("results.exportPng")}
+        </button>
+      )}
       <button
         onClick={async () => {
           try {

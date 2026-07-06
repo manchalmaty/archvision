@@ -11,6 +11,7 @@ import {
 import { floorRooms, roomsBBox, clampPos, type BBox } from "./planGeometry";
 import { roomDisplayName } from "./roomName";
 import { useIsDesktop } from "./useMediaQuery";
+import { downloadSvgAsPng, registerPlanPngExporter } from "./planExport";
 import type { RoomLayout, MEPConflict, DoorSpec, WindowSpec } from "../types";
 
 const WALL_T = 0.18; // wall line thickness in plan units (m)
@@ -615,6 +616,16 @@ export function PlanView2D() {
     setVb(null);
   }, [result?.project_id, activeFloor]);
 
+  // Expose PNG export to the results panel while the 2D view is mounted.
+  useEffect(() => {
+    const id = result?.project_id;
+    if (!id) return;
+    registerPlanPngExporter(() => {
+      if (svgRef.current) downloadSvgAsPng(svgRef.current, fit, `archvision_${id.slice(0, 8)}`);
+    });
+    return () => registerPlanPngExporter(null);
+  }, [fit, result?.project_id]);
+
   // Native wheel listener — must be non-passive to preventDefault page scroll
   useEffect(() => {
     const svg = svgRef.current;
@@ -889,6 +900,27 @@ export function PlanView2D() {
           className="h-8 text-slate-600 hover:bg-surface-border hover:text-slate-900 transition-colors text-base font-semibold"
         >
           −
+        </button>
+        <button
+          onClick={() =>
+            svgRef.current &&
+            result &&
+            downloadSvgAsPng(svgRef.current, fit, `archvision_${result.project_id.slice(0, 8)}`)
+          }
+          title={t("results.exportPng")}
+          className="h-8 flex items-center justify-center text-slate-600 hover:bg-surface-border hover:text-slate-900 border-t border-surface-border transition-colors"
+        >
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth={2}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            className="w-4 h-4"
+          >
+            <path d="M12 4v10m0 0l-4-4m4 4l4-4M5 19h14" />
+          </svg>
         </button>
       </div>
     </div>

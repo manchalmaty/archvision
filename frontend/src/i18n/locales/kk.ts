@@ -150,6 +150,7 @@ export default {
     howToFix: "Қалай түзетуге болады?",
     downloadIfc: "↓ IFC жүктеу",
     exportPdf: "↓ PDF экспорттау",
+    exportPng: "↓ Жоспарды PNG етіп",
     copyLink: "🔗 Сілтемені көшіру",
     linkCopied: "Сілтеме көшірілді!",
     linkCopyFailed: "Сілтемені көшіру мүмкін болмады",

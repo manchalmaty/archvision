@@ -150,6 +150,7 @@ export default {
     howToFix: "Как исправить?",
     downloadIfc: "↓ Скачать IFC",
     exportPdf: "↓ Экспорт PDF",
+    exportPng: "↓ План в PNG",
     copyLink: "🔗 Скопировать ссылку",
     linkCopied: "Ссылка скопирована!",
     linkCopyFailed: "Не удалось скопировать ссылку",
