@@ -3,13 +3,6 @@ uvicorn[standard]==0.30.6
 pydantic==2.9.2
 pydantic-settings==2.5.2
 
-# Database
-supabase==2.9.1
-
-# Task queue
-celery==5.4.0
-redis==5.1.1
-
 # BIM / IFC
 ifcopenshell==0.8.0
 
@@ -22,12 +15,10 @@ openai==1.54.4
 
 # PDF generation
 reportlab==4.2.2
-pypdf2==3.0.1
 
 # HTTP client
 httpx==0.27.2
 
 # Utilities
 python-multipart==0.0.12
-python-jose[cryptography]==3.3.0
-passlib[bcrypt]==1.7.4
+

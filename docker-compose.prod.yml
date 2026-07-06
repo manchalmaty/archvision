@@ -1,0 +1,42 @@
+# Production stack: nginx serves the built SPA and proxies /api to the backend.
+# Usage: docker compose -f docker-compose.prod.yml up --build -d
+# HTTPS: point your TLS terminator (host nginx/caddy/certbot) at frontend:80,
+# or bind 80/443 here and add certbot — domain-specific, left to the host.
+services:
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.prod
+    ports:
+      - "80:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - archvision
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.prod
+    expose:
+      - "8000"
+    volumes:
+      # Own volume (not the dev stack's ifc_files): on first use Docker copies
+      # the image dir's appuser ownership, so the non-root backend can write.
+      - ifc_files_prod:/app/generated
+    env_file:
+      - ./backend/.env
+    environment:
+      - IFC_OUTPUT_DIR=/app/generated
+    restart: unless-stopped
+    networks:
+      - archvision
+
+volumes:
+  ifc_files_prod:
+
+networks:
+  archvision:
+    driver: bridge

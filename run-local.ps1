@@ -48,9 +48,8 @@ Pop-Location
 
 Write-Host "[4/4] Starting services..." -ForegroundColor Yellow
 Write-Host ""
-Write-Host "NOTE: Backend needs PostgreSQL and Redis running locally." -ForegroundColor DarkYellow
-Write-Host "      Quick option: run only these Docker services:" -ForegroundColor DarkYellow
-Write-Host "      docker compose up postgres redis -d" -ForegroundColor White
+Write-Host "NOTE: No external services needed - projects persist to backend/generated." -ForegroundColor DarkYellow
+Write-Host "      Without GROQ_API_KEY in backend/.env the rule engine does the layout." -ForegroundColor DarkYellow
 Write-Host ""
 
 # Start frontend in background

@@ -57,4 +57,19 @@ app.include_router(router, prefix="/api/v1")
 
 @app.get("/health")
 async def health():
-    return {"status": "ok", "service": "archvision-backend"}
+    """Deep-enough health for a container check: process up + store writable."""
+    probe = os.path.join(settings.IFC_OUTPUT_DIR, ".health_probe")
+    try:
+        with open(probe, "w", encoding="utf-8") as f:
+            f.write("ok")
+        os.remove(probe)
+        storage = "ok"
+    except OSError:
+        storage = "unwritable"
+    status = "ok" if storage == "ok" else "degraded"
+    return {
+        "status": status,
+        "service": "archvision-backend",
+        "storage": storage,
+        "llm": "groq" if settings.GROQ_API_KEY else "rule-engine-fallback",
+    }

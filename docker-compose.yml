@@ -28,43 +28,10 @@ services:
       - ./backend/.env
     environment:
       - IFC_OUTPUT_DIR=/app/generated
-    depends_on:
-      redis:
-        condition: service_healthy
-    networks:
-      - archvision
-
-  celery_worker:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
-    command: celery -A core.celery_app worker --loglevel=info
-    volumes:
-      - ./backend:/app
-      - ifc_files:/app/generated
-    env_file:
-      - ./backend/.env
-    depends_on:
-      - redis
-    networks:
-      - archvision
-
-  redis:
-    image: redis:7-alpine
-    ports:
-      - "6379:6379"
-    volumes:
-      - redis_data:/data
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 5s
-      timeout: 3s
-      retries: 5
     networks:
       - archvision
 
 volumes:
-  redis_data:
   ifc_files:
 
 networks:
