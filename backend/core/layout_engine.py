@@ -339,9 +339,18 @@ class LayoutEngine:
                 )
             )
 
+        # Garage doors are planned, not grown: the vehicle gate belongs on an
+        # external wall (it is not the pedestrian entrance — rule 6 exempts it)
+        # and the person-door picks a mudroom-order neighbour. Left to pass 2,
+        # the garage hangs its 2.4 m gate into whatever room got visited first.
+        visited = {root.room_id}
+        for g in rooms:
+            if g.room_type is RoomType.GARAGE and g.room_id not in visited:
+                self._assign_garage_doors(g, rooms)
+                visited.add(g.room_id)
+
         # BFS tree from the root. Pass 1 expands only through dry rooms so wet
         # rooms become leaves; a door is placed on each child facing its parent.
-        visited = {root.room_id}
         queue = deque([root])
         while queue:
             cur = queue.popleft()
@@ -386,6 +395,53 @@ class LayoutEngine:
         # cased opening so they read as a single volume.
         if getattr(self.params, "openness", "closed") != "closed":
             self._open_social_zone(rooms)
+
+    # Mudroom order for the garage person-door; a bedroom parent would trip
+    # rule 4 and a wet closet is a plumbing stack, not a mudroom.
+    _GARAGE_DOOR_PREF = (
+        RoomType.UTILITY,
+        RoomType.KITCHEN,
+        RoomType.HALLWAY,
+        RoomType.LIVING_ROOM,
+    )
+
+    def _assign_garage_doors(self, garage: RoomLayout, rooms: list[RoomLayout]) -> None:
+        WALLS = ("S", "N", "W", "E")
+        adj = {w: _adjacent_rooms(garage, w, rooms) for w in WALLS}
+        gw, gh = DOOR_SPECS[RoomType.GARAGE]
+        gate_wall = next((w for w in WALLS if not adj[w] and _wall_len(garage, w) >= gw), None)
+        if gate_wall:
+            wlen = _wall_len(garage, gate_wall)
+            # Corner-aligned, not centred: a vehicle bay hugs one side and the
+            # rest of the wall stays free for a window.
+            garage.doors.append(
+                DoorSpec(
+                    wall=gate_wall,
+                    position=round(min(MIN_CORNER, max(0.0, wlen - gw)), 3),
+                    width=gw,
+                    height=gh,
+                )
+            )
+
+        dw, dh = DEFAULT_DOOR
+        candidates = [(w, n) for w in WALLS for n in adj[w] if _shared_len(garage, n) >= dw]
+        if not candidates:
+            return  # pass 3 still guarantees a door if the gate had no wall either
+
+        def rank(item):
+            n = item[1]
+            if n.room_type in self._GARAGE_DOOR_PREF:
+                return self._GARAGE_DOOR_PREF.index(n.room_type)
+            if n.room_type in PRIVATE_ZONES:
+                return 99
+            if n.room_type in (RoomType.BATHROOM, RoomType.TOILET):
+                return 98
+            return 50
+
+        w, n = min(candidates, key=rank)
+        garage.doors.append(
+            DoorSpec(wall=w, position=_door_pos(garage, n, w, dw), width=dw, height=dh)
+        )
 
     def _open_social_zone(self, rooms: list[RoomLayout]) -> None:
         openness = getattr(self.params, "openness", "closed")
@@ -444,10 +500,16 @@ class LayoutEngine:
                 wlen = _wall_len(room, w)
                 if wlen < ww + 2 * MIN_CORNER:
                     continue
+                pos = _place_opening(wlen, ww)
+                # An external door (entrance, garage gate) may already claim
+                # this stretch of wall — a window inside a doorway is nonsense.
+                if any(
+                    d.wall == w and pos < d.position + d.width and d.position < pos + ww
+                    for d in room.doors
+                ):
+                    continue
                 room.windows.append(
-                    WindowSpec(
-                        wall=w, position=_place_opening(wlen, ww), width=ww, height=wh, sill=sill
-                    )
+                    WindowSpec(wall=w, position=pos, width=ww, height=wh, sill=sill)
                 )
                 placed += 1
 
@@ -471,7 +533,9 @@ class LayoutEngine:
         # hallway + living room). Private rooms (bedrooms, etc.) go upstairs when
         # there is an upstairs — this is the normal arrangement and it also keeps
         # the ground floor from cramming a lone bedroom in beside the wet band.
-        ground_pref = GROUND_FLOOR_ZONES | {RoomType.LIVING_ROOM}
+        # Cars do not climb stairs: the garage is pinned to the ground floor
+        # alongside the plumbing core.
+        ground_pref = GROUND_FLOOR_ZONES | {RoomType.LIVING_ROOM, RoomType.GARAGE}
         ground = [r for r in rooms if r.room_type in ground_pref]
         private = [r for r in rooms if r.room_type not in ground_pref]
 
@@ -663,21 +727,31 @@ class LayoutEngine:
             width = min(width, self.params.plot_width_m)
         width = max(width, 3.0)
 
+        # A garage is a footprint outlier: inside a shared band its area inflates
+        # the min-side width raise below until the OTHER band's depth collapses
+        # (the documented "kitchen ~1.3 m" shortfall). It gets its own full-width
+        # band at the back instead — max-y = compass north in this engine, so it
+        # doubles as a cold-side thermal buffer and steals no habitable daylight.
+        buffer_band = [r for r in others if r.room_type == RoomType.GARAGE]
+        banded = [r for r in others if r.room_type != RoomType.GARAGE]
+        if not banded:  # garage-only program — nothing to protect from it
+            buffer_band, banded = [], others
+
         # Split rooms into two bands.
         #   closed → dry north / wet south (kitchen shares the wet plumbing wall).
         #   open|mixed → social zone (living+kitchen) north / everything else
         #     south, so the kitchen sits beside the living room and the two can
         #     open into a single volume.
         if openness in ("open", "mixed"):
-            social = [r for r in others if r.room_type in SOCIAL_ROOMS]
-            service = [r for r in others if r.room_type not in SOCIAL_ROOMS]
+            social = [r for r in banded if r.room_type in SOCIAL_ROOMS]
+            service = [r for r in banded if r.room_type not in SOCIAL_ROOMS]
             north, south = (
-                (social, service) if (social and service) else self._balance_bands(others)
+                (social, service) if (social and service) else self._balance_bands(banded)
             )
         else:
-            wet = [r for r in others if r.room_type in WET_ZONES]
-            dry = [r for r in others if r.room_type not in WET_ZONES]
-            north, south = (dry, wet) if (wet and dry) else self._balance_bands(others)
+            wet = [r for r in banded if r.room_type in WET_ZONES]
+            dry = [r for r in banded if r.room_type not in WET_ZONES]
+            north, south = (dry, wet) if (wet and dry) else self._balance_bands(banded)
 
         # Size the footprint so each band is both deep enough for its deepest
         # room AND wide enough that its narrowest room clears its minimum side.
@@ -688,13 +762,13 @@ class LayoutEngine:
         # Apply every depth cap first, then every min-side raise, so a later
         # band's cap can't undo an earlier band's raise — the min-side bound is
         # the documented winner.
-        for band in (north, south):
+        for band in (north, south, buffer_band):
             if not band:
                 continue
             band_area = sum(r.area_m2 for r in band)
             deepest = max(USABLE_MIN_SIDE.get(r.room_type, 1.5) for r in band)
             width = min(width, band_area / deepest)
-        for band in (north, south):
+        for band in (north, south, buffer_band):
             band_area = sum(r.area_m2 for r in band)
             for r in band:
                 need_w = USABLE_MIN_SIDE.get(r.room_type, 1.5)
@@ -712,7 +786,7 @@ class LayoutEngine:
             gh = sum(r.area_m2 for r in group) / width
             return gh >= 1.0 and all((r.area_m2 / gh) >= 0.7 for r in group)
 
-        if not (_row_ok(north) and _row_ok(south)):
+        if not (_row_ok(north) and _row_ok(south) and _row_ok(buffer_band)):
             return self._layout_tiled(floor, rooms, aspect_factor=aspect_factor)
 
         layouts: list[RoomLayout] = []
@@ -733,5 +807,6 @@ class LayoutEngine:
                 )
             )
             y = round(y + hall_h, 3)
-        self._emit_row(layouts, floor, south, 0.0, y, width)
+        y = self._emit_row(layouts, floor, south, 0.0, y, width)
+        self._emit_row(layouts, floor, buffer_band, 0.0, y, width)
         return layouts

@@ -11,7 +11,8 @@ skipped there rather than forced.
   3. Every room has an opening (a door).
   4. No transit through a private room (bedroom) to reach circulation.
   5. Wet zones share one riser — wet rooms form a single connected cluster.
-  6. Entrance through a buffer — the external door belongs to the hallway.
+  6. Entrance through a buffer — the external door belongs to the hallway
+     (a garage vehicle gate is exempt: the garage is its own unheated buffer).
   7. Wet-over-wet — an upper-floor wet room sits above a lower-floor wet room.
   8. Mandatory composition — the home has a kitchen and a bathroom/toilet.
   9. Minimum dimension — a room is wide enough for its furniture, not just its
@@ -28,6 +29,9 @@ from models import RoomLayout, RoomType
 PRIVATE = {RoomType.BEDROOM}
 WET = {RoomType.KITCHEN, RoomType.BATHROOM, RoomType.TOILET}
 BUFFER = {RoomType.HALLWAY}
+# A vehicle gate is not the pedestrian entrance — the garage is itself an
+# unheated buffer, so rule 6 lets it keep an external door.
+EXT_DOOR_OK = BUFFER | {RoomType.GARAGE}
 
 # Rule 9 reads the same usable-minimum table the layout engine sizes bands from,
 # so the checker and the generator can never disagree about what "too narrow" is.
@@ -198,7 +202,7 @@ def check_invariants(rooms: list[RoomLayout], openness: str = "closed") -> list[
             for r in fr:
                 ext = [w for w in WALLS if not _adjacent_rooms(r, w, fr)]
                 has_ext_door = any(d.wall in ext for d in r.doors)
-                if has_ext_door and r.room_type not in BUFFER:
+                if has_ext_door and r.room_type not in EXT_DOOR_OK:
                     v.append(
                         Violation(
                             6,
