@@ -89,6 +89,7 @@ def test_garage_vehicle_gate_on_external_wall():
     gates = [d for d in garage.doors if d.width >= 2.0]
     assert gates, "garage lost its vehicle gate"
     for gate in gates:
+        assert gate.kind == "gate", "vehicle gate must not render as a swing door"
         assert not _adjacent_rooms(
             garage, gate.wall, fr
         ), f"vehicle gate on wall {gate.wall} must open to the street, not into the house"

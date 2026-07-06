@@ -420,6 +420,7 @@ class LayoutEngine:
                     position=round(min(MIN_CORNER, max(0.0, wlen - gw)), 3),
                     width=gw,
                     height=gh,
+                    kind="gate",
                 )
             )
 

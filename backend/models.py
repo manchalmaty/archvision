@@ -72,7 +72,7 @@ class DoorSpec(BaseModel):
     position: float  # offset from west/south corner (m)
     width: float = 0.8
     height: float = 2.0
-    kind: str = "door"  # "door" (swing leaf) | "opening" (wide cased gap, no leaf)
+    kind: str = "door"  # "door" (swing leaf) | "opening" (cased gap) | "gate" (vehicle panel)
 
 
 class WindowSpec(BaseModel):

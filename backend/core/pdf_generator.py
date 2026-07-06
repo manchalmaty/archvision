@@ -301,7 +301,7 @@ def _floor_plan_drawing(
             d.add(Line(sx(ax), sy(ay), sx(bx), sy(by), strokeColor=_WINDOW, strokeWidth=2.2))
         for door in r.doors:
             (ax, ay), (bx, by), (nx, ny), dwm = _door_world(r, door)
-            # erase the wall under the opening, then draw the swing arc + leaf
+            # erase the wall under the opening
             d.add(
                 Line(
                     sx(ax),
@@ -312,6 +312,37 @@ def _floor_plan_drawing(
                     strokeWidth=_PLAN_WALL_PT + 1.2,
                 )
             )
+            kind = getattr(door, "kind", "door")
+            if kind == "opening":
+                # Cased gap: jamb ticks only — a swing arc here would draw a
+                # 2-3 m door leaf that cannot physically exist.
+                t = 0.10
+                for px, py in ((ax, ay), (bx, by)):
+                    d.add(
+                        Line(
+                            sx(px - nx * t),
+                            sy(py - ny * t),
+                            sx(px + nx * t),
+                            sy(py + ny * t),
+                            strokeColor=_INK,
+                            strokeWidth=0.8,
+                        )
+                    )
+                continue
+            if kind == "gate":
+                # Sectional/roll-up gate: straight panel inset into the room.
+                inset = 0.15
+                d.add(
+                    Line(
+                        sx(ax + nx * inset),
+                        sy(ay + ny * inset),
+                        sx(bx + nx * inset),
+                        sy(by + ny * inset),
+                        strokeColor=_DOOR,
+                        strokeWidth=1.4,
+                    )
+                )
+                continue
             a0 = math.atan2(by - ay, bx - ax)
             a1 = math.atan2(ny, nx)
             if a1 - a0 > math.pi:

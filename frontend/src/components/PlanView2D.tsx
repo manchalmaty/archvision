@@ -91,9 +91,12 @@ type FlipFn = (y: number) => number;
 function DoorSymbol({ room, door, fy }: { room: RoomLayout; door: DoorSpec; fy: FlipFn }) {
   const dw = door.width;
   const opening = door.kind === "opening"; // wide cased gap, no swing leaf
+  const gate = door.kind === "gate"; // vehicle gate: straight panel, no swing
   const j = WALL_T / 2 + 0.03; // jamb tick half-length
+  const inset = 0.15; // gate panel offset into the room
   let gap: { x1: number; y1: number; x2: number; y2: number };
   let leaf: { x1: number; y1: number; x2: number; y2: number };
+  let panel: { x1: number; y1: number; x2: number; y2: number };
   let arc: string;
   let jambs: { x1: number; y1: number; x2: number; y2: number }[];
 
@@ -105,6 +108,7 @@ function DoorSymbol({ room, door, fy }: { room: RoomLayout; door: DoorSpec; fy: 
     const sweep = door.wall === "S" ? 0 : 1;
     gap = { x1, y1: yw, x2, y2: yw };
     leaf = { x1, y1: yw, x2: x1, y2: yw + dir * dw };
+    panel = { x1, y1: yw + dir * inset, x2, y2: yw + dir * inset };
     arc = `M ${x2} ${yw} A ${dw} ${dw} 0 0 ${sweep} ${x1} ${yw + dir * dw}`;
     jambs = [
       { x1, y1: yw - j, x2: x1, y2: yw + j },
@@ -119,6 +123,7 @@ function DoorSymbol({ room, door, fy }: { room: RoomLayout; door: DoorSpec; fy: 
     const sweep = door.wall === "W" ? 0 : 1;
     gap = { x1: xw, y1: yTop, x2: xw, y2: yBot };
     leaf = { x1: xw, y1: yTop, x2: xw + dir * dw, y2: yTop };
+    panel = { x1: xw + dir * inset, y1: yTop, x2: xw + dir * inset, y2: yBot };
     arc = `M ${xw} ${yBot} A ${dw} ${dw} 0 0 ${sweep} ${xw + dir * dw} ${yTop}`;
     jambs = [
       { x1: xw - j, y1: yTop, x2: xw + j, y2: yTop },
@@ -127,14 +132,18 @@ function DoorSymbol({ room, door, fy }: { room: RoomLayout; door: DoorSpec; fy: 
   }
 
   // An opening just erases the wall across its width and frames the two jambs —
-  // no swing arc or leaf — so the rooms read as one continuous volume.
+  // no swing arc or leaf — so the rooms read as one continuous volume. A gate
+  // keeps the jambs and shows the closed sectional panel just inside the wall.
   return (
     <g pointerEvents="none">
       <line {...gap} stroke={BG} strokeWidth={WALL_T + 0.08} />
-      {opening ? (
-        jambs.map((jb, i) => (
-          <line key={i} {...jb} stroke="#1f2937" strokeWidth={0.05} strokeLinecap="round" />
-        ))
+      {opening || gate ? (
+        <>
+          {jambs.map((jb, i) => (
+            <line key={i} {...jb} stroke="#1f2937" strokeWidth={0.05} strokeLinecap="round" />
+          ))}
+          {gate && <line {...panel} stroke="#d9a05b" strokeWidth={0.09} strokeLinecap="butt" />}
+        </>
       ) : (
         <>
           <path d={arc} fill="none" stroke="#64748b" strokeWidth={0.03} />

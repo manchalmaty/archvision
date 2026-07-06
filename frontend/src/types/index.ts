@@ -59,8 +59,9 @@ export interface DoorSpec {
   width: number;
   height: number;
   // "opening" = a wide cased gap (no swing leaf), used for the open kitchen↔living
-  // boundary; "door" (or absent) = a normal hinged door.
-  kind?: "door" | "opening";
+  // boundary; "gate" = a garage vehicle gate (straight panel, no swing);
+  // "door" (or absent) = a normal hinged door.
+  kind?: "door" | "opening" | "gate";
 }
 
 export interface WindowSpec {
