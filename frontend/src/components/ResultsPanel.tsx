@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
+import toast from "react-hot-toast";
 import { useStore } from "../store/useStore";
-import { ifcDownloadUrl, pdfReportUrl } from "../api/client";
+import { ifcDownloadUrl, pdfReportUrl, shareUrl } from "../api/client";
 import { Chevron, Reveal } from "./disclosure";
 
 type Tab = "ANALYSIS" | "MEP" | "EXPORT";
@@ -471,6 +472,20 @@ function ExportTab() {
       >
         {t("results.exportPdf")}
       </a>
+      <button
+        onClick={async () => {
+          try {
+            await navigator.clipboard.writeText(shareUrl(result.project_id));
+            toast.success(t("results.linkCopied"));
+          } catch {
+            toast.error(t("results.linkCopyFailed"));
+          }
+        }}
+        className="btn-secondary"
+        style={{ textAlign: "center", fontSize: 14, padding: "11px", display: "block" }}
+      >
+        {t("results.copyLink")}
+      </button>
       <p style={{ fontSize: 12, color: "#9ca3af", textAlign: "center", marginTop: 8 }}>
         {t("results.projectId")}{" "}
         <span style={{ fontFamily: "monospace", color: "#6b7280" }}>

@@ -13,8 +13,15 @@ export default {
     showResults: "Показать результаты →",
     dismissError: "Скрыть ошибку",
     staleParams: "Параметры изменились — сгенерируйте план заново",
+    shareLoadFailed: "Не удалось загрузить проект по ссылке",
     disclaimer:
       "Эскизный проект для предварительной оценки. Требует заверения лицензированным архитектором.",
+  },
+  history: {
+    title: "Мои проекты",
+    empty: "Пока нет сохранённых проектов — сначала сгенерируйте план",
+    loadFailed: "Не удалось загрузить проект",
+    floors: "{{count}} эт.",
   },
   presets: {
     title: "Кто будет жить?",
@@ -141,6 +148,9 @@ export default {
     howToFix: "Как исправить?",
     downloadIfc: "↓ Скачать IFC",
     exportPdf: "↓ Экспорт PDF",
+    copyLink: "🔗 Скопировать ссылку",
+    linkCopied: "Ссылка скопирована!",
+    linkCopyFailed: "Не удалось скопировать ссылку",
     projectId: "ID проекта:",
     qualityGood: "Хорошо",
     qualityFair: "Средне",

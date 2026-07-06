@@ -1,11 +1,38 @@
 import axios from "axios";
-import type { BuildingParams, GenerationResult } from "../types";
+import type { BuildingParams, GenerationResult, ProjectSummary } from "../types";
+
+const DEVICE_KEY = "archvision_device_v1";
+
+let sessionToken: string | undefined;
+
+/**
+ * Anonymous device identity (no accounts in the MVP): a uuid minted once per
+ * browser. The backend stamps it into stored results so /projects lists only
+ * this device's history. Private mode / blocked storage → per-session token.
+ */
+export function deviceToken(): string {
+  try {
+    let token = localStorage.getItem(DEVICE_KEY);
+    if (!token) {
+      token = crypto.randomUUID();
+      localStorage.setItem(DEVICE_KEY, token);
+    }
+    return token;
+  } catch {
+    return (sessionToken ??= crypto.randomUUID());
+  }
+}
 
 const api = axios.create({
   baseURL: "/api/v1",
   headers: { "Content-Type": "application/json" },
   // Generation runs geoclimate + layout + MEP routing + IFC export — give it room.
   timeout: 120_000,
+});
+
+api.interceptors.request.use((config) => {
+  config.headers["X-Device-Token"] = deviceToken();
+  return config;
 });
 
 const MAX_RETRIES = 2;
@@ -53,6 +80,23 @@ export async function generatePlan(
 
 export function isCancelError(e: unknown): boolean {
   return axios.isCancel(e) || (e instanceof DOMException && e.name === "AbortError");
+}
+
+/** This device's recent projects (newest first). */
+export async function fetchProjects(): Promise<ProjectSummary[]> {
+  const { data } = await api.get<ProjectSummary[]>("/projects");
+  return data;
+}
+
+/** Full stored result — powers share-by-link and history loading. */
+export async function fetchProject(projectId: string): Promise<GenerationResult> {
+  const { data } = await api.get<GenerationResult>(`/projects/${projectId}`);
+  return data;
+}
+
+/** Shareable URL for a generated plan (hash routing, no server round-trip). */
+export function shareUrl(projectId: string): string {
+  return `${location.origin}${location.pathname}#/p/${projectId}`;
 }
 
 export function ifcDownloadUrl(projectId: string): string {

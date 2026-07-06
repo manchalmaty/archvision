@@ -1,9 +1,11 @@
+import json
 import logging
 import os
+import re
 import uuid
 from datetime import UTC, datetime
 
-from fastapi import APIRouter, HTTPException, Path, Query
+from fastapi import APIRouter, Header, HTTPException, Path, Query
 from fastapi.responses import FileResponse, Response
 from pydantic import ValidationError
 
@@ -40,9 +42,22 @@ UUID_PATH = Path(
     pattern=r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
 )
 
+# Anonymous device identity (no accounts in the MVP): the frontend mints a
+# uuid per browser and sends it as X-Device-Token; we stamp it into the stored
+# result so /projects can list only that device's history. Junk tokens are
+# treated as absent rather than rejected.
+_TOKEN_RE = re.compile(r"^[0-9a-fA-F-]{8,64}$")
+
+
+def _norm_token(token: str | None) -> str | None:
+    return token if token and _TOKEN_RE.match(token) else None
+
 
 @router.post("/generate-plan", response_model=GenerationResult)
-async def generate_plan(params: BuildingParams):
+async def generate_plan(
+    params: BuildingParams,
+    x_device_token: str | None = Header(default=None),
+):
     """
     Main endpoint: accepts building parameters, returns full IFC + analysis.
     """
@@ -85,8 +100,8 @@ async def generate_plan(params: BuildingParams):
 
     # 6. Generate IFC file
     ifc_gen = IFCGenerator(project_id, params, rooms, pipes, geo_data)
-    ifc_path = ifc_gen.generate()
-    ifc_url = f"/files/{os.path.basename(ifc_path)}"
+    ifc_gen.generate()
+    ifc_url = f"/api/v1/download/{project_id}"
 
     # 7. Cost estimation
     estimator = CostEstimator(rooms, geo_data, params.country)
@@ -104,12 +119,18 @@ async def generate_plan(params: BuildingParams):
         insolation_score=insolation_score(rooms, params.facing),
     )
 
-    # Persist the result next to the IFC so /report/{id} (and later project
-    # history) can re-read it without a database.
+    # Persist the result next to the IFC so /report/{id} and project history
+    # can re-read it without a database. The owner token rides inside the same
+    # JSON as an extra field: pydantic ignores it on load, so /projects/{id}
+    # never echoes it back.
     try:
+        data = json.loads(result.model_dump_json())
+        owner = _norm_token(x_device_token)
+        if owner:
+            data["_owner"] = owner
         result_path = os.path.join(settings.IFC_OUTPUT_DIR, f"{project_id}.json")
         with open(result_path, "w", encoding="utf-8") as f:
-            f.write(result.model_dump_json())
+            json.dump(data, f, ensure_ascii=False)
     except OSError as exc:
         # Non-fatal (generation succeeded), but /report/{id} will 404 —
         # leave a trail so operators can correlate.
@@ -168,8 +189,18 @@ def _load_result(project_id: str) -> GenerationResult:
 
 
 @router.get("/projects")
-async def list_projects(limit: int = Query(20, ge=1, le=100)):
-    """Recent projects (newest first) — backs the history UI and share links."""
+async def list_projects(
+    limit: int = Query(20, ge=1, le=100),
+    x_device_token: str | None = Header(default=None),
+):
+    """This device's recent projects (newest first) — backs the history UI.
+
+    Without a device token the list is empty: projects are private to the
+    device that generated them; sharing is by explicit /projects/{id} link.
+    """
+    owner = _norm_token(x_device_token)
+    if owner is None:
+        return []
     try:
         files = [f for f in os.listdir(settings.IFC_OUTPUT_DIR) if f.endswith(".json")]
     except OSError:
@@ -183,15 +214,21 @@ async def list_projects(limit: int = Query(20, ge=1, le=100)):
 
     files.sort(key=mtime, reverse=True)
     entries = []
-    for fname in files[:limit]:
-        project_id = fname[:-5]
+    for fname in files:
+        if len(entries) >= limit:
+            break
+        path = os.path.join(settings.IFC_OUTPUT_DIR, fname)
         try:
-            result = _load_result(project_id)
-        except HTTPException:
-            continue  # skip unreadable/outdated entries rather than failing the list
+            with open(path, encoding="utf-8") as f:
+                text = f.read()
+            if json.loads(text).get("_owner") != owner:
+                continue
+            result = GenerationResult.model_validate_json(text)
+        except (OSError, ValueError, ValidationError):
+            continue  # skip unreadable/foreign/outdated entries rather than failing
         entries.append(
             {
-                "project_id": project_id,
+                "project_id": fname[:-5],
                 "created_at": datetime.fromtimestamp(mtime(fname), tz=UTC).isoformat(),
                 "rooms": len(result.rooms),
                 "floors": max((r.floor for r in result.rooms), default=1),

@@ -19,6 +19,8 @@ class Settings(BaseSettings):
 
     # App
     IFC_OUTPUT_DIR: str = "./generated"
+    # Stored results/IFC older than this are deleted daily; <= 0 disables cleanup.
+    RESULT_TTL_DAYS: int = 30
     CORS_ORIGINS: list[str] = ["http://localhost:3000", "http://localhost:5173"]
 
 

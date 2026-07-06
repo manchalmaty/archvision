@@ -13,8 +13,15 @@ export default {
     showResults: "Нәтижелерді көрсету →",
     dismissError: "Қатені жасыру",
     staleParams: "Параметрлер өзгерді — жоспарды қайта құрыңыз",
+    shareLoadFailed: "Сілтеме бойынша жобаны жүктеу мүмкін болмады",
     disclaimer:
       "Алдын ала бағалауға арналған эскиздік жоба. Лицензияланған сәулетшінің растауын қажет етеді.",
+  },
+  history: {
+    title: "Менің жобаларым",
+    empty: "Сақталған жобалар әлі жоқ — алдымен жоспар құрыңыз",
+    loadFailed: "Жобаны жүктеу мүмкін болмады",
+    floors: "{{count}} қаб.",
   },
   presets: {
     title: "Кім тұрады?",
@@ -141,6 +148,9 @@ export default {
     howToFix: "Қалай түзетуге болады?",
     downloadIfc: "↓ IFC жүктеу",
     exportPdf: "↓ PDF экспорттау",
+    copyLink: "🔗 Сілтемені көшіру",
+    linkCopied: "Сілтеме көшірілді!",
+    linkCopyFailed: "Сілтемені көшіру мүмкін болмады",
     projectId: "Жоба ID:",
     qualityGood: "Жақсы",
     qualityFair: "Орташа",

@@ -2,8 +2,9 @@ import { lazy, Suspense, useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { ParameterForm } from "./components/ParameterForm";
 import { ResultsPanel } from "./components/ResultsPanel";
+import { HistoryMenu } from "./components/HistoryMenu";
 import { useStore } from "./store/useStore";
-import { generatePlan, getErrorMessage, isCancelError } from "./api/client";
+import { fetchProject, generatePlan, getErrorMessage, isCancelError } from "./api/client";
 import { LANGUAGES } from "./i18n";
 import toast from "react-hot-toast";
 
@@ -12,6 +13,10 @@ import toast from "react-hot-toast";
 const ThreeViewer = lazy(() =>
   import("./components/ThreeViewer").then((m) => ({ default: m.ThreeViewer }))
 );
+
+// Module-scope so StrictMode's double-mounted effect shares one in-flight
+// share-load instead of fetching (and setResult-ing) the same project twice.
+let shareLoadInFlight: string | null = null;
 
 export default function App() {
   const { t, i18n } = useTranslation();
@@ -26,6 +31,31 @@ export default function App() {
     if (result) setRightOpen(true);
   }, [result, setRightOpen]);
 
+  // Hash routing: #/p/{id} loads a stored project (share links + refresh
+  // restore). Generating sets the hash, so the guard against re-fetching the
+  // plan we already show keeps that self-inflicted hashchange a no-op.
+  useEffect(() => {
+    const load = async () => {
+      const m = location.hash.match(/^#\/p\/([0-9a-fA-F-]{36})$/);
+      if (!m) return;
+      const id = m[1];
+      const { result } = useStore.getState();
+      if (result?.project_id === id || shareLoadInFlight === id) return;
+      shareLoadInFlight = id;
+      try {
+        const r = await fetchProject(id);
+        if (useStore.getState().result?.project_id !== id) useStore.getState().setResult(r);
+      } catch (e) {
+        useStore.getState().setError(getErrorMessage(e, t("app.shareLoadFailed")));
+      } finally {
+        shareLoadInFlight = null;
+      }
+    };
+    load();
+    window.addEventListener("hashchange", load);
+    return () => window.removeEventListener("hashchange", load);
+  }, [t]);
+
   const handleGenerate = async () => {
     abortRef.current = new AbortController();
     setGenerating(true);
@@ -33,6 +63,8 @@ export default function App() {
     try {
       const r = await generatePlan(params, abortRef.current.signal);
       setResult(r);
+      // Make the URL shareable + refresh-proof for the plan on screen.
+      location.hash = `/p/${r.project_id}`;
       toast.success(t("app.genSuccess"));
     } catch (e) {
       if (isCancelError(e)) {
@@ -74,6 +106,7 @@ export default function App() {
           </div>
         </div>
         <div className="flex items-center gap-2">
+          <HistoryMenu />
           {/* Language switcher */}
           <div className="flex bg-surface-card border border-surface-border rounded-lg p-0.5">
             {LANGUAGES.map(({ code, label }) => (

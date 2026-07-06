@@ -23,9 +23,13 @@ PARAMS = {
 }
 
 
+DEVICE_TOKEN = "11111111-1111-1111-1111-111111111111"
+OTHER_TOKEN = "22222222-2222-2222-2222-222222222222"
+
+
 @pytest.fixture(scope="module")
 def generated():
-    r = client.post("/api/v1/generate-plan", json=PARAMS)
+    r = client.post("/api/v1/generate-plan", json=PARAMS, headers={"X-Device-Token": DEVICE_TOKEN})
     assert r.status_code == 200, r.text[:300]
     return r.json()
 
@@ -64,13 +68,35 @@ class TestProjects:
         assert r.json()["project_id"] == generated["project_id"]
 
     def test_list_projects_contains_generated(self, generated):
-        r = client.get("/api/v1/projects")
+        r = client.get("/api/v1/projects", headers={"X-Device-Token": DEVICE_TOKEN})
         assert r.status_code == 200
         entries = r.json()
         assert any(e["project_id"] == generated["project_id"] for e in entries)
         entry = next(e for e in entries if e["project_id"] == generated["project_id"])
         assert entry["rooms"] == len(generated["rooms"])
         assert entry["floors"] == 2
+
+    def test_list_without_token_is_empty(self, generated):
+        r = client.get("/api/v1/projects")
+        assert r.status_code == 200
+        assert r.json() == []
+
+    def test_list_with_foreign_token_hides_project(self, generated):
+        r = client.get("/api/v1/projects", headers={"X-Device-Token": OTHER_TOKEN})
+        assert r.status_code == 200
+        assert all(e["project_id"] != generated["project_id"] for e in r.json())
+
+    def test_share_by_id_needs_no_token(self, generated):
+        # Share-by-link stays public on purpose: the uuid4 IS the capability.
+        r = client.get(f"/api/v1/projects/{generated['project_id']}")
+        assert r.status_code == 200
+        assert "_owner" not in r.json()
+
+    def test_raw_store_not_exposed(self, generated):
+        # The stored JSON carries the private _owner device token — it must
+        # never be reachable as a static file (only via model-validated routes).
+        r = client.get(f"/files/{generated['project_id']}.json")
+        assert r.status_code == 404
 
     def test_missing_project_404(self):
         r = client.get("/api/v1/projects/00000000-dead-beef-0000-000000000000")

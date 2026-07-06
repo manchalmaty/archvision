@@ -13,8 +13,15 @@ export default {
     showResults: "Show Results →",
     dismissError: "Dismiss error",
     staleParams: "Parameters changed — regenerate to update the plan",
+    shareLoadFailed: "Could not load the shared project",
     disclaimer:
       "Schematic design for preliminary assessment. Requires certification by a licensed architect.",
+  },
+  history: {
+    title: "My projects",
+    empty: "No saved projects yet — generate a plan first",
+    loadFailed: "Could not load the project",
+    floors: "{{count}} fl.",
   },
   presets: {
     title: "Who will live here?",
@@ -141,6 +148,9 @@ export default {
     howToFix: "How to fix?",
     downloadIfc: "↓ Download IFC",
     exportPdf: "↓ Export PDF",
+    copyLink: "🔗 Copy share link",
+    linkCopied: "Link copied!",
+    linkCopyFailed: "Could not copy the link",
     projectId: "Project ID:",
     qualityGood: "Good",
     qualityFair: "Fair",

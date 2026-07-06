@@ -1,5 +1,37 @@
-import { describe, expect, it } from "vitest";
-import { getErrorMessage, ifcDownloadUrl, isCancelError, pdfReportUrl } from "./client";
+import { describe, expect, it, vi } from "vitest";
+import {
+  deviceToken,
+  getErrorMessage,
+  ifcDownloadUrl,
+  isCancelError,
+  pdfReportUrl,
+  shareUrl,
+} from "./client";
+
+// Environment-independent localStorage stub (the jsdom global lacks methods
+// under this vitest version) — same pattern as useStore.test.ts.
+const backing = new Map<string, string>();
+vi.stubGlobal("localStorage", {
+  getItem: (k: string) => backing.get(k) ?? null,
+  setItem: (k: string, v: string) => void backing.set(k, v),
+  removeItem: (k: string) => void backing.delete(k),
+});
+
+describe("deviceToken", () => {
+  it("mints a uuid once and returns the same token afterwards", () => {
+    backing.clear();
+    const first = deviceToken();
+    expect(first).toMatch(/^[0-9a-f-]{36}$/);
+    expect(deviceToken()).toBe(first);
+    expect(backing.get("archvision_device_v1")).toBe(first);
+  });
+});
+
+describe("shareUrl", () => {
+  it("builds a hash-routed link on the current origin", () => {
+    expect(shareUrl("abc")).toBe(`${location.origin}${location.pathname}#/p/abc`);
+  });
+});
 
 describe("pdfReportUrl", () => {
   it("passes supported languages through", () => {
