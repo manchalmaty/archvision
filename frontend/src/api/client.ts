@@ -82,6 +82,10 @@ export function isCancelError(e: unknown): boolean {
   return axios.isCancel(e) || (e instanceof DOMException && e.name === "AbortError");
 }
 
+export function isRateLimitError(e: unknown): boolean {
+  return axios.isAxiosError(e) && e.response?.status === 429;
+}
+
 /** This device's recent projects (newest first). */
 export async function fetchProjects(): Promise<ProjectSummary[]> {
   const { data } = await api.get<ProjectSummary[]>("/projects");

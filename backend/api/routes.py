@@ -1,11 +1,12 @@
 import json
 import logging
+import math
 import os
 import re
 import uuid
 from datetime import UTC, datetime
 
-from fastapi import APIRouter, Header, HTTPException, Path, Query
+from fastapi import APIRouter, Header, HTTPException, Path, Query, Request
 from fastapi.responses import FileResponse, Response
 from pydantic import ValidationError
 
@@ -18,6 +19,7 @@ from core.insolation import annotate as annotate_insolation
 from core.insolation import score as insolation_score
 from core.llm_layout_engine import LLMLayoutEngine
 from core.orientation import best_turns, rotate_layout
+from core.ratelimit import limiter
 from mep.clash_detector import ClashDetector
 from mep.pipe_router import PipeRouter
 from models import (
@@ -56,11 +58,30 @@ def _norm_token(token: str | None) -> str | None:
 @router.post("/generate-plan", response_model=GenerationResult)
 async def generate_plan(
     params: BuildingParams,
+    request: Request,
     x_device_token: str | None = Header(default=None),
 ):
     """
     Main endpoint: accepts building parameters, returns full IFC + analysis.
     """
+    # Abuse guard: generation spends paid Groq tokens. Keyed by client IP
+    # (device tokens are client-minted, so they can't be the limiter key).
+    # Behind nginx this needs uvicorn --proxy-headers to see the real IP.
+    client_ip = request.client.host if request.client else "unknown"
+    retry_after = limiter.check(
+        client_ip,
+        [
+            (settings.RATE_LIMIT_PER_MINUTE, 60),
+            (settings.RATE_LIMIT_PER_DAY, 86400),
+        ],
+    )
+    if retry_after > 0:
+        raise HTTPException(
+            status_code=429,
+            detail="Rate limit exceeded — try again later",
+            headers={"Retry-After": str(math.ceil(retry_after))},
+        )
+
     project_id = str(uuid.uuid4())
 
     # 1. Geoclimate calculation
@@ -132,9 +153,13 @@ async def generate_plan(
         with open(result_path, "w", encoding="utf-8") as f:
             json.dump(data, f, ensure_ascii=False)
     except OSError as exc:
-        # Non-fatal (generation succeeded), but /report/{id} will 404 —
-        # leave a trail so operators can correlate.
-        logger.warning("Could not persist result for %s: %s", project_id, exc)
+        # Fail honestly: a "successful" response whose report/share/history
+        # 404s later is worse than asking the user to regenerate.
+        logger.error("Could not persist result for %s: %s", project_id, exc)
+        raise HTTPException(
+            status_code=500,
+            detail="The plan was generated but could not be saved — please try again",
+        ) from exc
 
     return result
 

@@ -8,6 +8,7 @@ from __future__ import annotations
 import json
 import logging
 import math
+import time
 import uuid
 
 from openai import OpenAI
@@ -63,7 +64,13 @@ Valid types: hallway living_room bedroom kitchen bathroom toilet utility garage"
 def _get_client() -> OpenAI | None:
     if not settings.GROQ_API_KEY:
         return None
-    return OpenAI(api_key=settings.GROQ_API_KEY, base_url="https://api.groq.com/openai/v1")
+    # Per-call cap so one hung request can't eat the whole generation budget.
+    return OpenAI(
+        api_key=settings.GROQ_API_KEY,
+        base_url="https://api.groq.com/openai/v1",
+        timeout=30.0,
+        max_retries=1,
+    )
 
 
 def _estimate_footprint(params: BuildingParams, floor_rooms: list) -> tuple[float, float]:
@@ -151,6 +158,7 @@ def _layout_floor_llm(
     total_floors: int,
     params: BuildingParams,
     floor_rooms: list,
+    deadline: float,
 ) -> list[RoomLayout] | None:
     """Try to generate one floor via LLM loop. Returns None on total failure."""
     fw, fh = _estimate_footprint(params, floor_rooms)
@@ -166,6 +174,13 @@ def _layout_floor_llm(
     best_err_count = 9999
 
     for iteration in range(1, MAX_ITER + 1):
+        if time.monotonic() > deadline:
+            logger.warning(
+                "LLM time budget exhausted floor=%d iter=%d — stopping early",
+                floor_num,
+                iteration,
+            )
+            break
         try:
             resp = client.chat.completions.create(
                 model=settings.GROQ_MODEL,
@@ -254,6 +269,10 @@ class LLMLayoutEngine:
         rooms = scale_room_areas(rooms, getattr(self.params, "spaciousness", 0.5))
         rooms_per_floor = self._rule._distribute_floors(rooms)
 
+        # One shared wall-clock budget across all floors: past it every floor
+        # loop stops early and the rule engine takes over.
+        deadline = time.monotonic() + settings.LLM_TIME_BUDGET_S
+
         all_layouts: list[RoomLayout] = []
         for floor_idx, floor_rooms in enumerate(rooms_per_floor):
             floor_num = floor_idx + 1
@@ -261,7 +280,7 @@ class LLMLayoutEngine:
                 continue
 
             result_pair = _layout_floor_llm(
-                client, floor_num, self.params.floors, self.params, floor_rooms
+                client, floor_num, self.params.floors, self.params, floor_rooms, deadline
             )
 
             if result_pair is None:

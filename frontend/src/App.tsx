@@ -4,7 +4,13 @@ import { ParameterForm } from "./components/ParameterForm";
 import { ResultsPanel } from "./components/ResultsPanel";
 import { HistoryMenu } from "./components/HistoryMenu";
 import { useStore } from "./store/useStore";
-import { fetchProject, generatePlan, getErrorMessage, isCancelError } from "./api/client";
+import {
+  fetchProject,
+  generatePlan,
+  getErrorMessage,
+  isCancelError,
+  isRateLimitError,
+} from "./api/client";
 import { LANGUAGES } from "./i18n";
 import toast from "react-hot-toast";
 
@@ -69,6 +75,8 @@ export default function App() {
     } catch (e) {
       if (isCancelError(e)) {
         toast(t("app.cancelled"));
+      } else if (isRateLimitError(e)) {
+        setError(t("app.rateLimited"));
       } else {
         // The persistent banner is the single error surface — no extra toast.
         setError(getErrorMessage(e, t("app.genFailed")));
