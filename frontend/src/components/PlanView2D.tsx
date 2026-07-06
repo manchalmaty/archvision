@@ -668,7 +668,13 @@ export function PlanView2D() {
   const bgH = view.h * 5;
 
   return (
-    <div className="absolute inset-0">
+    // The results panel overlays the workspace from the right; shrinking this
+    // container (instead of letting the plan hide underneath) keeps the whole
+    // floor plan visible — the svg re-centres in the uncovered area.
+    <div
+      className="absolute inset-y-0 left-0 transition-[right] duration-200"
+      style={{ right: rightPanelOpen ? 320 : 0 }}
+    >
       <svg
         ref={svgRef}
         className="w-full h-full touch-none cursor-grab active:cursor-grabbing"
@@ -818,10 +824,7 @@ export function PlanView2D() {
           unmistakably as a viewer zoom (the bare +/− was ambiguous: "scale of
           what?"). Clicking the % fits the plan back to 100%. bottom-20 clears
           the "Show Results" button App puts at bottom-4. */}
-      <div
-        className="absolute bottom-20 z-20 flex flex-col items-stretch w-9 rounded-xl overflow-hidden border border-surface-border bg-surface-card shadow-sm transition-[right] duration-200"
-        style={{ right: rightPanelOpen ? 336 : 16 }}
-      >
+      <div className="absolute bottom-20 right-4 z-20 flex flex-col items-stretch w-9 rounded-xl overflow-hidden border border-surface-border bg-surface-card shadow-sm">
         <button
           onClick={() => zoomBy(1 / 1.3)}
           title={t("viewer.zoomIn")}
