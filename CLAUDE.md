@@ -5,7 +5,7 @@ Architectural sketch generator for RU/KZ/CIS market. User inputs household type 
 
 ## Stack
 - **Frontend**: React + Vite + TypeScript + Zustand + Tailwind CSS v3 (NOT v4). **Brand = ArchVision "AV" mark, red accent `#E0261C`** (palette: red/black/white #F7F4EE/gray #8C8A85). The Tailwind `brand` token is the single accent source — recolor the whole app from `tailwind.config.js` `brand` scale; don't hardcode hex. Fonts: Space Grotesk (display) + Inter. Logo SVG (A+ruler / V+sun) lives in `App.tsx` header + `public/favicon.svg`.
-- **Backend**: FastAPI + Python, Celery, reportlab, Groq API (llama-3.3-70b-versatile)
+- **Backend**: FastAPI + Python, reportlab, Groq API (llama-3.3-70b-versatile). NO Celery/Redis/Supabase/DB — file-based store in `generated/` (`{id}.json` + `{id}.ifc`), TTL-cleaned daily (`RESULT_TTL_DAYS`). Generation is synchronous in the request.
 - **Groq key**: in `backend/.env` as `GROQ_API_KEY`
 - **i18n**: 3 locales — `en`, `ru`, `kk` — all 3 must be updated together
 
@@ -135,6 +135,20 @@ frontend/src/
 - **Hover metrics** (`PlanView2D`): hovering a room shows a Finch-style floating card (name + w×d area + dims + daylight) via `onHover`/`HoverInfo`; the riser/conflict overlays stay `pointerEvents:none` so the room rect receives the hover. On-plan labels are therefore minimal (name + area; dims only when `selected`).
 - **Undo / version history** (`useStore`): `setResult` pushes the outgoing plan onto `history[]` (cap 8, newest first); `undoResult()` pops it. The panel header shows `↶ {history.length}` when `history.length > 0`. No redo (stepping back discards the forward plan).
 - **Conflict legend** rows render only when `result.mep_conflicts.length > 0` (no phantom legend).
+
+## MVP production hardening (DONE 2026-07-06) — key decisions
+- **No accounts**: anonymous `X-Device-Token` (uuid in `localStorage archvision_device_v1`, minted in `client.ts deviceToken()`, sent on every request via axios interceptor). Backend stamps it as `_owner` INSIDE the stored `{id}.json` (pydantic ignores extra on load → `/projects/{id}` never echoes it). `/projects` lists only the caller's token; empty without one.
+- **NEVER re-add a static mount over `IFC_OUTPUT_DIR`** — it serves raw `{id}.json` incl. `_owner` (share recipient could steal the owner token and list their history). Files go out only via validated routes; guarded by `test_raw_store_not_exposed`.
+- **Share/refresh**: hash routing `#/p/{id}` in `App.tsx` (module-level `shareLoadInFlight` guards StrictMode double-mount); generate sets the hash. History dropdown = `HistoryMenu.tsx`.
+- **Rate limit**: in-proc sliding window (`core/ratelimit.py`), keyed by client IP, 5/min + 30/day (env). 429 pre-generation; rejected probes not recorded. Needs `--proxy-headers` behind nginx (prod Dockerfile has it). LLM: 30 s per Groq call + 90 s wall budget (`LLM_TIME_BUDGET_S`) → rule-engine fallback. Persist failure = honest 500, not fake success.
+- **Prod deploy**: `docker compose -f docker-compose.prod.yml up --build -d` — nginx (SPA + /api proxy) + non-root uvicorn; own volume `ifc_files_prod`. Verified end-to-end incl. restart persistence.
+- **Mobile (<md)**: form = drawer (hamburger), results = 60vh bottom sheet, `PlanView2D` container shrinks up (desktop: right) via `useIsDesktop()`; pinch-zoom = 2-pointer in PlanView2D. ThreeViewer still untouched.
+
+## Self-rules additions (2026-07-06)
+- `npm ci` in Docker can fail on a lock npm 11 wrote (nested vite7/esbuild entries) while local `npm ci --dry-run` passes — builder pins `npm@^11`; if lock desyncs again, delete + full `npm install` regen.
+- A dir COPY'd into a Docker image from this OneDrive-synced repo can carry READ-ONLY mode (555) → named volume inherits it on first use → EACCES for non-root. `chmod 775` explicitly in the Dockerfile; `.dockerignore` keeps `generated/`, `.venv/` and **`.env` (real key!)** out of images/contexts.
+- uvicorn `--reload` on this machine has silently served STALE code — after backend edits, verify a changed endpoint responds new-style (e.g. tokenless `/projects` → `[]`), else restart the process.
+- pydantic-settings v2 with `env_file` FORBIDS unknown keys by default — removing a setting while operators' `.env` still has it crashes startup; `extra="ignore"` is set in `config.py`, keep it.
 
 ## Known issues / current work (as of 2026-06-18)
 - Habitable min side is **2.4 m** (`USABLE_MIN_SIDE`) and that is the engine's FEASIBLE floor, not a preference: raising living/bedroom to 2.6–2.7 starves the wet band below the kitchen's min (the shared central-hall width is driven up by the narrowest habitable room), making the engine's own output fail rule 9. 2.6–2.7 needs a 3-band / garage-in-own-band redesign. The LLM path is now gated by the SAME table via `plan_validator.MIN_SIDE` (derived from `USABLE_MIN_SIDE`), so LLM "pencil" rooms (2.0–2.3 m) are rejected → rule-engine fallback.
