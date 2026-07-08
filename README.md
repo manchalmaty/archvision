@@ -5,6 +5,8 @@ cost estimate, localized PDF report and IFC export for residential houses in the
 RU/KZ/CIS market. Генератор архитектурных эскизов: планировка, черновик
 инженерки и ориентировочная смета — чтобы прийти к архитектору подготовленным.
 
+![Generation demo — plan, ₸ estimate, title-block](docs/demo.gif)
+
 ![ArchVision AI — generated plan with title-block estimate](docs/hero.png)
 
 ## What it does
