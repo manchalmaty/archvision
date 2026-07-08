@@ -107,7 +107,13 @@ cd frontend && npx vitest run && npx tsc --noEmit
    solver problem as site placement, so they're likely one pass together.
 2. Heating layer in the estimate (heat-loss data already computed).
 3. DXF export (`ezdxf`) — the bridge to CIS engineers' AutoCAD workflow.
-4. A/B plan comparison by cost delta.
+4. **Cost-Δ variant comparison** — the same program at three deterministic
+   spaciousness settings (compact / balanced / roomy), shown as a decision
+   table sorted by cost, not a swipeable gallery: each row is footprint m²,
+   total ₸/₽, Δ vs the cheapest, the one driver of that Δ (concrete volume /
+   exterior wall), and the honesty red-flag count. Deterministic, not an LLM
+   generator — reproducibility is the honesty brand. This is the comparison
+   Drafted can't copy without building the estimator underneath it.
 5. Wall thickness in areas (geometry, PDF, cost, IFC together).
 6. 3D viewer polish (currently hidden; code in place).
 
