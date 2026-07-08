@@ -16,7 +16,18 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import pytest  # noqa: E402
 
+from core.ratelimit import limiter  # noqa: E402
 from models import BuildingParams, RoomInput, RoomType  # noqa: E402
+
+
+@pytest.fixture(autouse=True)
+def _reset_rate_limiter():
+    """Each test starts with a clean limiter, so the in-process daily window
+    can't accumulate across the suite and 429 a later route test (the whole
+    suite shares one client IP). Tests that exercise the limiter make their own
+    burst within the test, so resetting beforehand is safe."""
+    limiter.reset()
+    yield
 
 
 @pytest.fixture

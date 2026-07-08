@@ -138,6 +138,9 @@ export interface GenerationResult {
   warnings: string[];
   insolation_score: number;
   site: SitePlan | null;
+  // False when the typed region wasn't in the climate index → the geo/seismic
+  // figures are country averages (may read low). Drives an "unverified" caveat.
+  region_recognized: boolean;
 }
 
 // The building placed on its plot (present only when a plot size was given).

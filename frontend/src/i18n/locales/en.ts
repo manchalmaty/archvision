@@ -171,6 +171,8 @@ export default {
     sitePlotSize: "Plot size",
     seismicAdvisory:
       "High seismicity (zone {{zone}}): needs a reinforced-concrete frame / monolithic foundation and a specialist's review — a strip foundation is not enough, and the frame raises the estimate (priced by an engineer). Exact intensity: the ОСР/СНиП map for your site.",
+    seismicUnverified:
+      "Seismicity not verified for this location — the region isn't in our database, so these values are the country average and may read low. Check the real zone on the ОСР/СНиП map before trusting the foundation or the estimate.",
   },
   streetSide: {
     S: "Front",

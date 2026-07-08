@@ -106,6 +106,10 @@ _L = {
         "frame / monolithic foundation and a specialist's review are required — a "
         "strip foundation is not enough, and the frame raises the estimate (priced "
         "by an engineer). Exact intensity: the ОСР/СНиП map for your site.",
+        "seismic_unverified": "Seismicity NOT verified for this location — the "
+        "region is not in our database, so the values above are the country "
+        "average and may read low. Determine the real zone from the ОСР/СНиП map "
+        "for the site before relying on the foundation or the estimate.",
     },
     "ru": {
         "title": "Отчёт по архитектурному эскизу",
@@ -144,6 +148,10 @@ _L = {
         "монолитный фундамент и проверка специалистом — ленточного недостаточно, "
         "а каркас удорожает смету (оценивает инженер). Точный балл — по карте "
         "ОСР/СНиП для участка.",
+        "seismic_unverified": "Сейсмичность НЕ подтверждена для этого места — "
+        "региона нет в базе, поэтому значения выше — средние по стране и могут быть "
+        "занижены. Определите реальную зону по карте ОСР/СНиП для участка, прежде "
+        "чем полагаться на фундамент или смету.",
     },
     "kk": {
         "title": "Сәулеттік эскиз бойынша есеп",
@@ -182,6 +190,10 @@ _L = {
         "монолитті іргетас және маман тексеруі қажет — таспалы іргетас жеткіліксіз, "
         "ал қаңқа сметаны қымбаттатады (инженер бағалайды). Нақты балл — учаске "
         "бойынша ОСР/СНиП картасынан.",
+        "seismic_unverified": "Бұл жер үшін сейсмикалық ЖОҚ расталмаған — аймақ "
+        "базада жоқ, сондықтан жоғарыдағы мәндер — ел бойынша орташа және төмен "
+        "болуы мүмкін. Іргетасқа не сметаға сенбес бұрын нақты аймақты учаске "
+        "бойынша ОСР/СНиП картасынан анықтаңыз.",
     },
 }
 
@@ -477,6 +489,11 @@ def generate_pdf(result: GenerationResult, lang: str = "en") -> bytes:
             style=_table_style(("SPAN", (1, 3), (3, 3))),
         )
     )
+    # Unverified location comes first: an unlisted town gets the country-average
+    # zone, which reads low for a high-seismic area — say so before the number
+    # can be trusted.
+    if not result.region_recognized:
+        story.append(Paragraph(f"⚠ {t['seismic_unverified']}", styles["warn"]))
     # High-seismicity safety advisory — soft, references the ОСР/СНиП map for the
     # exact intensity rather than asserting an MSK score this tool doesn't know.
     if g.seismic_zone >= SEISMIC_ADVISORY_ZONE:

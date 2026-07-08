@@ -172,6 +172,11 @@ class GenerationResult(BaseModel):
     # Plot placement + setback/coverage figures. Present only when a plot size
     # was given; None otherwise (the tool still works with no plot).
     site: SitePlan | None = None
+    # False when the typed region did not match the climate index: the geo/seismic
+    # figures are then the country AVERAGE, which for an unlisted high-seismic town
+    # reads dangerously low. Surfaces an "unverified seismicity" caveat so the
+    # number never looks authoritative — fail loud, not low.
+    region_recognized: bool = True
 
 
 class ComplianceRequest(BaseModel):

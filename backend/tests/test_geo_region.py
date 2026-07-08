@@ -83,3 +83,16 @@ class TestRouteRegression:
         assert r.status_code == 200, r.text[:300]
         warnings = r.json()["warnings"]
         assert any("Атлантида" in w for w in warnings), warnings
+
+    def test_unlisted_high_seismic_town_fails_loud_not_low(self):
+        # Кордай (near Almaty, genuinely high seismic) isn't in the table → it
+        # falls back to KZ's country-average zone 2 (reads LOW). The result must
+        # flag the seismicity as unverified so the low number never looks trusted.
+        r = client.post("/api/v1/generate-plan", json={**self.BASE, "country": "KZ", "region": "Кордай"})
+        assert r.status_code == 200, r.text[:300]
+        body = r.json()
+        assert body["region_recognized"] is False
+
+    def test_recognized_region_is_verified(self):
+        r = client.post("/api/v1/generate-plan", json={**self.BASE, "country": "KZ", "region": "Алматы"})
+        assert r.json()["region_recognized"] is True

@@ -134,6 +134,21 @@ function GeoCard() {
         </p>
         <p style={{ fontSize: 13, color: "#33302a" }}>{g.foundation_type}</p>
       </div>
+      {!result.region_recognized && (
+        <div
+          style={{
+            background: "#fdeeee",
+            border: "1px solid #e6b8b4",
+            borderRadius: 8,
+            padding: "8px 10px",
+            marginTop: 6,
+          }}
+        >
+          <p style={{ fontSize: 12, color: "#9a3b32", lineHeight: 1.45 }}>
+            ⚠ {t("results.seismicUnverified")}
+          </p>
+        </div>
+      )}
       {g.seismic_zone >= 3 && (
         <div
           style={{

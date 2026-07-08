@@ -191,6 +191,7 @@ async def generate_plan(
         warnings=warnings,
         insolation_score=insolation_score(rooms, params.facing),
         site=site,
+        region_recognized=region_res.recognized,
     )
 
     # Persist the result next to the IFC so /report/{id} and project history
