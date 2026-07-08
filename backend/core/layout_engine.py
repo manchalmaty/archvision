@@ -221,6 +221,30 @@ def _door_pos(room: RoomLayout, neighbor: RoomLayout, wall: str, dw: float) -> f
     return round(min(max(center - dw / 2, 0.0), max(0.0, wlen - dw)), 3)
 
 
+def _door_target(room: RoomLayout, door, all_rooms: list) -> RoomLayout | None:
+    """The specific room a door opens into: the neighbour on the door's wall
+    whose shared span overlaps the door leaf the most.
+
+    Unlike the door graph (which links a room to *every* neighbour on a wall),
+    this resolves the ONE room behind the leaf — needed to judge what the garage
+    person-door actually enters when several rooms line the same wall.
+    """
+    if door.wall in ("N", "S"):
+        lo, hi = room.x + door.position, room.x + door.position + door.width
+    else:
+        lo, hi = room.y + door.position, room.y + door.position + door.width
+    best, best_ov = None, 0.0
+    for other in _adjacent_rooms(room, door.wall, all_rooms):
+        if door.wall in ("N", "S"):
+            olo, ohi = max(room.x, other.x), min(room.x + room.width, other.x + other.width)
+        else:
+            olo, ohi = max(room.y, other.y), min(room.y + room.depth, other.y + other.depth)
+        ov = min(hi, ohi) - max(lo, olo)
+        if ov > best_ov:
+            best, best_ov = other, ov
+    return best
+
+
 def _place_opening(wall_len: float, opening_width: float) -> float:
     """Center opening in wall, respecting MIN_CORNER clearance.
 
@@ -401,13 +425,21 @@ class LayoutEngine:
         if getattr(self.params, "openness", "closed") != "closed":
             self._open_social_zone(rooms)
 
-    # Mudroom order for the garage person-door; a bedroom parent would trip
-    # rule 4 and a wet closet is a plumbing stack, not a mudroom.
+    # Where a garage may open, best first: a mudroom/hallway buffer is the ideal
+    # (dirt + exhaust stay in a transitional zone — the same logic as the entry
+    # buffer), then a utility/laundry, then the kitchen only as a fallback (fumes
+    # into the cooking zone is a compromise), living last.
     _GARAGE_DOOR_PREF = (
+        RoomType.HALLWAY,
         RoomType.UTILITY,
         RoomType.KITCHEN,
-        RoomType.HALLWAY,
         RoomType.LIVING_ROOM,
+    )
+    # A garage must NEVER open directly into these — private or wet rooms. Tracking
+    # exhaust/dirt into a bedroom or bathroom is a hygiene defect, so the planner
+    # refuses the door outright (rule 10 flags it if some other path creates one).
+    _GARAGE_DOOR_FORBIDDEN = frozenset(
+        {RoomType.BEDROOM, RoomType.BATHROOM, RoomType.TOILET}
     )
 
     def _assign_garage_doors(self, garage: RoomLayout, rooms: list[RoomLayout]) -> None:
@@ -432,19 +464,26 @@ class LayoutEngine:
         dw, dh = DEFAULT_DOOR
         candidates = [(w, n) for w in WALLS for n in adj[w] if _shared_len(garage, n) >= dw]
         if not candidates:
-            return  # pass 3 still guarantees a door if the gate had no wall either
+            return
+        # A buffer neighbour (mudroom/hallway/utility/kitchen/living) is always
+        # preferred and a forbidden room is never chosen over one. Only when the
+        # garage band abuts private/wet rooms with NO buffer at all does it fall
+        # back to the least-bad room (bath before a bedroom) so it stays reachable
+        # — and rule 10 then flags "opens directly into …". Never silently green.
+        buffer_cands = [c for c in candidates if c[1].room_type not in self._GARAGE_DOOR_FORBIDDEN]
+        pool = buffer_cands or candidates
 
         def rank(item):
             n = item[1]
             if n.room_type in self._GARAGE_DOOR_PREF:
                 return self._GARAGE_DOOR_PREF.index(n.room_type)
-            if n.room_type in PRIVATE_ZONES:
-                return 99
-            if n.room_type in (RoomType.BATHROOM, RoomType.TOILET):
-                return 98
-            return 50
+            # Forbidden fallback order: a bathroom keeps circulation out of a
+            # bedroom (rule 4), a bedroom is the last resort.
+            return {RoomType.BATHROOM: 90, RoomType.TOILET: 91, RoomType.BEDROOM: 95}.get(
+                n.room_type, 50
+            )
 
-        w, n = min(candidates, key=rank)
+        w, n = min(pool, key=rank)
         garage.doors.append(
             DoorSpec(wall=w, position=_door_pos(garage, n, w, dw), width=dw, height=dh)
         )

@@ -17,13 +17,16 @@ skipped there rather than forced.
   8. Mandatory composition — the home has a kitchen and a bathroom/toilet.
   9. Minimum dimension — a room is wide enough for its furniture, not just its
      area (a 12m² room shaped 7.0×1.7m is "correct" on area yet unusable).
+ 10. Garage buffer — the garage connects to the house only through a
+     transitional/service zone (hallway/utility/kitchen/living), never a direct
+     door into a bedroom, bathroom, or toilet, and never only through one.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass
 
-from core.layout_engine import USABLE_MIN_SIDE, _adjacent_rooms, _shared_len
+from core.layout_engine import USABLE_MIN_SIDE, _adjacent_rooms, _door_target, _shared_len
 from models import RoomLayout, RoomType
 
 PRIVATE = {RoomType.BEDROOM}
@@ -32,6 +35,10 @@ BUFFER = {RoomType.HALLWAY}
 # A vehicle gate is not the pedestrian entrance — the garage is itself an
 # unheated buffer, so rule 6 lets it keep an external door.
 EXT_DOOR_OK = BUFFER | {RoomType.GARAGE}
+# Rule 10 — the garage may connect to the house only through a transitional /
+# service zone; a direct door into a bedroom or wet room is a hygiene defect.
+GARAGE_BUFFER_OK = {RoomType.HALLWAY, RoomType.UTILITY, RoomType.KITCHEN, RoomType.LIVING_ROOM}
+GARAGE_FORBIDDEN = PRIVATE | {RoomType.BATHROOM, RoomType.TOILET}
 
 # Rule 9 reads the same usable-minimum table the layout engine sizes bands from,
 # so the checker and the generator can never disagree about what "too narrow" is.
@@ -209,6 +216,38 @@ def check_invariants(rooms: list[RoomLayout], openness: str = "closed") -> list[
                             "entrance_buffer",
                             f'entrance opens directly into "{r.name}" instead of a hallway',
                             r.room_id,
+                        )
+                    )
+
+        # Rule 10 — garage connects to the house only through a buffer
+        for g in fr:
+            if g.room_type is not RoomType.GARAGE:
+                continue
+            interior = [d for d in g.doors if getattr(d, "kind", "door") != "gate"]
+            targets = [t for d in interior if (t := _door_target(g, d, fr))]
+            bad = next((t for t in targets if t.room_type in GARAGE_FORBIDDEN), None)
+            if bad is not None:
+                v.append(
+                    Violation(
+                        10,
+                        "garage_direct",
+                        f'garage opens directly into "{bad.name}" — route it through '
+                        f"a mudroom / utility buffer instead",
+                        g.room_id,
+                    )
+                )
+            elif not any(t.room_type in GARAGE_BUFFER_OK for t in targets):
+                # No good door: if every interior neighbour is a private/wet room,
+                # the garage can only reach the house through one — flag it.
+                neighbours = [n for w in WALLS for n in _adjacent_rooms(g, w, fr)]
+                if neighbours and all(n.room_type in GARAGE_FORBIDDEN for n in neighbours):
+                    v.append(
+                        Violation(
+                            10,
+                            "garage_no_buffer",
+                            "garage can only reach the house through a bedroom or "
+                            "bathroom — add a mudroom / utility buffer",
+                            g.room_id,
                         )
                     )
 
