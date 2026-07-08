@@ -46,7 +46,7 @@ export default {
   },
   form: {
     buildingParams: "Ғимарат параметрлері",
-    houseShape: "Үй пішіні",
+    proportions: "Пропорциялар",
     country: "Ел",
     floors: "Қабаттар",
     region: "Аймақ (міндетті емес)",
@@ -56,21 +56,20 @@ export default {
     plotDepth: "Тереңдігі",
     plotWarning:
       "Бөлмелер {{total}} м² алады, ал телім {{floors}} қабатқа ~{{capacity}} м² сыйдырады. Аудандарды азайтыңыз немесе қабат қосыңыз.",
+    streetSide: "Көше жағы",
+    streetSideHint: "Телімнің қай жағы көшеге (қызыл сызыққа) қарайды.",
     rooms: "Бөлмелер",
     addRoom: "+ Бөлме қосу",
     removeRoom: "Бөлмені жою",
     customName: "Өз атауы (міндетті емес)",
     generate: "Жоспар құру",
     generatingBtn: "Құрылуда…",
-    sectionShapeOrient: "Пішін және бағдар",
+    sectionShapeOrient: "Пропорциялар және бағдар",
     sectionSite: "Телім",
   },
   shapes: {
-    rectangular: "Тікбұрыш",
-    square: "Шаршы",
-    l_shape: "Г-тәрізді",
-    u_shape: "П-тәрізді",
-    t_shape: "Т-тәрізді",
+    rectangular: "Ұзынша",
+    square: "Ықшам",
   },
   openness: {
     title: "Жоспар ашықтығы",
@@ -165,6 +164,19 @@ export default {
     stampArea: "Ауданы",
     stampFloors: "Қабат",
     stampRef: "Шифр",
+    site: "Телім және шегіністер",
+    siteCoverage: "Телім құрылысы",
+    siteStreetSetback: "Көшеден шегініс",
+    siteNeighborSetback: "Көршіден шегініс",
+    sitePlotSize: "Телім өлшемі",
+    seismicAdvisory:
+      "Жоғары сейсмикалық (аймақ {{zone}}): темірбетон қаңқа / монолитті іргетас және маман тексеруі қажет — таспалы іргетас жеткіліксіз, ал қаңқа сметаны қымбаттатады (инженер бағалайды). Нақты балл — учаске бойынша ОСР/СНиП картасынан.",
+  },
+  streetSide: {
+    S: "Алдыңғы",
+    N: "Артқы",
+    W: "Сол жақ",
+    E: "Оң жақ",
   },
   mepHints: {
     pipe_pipe_clash:
@@ -194,5 +206,7 @@ export default {
     clashHigh: "Желі қақтығысы (жоғары)",
     clashMedium: "Желі қақтығысы (орташа)",
     selectedRoom: "Таңдалған бөлме",
+    plot: "Телім және шегіністер",
+    street: "Көше",
   },
 };

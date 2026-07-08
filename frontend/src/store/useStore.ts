@@ -76,6 +76,7 @@ const DEFAULT_PARAMS: BuildingParams = {
   spaciousness: 0.5,
   facing: "N",
   auto_orient: false,
+  street_side: "S",
 };
 
 function loadParams(): BuildingParams {

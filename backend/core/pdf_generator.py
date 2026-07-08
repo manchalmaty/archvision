@@ -19,6 +19,7 @@ from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
+from core.geo_calculator import SEISMIC_ADVISORY_ZONE
 from models import GenerationResult, RoomLayout
 
 logger = logging.getLogger(__name__)
@@ -101,6 +102,10 @@ _L = {
         "warnings": "Warnings",
         "disclaimer": "Draft layout and rough cost estimate — arrive at your "
         "architect prepared. Not construction documents.",
+        "seismic_advisory": "High seismicity (zone {zone}): a reinforced-concrete "
+        "frame / monolithic foundation and a specialist's review are required — a "
+        "strip foundation is not enough, and the frame raises the estimate (priced "
+        "by an engineer). Exact intensity: the ОСР/СНиП map for your site.",
     },
     "ru": {
         "title": "Отчёт по архитектурному эскизу",
@@ -135,6 +140,10 @@ _L = {
         "warnings": "Предупреждения",
         "disclaimer": "Черновая планировка и ориентировочная смета — чтобы прийти "
         "к архитектору подготовленным. Не проектная документация.",
+        "seismic_advisory": "Высокая сейсмичность (зона {zone}): нужен ж/б каркас / "
+        "монолитный фундамент и проверка специалистом — ленточного недостаточно, "
+        "а каркас удорожает смету (оценивает инженер). Точный балл — по карте "
+        "ОСР/СНиП для участка.",
     },
     "kk": {
         "title": "Сәулеттік эскиз бойынша есеп",
@@ -169,6 +178,10 @@ _L = {
         "warnings": "Ескертулер",
         "disclaimer": "Черновой жоспарлау және шамамен смета — сәулетшіге дайын "
         "болып бару үшін. Жобалық құжаттама емес.",
+        "seismic_advisory": "Жоғары сейсмикалық (аймақ {zone}): темірбетон қаңқа / "
+        "монолитті іргетас және маман тексеруі қажет — таспалы іргетас жеткіліксіз, "
+        "ал қаңқа сметаны қымбаттатады (инженер бағалайды). Нақты балл — учаске "
+        "бойынша ОСР/СНиП картасынан.",
     },
 }
 
@@ -412,6 +425,10 @@ def generate_pdf(result: GenerationResult, lang: str = "en") -> bytes:
         "muted": ParagraphStyle(
             "muted", fontName=FONT, fontSize=8, textColor=colors.HexColor("#667085")
         ),
+        "warn": ParagraphStyle(
+            "warn", fontName=FONT, fontSize=8.5, leading=11.5,
+            textColor=colors.HexColor("#8a5a12"), spaceBefore=1.5 * mm,
+        ),
     }
 
     story = []
@@ -460,6 +477,10 @@ def generate_pdf(result: GenerationResult, lang: str = "en") -> bytes:
             style=_table_style(("SPAN", (1, 3), (3, 3))),
         )
     )
+    # High-seismicity safety advisory — soft, references the ОСР/СНиП map for the
+    # exact intensity rather than asserting an MSK score this tool doesn't know.
+    if g.seismic_zone >= SEISMIC_ADVISORY_ZONE:
+        story.append(Paragraph(f"⚠ {t['seismic_advisory'].format(zone=g.seismic_zone)}", styles["warn"]))
 
     # Rooms
     story.append(Paragraph(t["rooms"], styles["h2"]))

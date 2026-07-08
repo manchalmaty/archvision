@@ -46,7 +46,7 @@ export default {
   },
   form: {
     buildingParams: "Building Parameters",
-    houseShape: "House shape",
+    proportions: "Proportions",
     country: "Country",
     floors: "Floors",
     region: "Region (optional)",
@@ -56,21 +56,20 @@ export default {
     plotDepth: "Depth",
     plotWarning:
       "Rooms total {{total}} m² but the plot fits ~{{capacity}} m² over {{floors}} floor(s). Reduce areas or add floors.",
+    streetSide: "Street side",
+    streetSideHint: "Which edge of the plot faces the street (red line).",
     rooms: "Rooms",
     addRoom: "+ Add Room",
     removeRoom: "Remove room",
     customName: "Custom name (optional)",
     generate: "Generate Plan",
     generatingBtn: "Generating…",
-    sectionShapeOrient: "Shape & Orientation",
+    sectionShapeOrient: "Proportions & Orientation",
     sectionSite: "Site",
   },
   shapes: {
-    rectangular: "Rect.",
-    square: "Square",
-    l_shape: "L-shape",
-    u_shape: "U-shape",
-    t_shape: "T-shape",
+    rectangular: "Wide",
+    square: "Compact",
   },
   openness: {
     title: "Layout openness",
@@ -165,6 +164,19 @@ export default {
     stampArea: "Area",
     stampFloors: "Floors",
     stampRef: "Ref",
+    site: "Site & setbacks",
+    siteCoverage: "Plot coverage",
+    siteStreetSetback: "Street setback",
+    siteNeighborSetback: "Neighbour setback",
+    sitePlotSize: "Plot size",
+    seismicAdvisory:
+      "High seismicity (zone {{zone}}): needs a reinforced-concrete frame / monolithic foundation and a specialist's review — a strip foundation is not enough, and the frame raises the estimate (priced by an engineer). Exact intensity: the ОСР/СНиП map for your site.",
+  },
+  streetSide: {
+    S: "Front",
+    N: "Back",
+    W: "Left",
+    E: "Right",
   },
   mepHints: {
     pipe_pipe_clash:
@@ -194,5 +206,7 @@ export default {
     clashHigh: "MEP Clash (HIGH)",
     clashMedium: "MEP Clash (MEDIUM)",
     selectedRoom: "Selected Room",
+    plot: "Plot & setbacks",
+    street: "Street",
   },
 };

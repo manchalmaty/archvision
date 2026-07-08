@@ -91,51 +91,10 @@ const SHAPES: { id: BuildingShape; icon: JSX.Element }[] = [
       </svg>
     ),
   },
-  {
-    id: "l_shape",
-    icon: (
-      <svg
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth={2.5}
-        strokeLinejoin="round"
-        className="w-full h-full"
-      >
-        <polygon points="1,1 23,1 23,23 13,23 13,11 1,11" />
-      </svg>
-    ),
-  },
-  {
-    id: "u_shape",
-    icon: (
-      <svg
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth={2.5}
-        strokeLinejoin="round"
-        className="w-full h-full"
-      >
-        <polygon points="1,1 7,1 7,17 17,17 17,1 23,1 23,23 1,23" />
-      </svg>
-    ),
-  },
-  {
-    id: "t_shape",
-    icon: (
-      <svg
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth={2.5}
-        strokeLinejoin="round"
-        className="w-full h-full"
-      >
-        <polygon points="1,1 23,1 23,9 15,9 15,23 9,23 9,9 1,9" />
-      </svg>
-    ),
-  },
+  // L/U/T shapes are deliberately NOT offered: the engine builds a central-hall
+  // rectangle only, so those pictograms would promise a silhouette it never
+  // produces. Real L/U/T footprints are on the roadmap (next to site placement).
+  // These two are honest — a rectangle and a square ARE the proportions choice.
 ];
 
 const OPENNESS: Openness[] = ["closed", "mixed", "open"];
@@ -419,8 +378,8 @@ export function ParameterForm({ onGenerate }: Props) {
       {/* Shape & orientation — advanced, collapsed by default */}
       <Collapsible title={t("form.sectionShapeOrient")}>
         <div>
-          <label className="label mb-1.5">{t("form.houseShape")}</label>
-          <div className="grid grid-cols-5 gap-1.5">
+          <label className="label mb-1.5">{t("form.proportions")}</label>
+          <div className="grid grid-cols-2 gap-1.5">
             {SHAPES.map((shape) => (
               <button
                 key={shape.id}
@@ -543,6 +502,31 @@ export function ParameterForm({ onGenerate }: Props) {
             </p>
           )}
         </div>
+
+        {/* Street side — which plot edge faces the road. Only meaningful once a
+            plot size is set; drives the 5 m front vs 3 m neighbour setbacks. */}
+        {params.plot_width_m && params.plot_depth_m ? (
+          <div>
+            <label className="label">{t("form.streetSide")}</label>
+            <div className="grid grid-cols-4 gap-1.5">
+              {(["S", "N", "W", "E"] as const).map((side) => (
+                <button
+                  key={side}
+                  type="button"
+                  onClick={() => setParams({ street_side: side })}
+                  className={`px-2 py-1.5 rounded-md border text-xs transition-colors ${
+                    params.street_side === side
+                      ? "border-brand-500 bg-brand-50 text-brand-700 font-semibold"
+                      : "border-surface-border text-slate-600 hover:border-slate-300"
+                  }`}
+                >
+                  {t(`streetSide.${side}`)}
+                </button>
+              ))}
+            </div>
+            <p className="text-xs text-slate-500 mt-1 leading-snug">{t("form.streetSideHint")}</p>
+          </div>
+        ) : null}
       </Collapsible>
 
       {/* Rooms — collapsed summary by default; the program comes from the

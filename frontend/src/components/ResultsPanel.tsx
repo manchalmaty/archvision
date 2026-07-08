@@ -134,6 +134,94 @@ function GeoCard() {
         </p>
         <p style={{ fontSize: 13, color: "#33302a" }}>{g.foundation_type}</p>
       </div>
+      {g.seismic_zone >= 3 && (
+        <div
+          style={{
+            background: "#fff8ec",
+            border: "1px solid #f5d9a8",
+            borderRadius: 8,
+            padding: "8px 10px",
+            marginTop: 6,
+          }}
+        >
+          <p style={{ fontSize: 12, color: "#8a6d2f", lineHeight: 1.45 }}>
+            ⚠ {t("results.seismicAdvisory", { zone: g.seismic_zone })}
+          </p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Site placement — coverage + the two setback norms (street / neighbour) as a
+// traffic light, plus the seismic advisory. Honest figures: a breach shows red
+// here and as a SITE-* compliance issue, never a silent green.
+function SiteCard() {
+  const { t } = useTranslation();
+  const { result } = useStore();
+  if (!result?.site) return null;
+  const s = result.site;
+  const coveragePct = Math.round(s.coverage_ratio * 100);
+  const limitPct = Math.round(s.coverage_limit * 100);
+  const coverageOver = s.coverage_ratio > s.coverage_limit + 0.001;
+
+  const streetGap = s.clearances[s.street_side];
+  const neighborGap = Math.min(
+    ...(["S", "N", "W", "E"] as const)
+      .filter((e) => e !== s.street_side)
+      .map((e) => s.clearances[e])
+  );
+  const streetShort = streetGap < s.street_setback_m - 0.01;
+  const neighborShort = neighborGap < s.neighbor_setback_m - 0.01;
+
+  const ok = "#33302a";
+  const bad = "#c0392b";
+  const cells = [
+    {
+      label: t("results.siteCoverage"),
+      value: `${coveragePct}% / ${limitPct}%`,
+      color: coverageOver ? bad : ok,
+    },
+    {
+      label: t("results.siteStreetSetback"),
+      value: `${streetGap.toFixed(1)} / ${s.street_setback_m.toFixed(0)} m`,
+      color: streetShort ? bad : ok,
+    },
+    {
+      label: t("results.siteNeighborSetback"),
+      value: `${neighborGap.toFixed(1)} / ${s.neighbor_setback_m.toFixed(0)} m`,
+      color: neighborShort ? bad : ok,
+    },
+    {
+      label: t("results.sitePlotSize"),
+      value: `${s.plot_width_m.toFixed(0)}×${s.plot_depth_m.toFixed(0)} m`,
+      color: ok,
+    },
+  ];
+  return (
+    <div>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6, marginBottom: 6 }}>
+        {cells.map(({ label, value, color }) => (
+          <div key={label} style={{ background: "#fffdf8", borderRadius: 8, padding: "8px 10px" }}>
+            <p style={{ fontSize: 11, color: "#7c7768", marginBottom: 3 }}>{label}</p>
+            <p style={{ fontSize: 14, fontFamily: "monospace", color, fontWeight: 600 }}>{value}</p>
+          </div>
+        ))}
+      </div>
+      {s.seismic_flag && (
+        <div
+          style={{
+            background: "#fff8ec",
+            border: "1px solid #f5d9a8",
+            borderRadius: 8,
+            padding: "8px 10px",
+          }}
+        >
+          <p style={{ fontSize: 12, color: "#8a6d2f", lineHeight: 1.4 }}>
+            ⚠ {t("results.seismicAdvisory", { zone: s.seismic_zone })}
+          </p>
+        </div>
+      )}
     </div>
   );
 }
@@ -712,6 +800,21 @@ export function ResultsPanel({ onClose }: Props) {
             <Accordion title={t("results.geoClimate")}>
               <GeoCard />
             </Accordion>
+            {result.site && (
+              <Accordion
+                title={t("results.site")}
+                badge={
+                  <StatusBadge
+                    count={
+                      result.compliance_issues.filter((i) => i.rule_id.startsWith("SITE-")).length
+                    }
+                  />
+                }
+                defaultOpen={result.compliance_issues.some((i) => i.rule_id.startsWith("SITE-"))}
+              >
+                <SiteCard />
+              </Accordion>
+            )}
             <Accordion
               title={t("results.compliance", { count: result.compliance_issues.length })}
               badge={<StatusBadge count={result.compliance_issues.length} />}

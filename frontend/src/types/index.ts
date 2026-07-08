@@ -40,6 +40,9 @@ export interface BuildingParams {
   facing: Facing;
   // Auto-rotate the finished plan to the orientation with the best daylight.
   auto_orient: boolean;
+  // Which plot edge abuts the street (red line) — drives the larger front
+  // setback; the other three edges get the neighbour setback. S = plan front.
+  street_side: "S" | "N" | "W" | "E";
 }
 
 export interface GeoClimateData {
@@ -134,4 +137,25 @@ export interface GenerationResult {
   ifc_file_url: string;
   warnings: string[];
   insolation_score: number;
+  site: SitePlan | null;
+}
+
+// The building placed on its plot (present only when a plot size was given).
+// Offsets translate the plan's ground-floor min corner into the plot frame;
+// clearances are the actual yard metres on each compass edge.
+export interface SitePlan {
+  plot_width_m: number;
+  plot_depth_m: number;
+  building_width_m: number;
+  building_depth_m: number;
+  offset_x: number;
+  offset_y: number;
+  street_side: "S" | "N" | "W" | "E";
+  street_setback_m: number;
+  neighbor_setback_m: number;
+  clearances: Record<"S" | "N" | "W" | "E", number>;
+  coverage_ratio: number;
+  coverage_limit: number;
+  seismic_zone: number;
+  seismic_flag: boolean;
 }

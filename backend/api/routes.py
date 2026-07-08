@@ -21,12 +21,14 @@ from core.llm_layout_engine import LLMLayoutEngine
 from core.orientation import best_turns, rotate_layout
 from core.plan_invariants import check_invariants
 from core.ratelimit import limiter
+from core.site_planner import check_site, plan_site
 from mep.clash_detector import ClashDetector
 from mep.pipe_router import PipeRouter
 from models import (
     BuildingParams,
     ComplianceIssue,
     ComplianceRequest,
+    CountryCode,
     GenerationResult,
     MEPConflict,
     MEPRoutingRequest,
@@ -85,8 +87,12 @@ async def generate_plan(
 
     project_id = str(uuid.uuid4())
 
-    # 1. Geoclimate calculation
+    # 1. Geoclimate calculation. Resolve the region globally first: a real place
+    # keeps its own seismicity/frost regardless of the picked country, and the
+    # matched region's country becomes the effective country for currency.
+    region_res = geo_calc.resolve(params.country, params.region)
     geo_data = geo_calc.calculate(params.country, params.region, params.floors)
+    effective_country = CountryCode(region_res.effective_country)
 
     # 2. Validate floors vs seismic limit
     warnings = []
@@ -94,6 +100,13 @@ async def generate_plan(
         warnings.append(
             f"Seismic zone {geo_data.seismic_zone} limits building to "
             f"{geo_data.max_floors_seismic} floors. Requested: {params.floors}"
+        )
+    # An unrecognized region must flag, not silently borrow country averages
+    # under the city's name — the same honesty rule as the rest of the product.
+    if params.region and not region_res.recognized:
+        warnings.append(
+            f"Регион «{params.region}» не распознан — использованы средние параметры "
+            f"страны. Уточните сейсмичность и глубину промерзания участка у специалиста."
         )
 
     # 3. Generate 2D/3D layout
@@ -134,13 +147,37 @@ async def generate_plan(
     ]
     compliance_issues.extend(await rag_checker.check(params, rooms))
 
+    # 5a. Site placement — put the building on its plot and mirror any setback
+    # or coverage breach into compliance_issues as a red SITE-* ERROR (same
+    # honesty contract as the invariants). Only when a full plot size is given;
+    # the tool still works with no plot. Runs after auto-orient so the placed
+    # footprint matches the final geometry.
+    site = None
+    if params.plot_width_m and params.plot_depth_m:
+        site = plan_site(
+            rooms,
+            params.plot_width_m,
+            params.plot_depth_m,
+            params.street_side,
+            geo_data.seismic_zone,
+        )
+        compliance_issues.extend(
+            ComplianceIssue(
+                rule_id=f"SITE-{v.rule}-{v.code}",
+                description=v.message,
+                severity="ERROR",
+            )
+            for v in check_site(site)
+        )
+
     # 6. Generate IFC file
     ifc_gen = IFCGenerator(project_id, params, rooms, pipes, geo_data)
     ifc_gen.generate()
     ifc_url = f"/api/v1/download/{project_id}"
 
-    # 7. Cost estimation
-    estimator = CostEstimator(rooms, geo_data, params.country)
+    # 7. Cost estimation — currency follows the effective (region-matched)
+    # country, so typing "Алматы" prices in ₸ without picking KZ for it.
+    estimator = CostEstimator(rooms, geo_data, effective_country)
     cost = estimator.estimate()
 
     result = GenerationResult(
@@ -153,6 +190,7 @@ async def generate_plan(
         ifc_file_url=ifc_url,
         warnings=warnings,
         insolation_score=insolation_score(rooms, params.facing),
+        site=site,
     )
 
     # Persist the result next to the IFC so /report/{id} and project history

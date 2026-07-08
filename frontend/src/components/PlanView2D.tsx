@@ -27,6 +27,11 @@ const SUN_RAYS = Array.from({ length: 8 }, (_, i) => {
   return [Math.cos(a), Math.sin(a)] as const;
 });
 
+// Site layer: the plot boundary, buildable envelope and street edge. Green is
+// free of the existing legend palette (red/amber conflicts, cyan MEP, blue
+// windows, amber/slate sun) and reads as "land".
+const PLOT_COLOR = "#4f7a3f";
+
 // MEP draft layer (plumbing): wet points + a shared riser + approximate branch
 // lines. Cyan keeps it distinct from windows (blue) and conflicts (red/amber).
 const MEP_COLOR = "#0891b2";
@@ -63,6 +68,94 @@ function WaterDrop({ cx, cy }: { cx: number; cy: number }) {
         stroke="#ffffff"
         strokeWidth={0.04}
       />
+    </g>
+  );
+}
+
+// Plot rectangle in world coords (pre-flip): min corner (x0,y0), size w×h, plus
+// the setbacks and which edge is the street. Derived from result.site + the
+// ground-floor footprint so the building sits at its real place on the land.
+interface Plot {
+  x0: number;
+  y0: number;
+  w: number;
+  h: number;
+  street: number;
+  neighbor: number;
+  streetSide: "S" | "N" | "W" | "E";
+}
+
+// The plot boundary (dash-dot property line), the buildable envelope (dashed
+// inner rect at the setbacks) and a bold street edge with a label. Drawn behind
+// the rooms so the house reads as sitting inside the land.
+function SitePlot({ plot, fy, streetLabel }: { plot: Plot; fy: FlipFn; streetLabel: string }) {
+  const { x0, y0, w, h, street, neighbor, streetSide } = plot;
+  const x1 = x0 + w;
+  const y1 = y0 + h;
+  const ex0 = x0 + (streetSide === "W" ? street : neighbor);
+  const ex1 = x1 - (streetSide === "E" ? street : neighbor);
+  const ey0 = y0 + (streetSide === "S" ? street : neighbor);
+  const ey1 = y1 - (streetSide === "N" ? street : neighbor);
+  const envOk = ex1 > ex0 && ey1 > ey0;
+  const horiz = streetSide === "S" || streetSide === "N";
+  const edgeY = streetSide === "S" ? y0 : y1;
+  const edgeX = streetSide === "W" ? x0 : x1;
+  const out = 0.9; // label offset outside the plot
+
+  // Street label anchor + rotation (labels run along the street edge).
+  const lx = horiz ? (x0 + x1) / 2 : streetSide === "W" ? edgeX - out : edgeX + out;
+  const ly = horiz
+    ? streetSide === "S"
+      ? fy(y0) + out
+      : fy(y1) - out + 0.35
+    : fy((y0 + y1) / 2);
+
+  return (
+    <g pointerEvents="none">
+      {/* Plot fill + property line (dash-dot) */}
+      <rect
+        x={x0}
+        y={fy(y1)}
+        width={w}
+        height={h}
+        fill={PLOT_COLOR}
+        fillOpacity={0.04}
+        stroke={PLOT_COLOR}
+        strokeWidth={0.08}
+        strokeDasharray="0.7 0.2 0.14 0.2"
+      />
+      {/* Buildable envelope (inside the setbacks) */}
+      {envOk && (
+        <rect
+          x={ex0}
+          y={fy(ey1)}
+          width={ex1 - ex0}
+          height={ey1 - ey0}
+          fill="none"
+          stroke={PLOT_COLOR}
+          strokeWidth={0.05}
+          strokeOpacity={0.65}
+          strokeDasharray="0.32 0.22"
+        />
+      )}
+      {/* Street edge — a bold segment along the red line */}
+      {horiz ? (
+        <line x1={x0} y1={fy(edgeY)} x2={x1} y2={fy(edgeY)} stroke={PLOT_COLOR} strokeWidth={0.16} />
+      ) : (
+        <line x1={edgeX} y1={fy(y0)} x2={edgeX} y2={fy(y1)} stroke={PLOT_COLOR} strokeWidth={0.16} />
+      )}
+      <text
+        x={lx}
+        y={ly}
+        fontSize={0.42}
+        fill={PLOT_COLOR}
+        textAnchor="middle"
+        fontWeight={600}
+        transform={horiz ? undefined : `rotate(-90 ${lx} ${ly})`}
+        style={{ textTransform: "uppercase", letterSpacing: "0.08em" }}
+      >
+        {streetLabel}
+      </text>
     </g>
   );
 }
@@ -335,6 +428,7 @@ const PlanSheet = memo(function PlanSheet({
   showMEP,
   conflicts,
   riser,
+  plot,
   selectedRoomId,
   setSelectedRoom,
   movedRef,
@@ -346,6 +440,7 @@ const PlanSheet = memo(function PlanSheet({
   showMEP: boolean;
   conflicts: MEPConflict[];
   riser: { x: number; y: number } | null;
+  plot: Plot | null;
   selectedRoomId: string | null;
   setSelectedRoom: (id: string | null) => void;
   movedRef: React.MutableRefObject<boolean>;
@@ -359,6 +454,9 @@ const PlanSheet = memo(function PlanSheet({
 
   return (
     <g>
+      {/* Plot + setbacks (behind the building) */}
+      {plot && <SitePlot plot={plot} fy={fy} streetLabel={t("viewer.street")} />}
+
       {/* Room fills (clickable) */}
       {rooms.map((r) => {
         const selected = r.room_id === selectedRoomId;
@@ -622,15 +720,43 @@ export function PlanView2D() {
   // Riser is anchored on the lowest wet floor, so derive it from ALL rooms.
   const riser = useMemo(() => (result ? computeRiser(result.rooms) : null), [result]);
 
+  // Plot placement is a ground-floor concept: only shown on the ground floor,
+  // positioned so the ground footprint's min corner lands at the site offset.
+  const plot = useMemo<Plot | null>(() => {
+    const site = result?.site;
+    if (!site) return null;
+    const groundFloor = Math.min(...result!.rooms.map((r) => r.floor));
+    if (activeFloor !== groundFloor) return null;
+    const ground = result!.rooms.filter((r) => r.floor === groundFloor);
+    const gMinX = Math.min(...ground.map((r) => r.x));
+    const gMinY = Math.min(...ground.map((r) => r.y));
+    return {
+      x0: gMinX - site.offset_x,
+      y0: gMinY - site.offset_y,
+      w: site.plot_width_m,
+      h: site.plot_depth_m,
+      street: site.street_setback_m,
+      neighbor: site.neighbor_setback_m,
+      streetSide: site.street_side,
+    };
+  }, [result, activeFloor]);
+
   const fit: VB = useMemo(() => {
     if (!bbox) return { x: -5, y: -5, w: 10, h: 10 };
+    let { minX, minY, maxX, maxY } = bbox;
+    if (plot) {
+      minX = Math.min(minX, plot.x0);
+      minY = Math.min(minY, plot.y0);
+      maxX = Math.max(maxX, plot.x0 + plot.w);
+      maxY = Math.max(maxY, plot.y0 + plot.h);
+    }
     return {
-      x: bbox.minX - PAD,
-      y: bbox.minY - PAD,
-      w: bbox.maxX - bbox.minX + PAD * 2,
-      h: bbox.maxY - bbox.minY + PAD * 2,
+      x: minX - PAD,
+      y: minY - PAD,
+      w: maxX - minX + PAD * 2,
+      h: maxY - minY + PAD * 2,
     };
-  }, [bbox]);
+  }, [bbox, plot]);
 
   // Reset zoom when a new plan arrives or the floor changes
   useEffect(() => {
@@ -790,6 +916,7 @@ export function PlanView2D() {
           showMEP={showMEP}
           conflicts={result.mep_conflicts}
           riser={riser}
+          plot={plot}
           selectedRoomId={selectedRoomId}
           setSelectedRoom={setSelectedRoom}
           movedRef={movedRef}

@@ -46,7 +46,7 @@ export default {
   },
   form: {
     buildingParams: "Параметры здания",
-    houseShape: "Форма дома",
+    proportions: "Пропорции",
     country: "Страна",
     floors: "Этажи",
     region: "Регион (необязательно)",
@@ -56,21 +56,20 @@ export default {
     plotDepth: "Глубина",
     plotWarning:
       "Комнаты занимают {{total}} м², а участок вмещает ~{{capacity}} м² на {{floors}} этаж(а). Уменьшите площади или добавьте этажи.",
+    streetSide: "Сторона улицы",
+    streetSideHint: "Какая сторона участка выходит на улицу (красную линию).",
     rooms: "Комнаты",
     addRoom: "+ Добавить комнату",
     removeRoom: "Удалить комнату",
     customName: "Своё название (необязательно)",
     generate: "Сгенерировать план",
     generatingBtn: "Генерация…",
-    sectionShapeOrient: "Форма и ориентация",
+    sectionShapeOrient: "Пропорции и ориентация",
     sectionSite: "Участок",
   },
   shapes: {
-    rectangular: "Прямоуг.",
-    square: "Квадрат.",
-    l_shape: "Г-образн.",
-    u_shape: "П-образн.",
-    t_shape: "Т-образн.",
+    rectangular: "Вытянутая",
+    square: "Компактная",
   },
   openness: {
     title: "Открытость планировки",
@@ -165,6 +164,19 @@ export default {
     stampArea: "Площадь",
     stampFloors: "Этажей",
     stampRef: "Шифр",
+    site: "Участок и отступы",
+    siteCoverage: "Застройка участка",
+    siteStreetSetback: "Отступ от улицы",
+    siteNeighborSetback: "Отступ от соседей",
+    sitePlotSize: "Размер участка",
+    seismicAdvisory:
+      "Высокая сейсмичность (зона {{zone}}): нужен ж/б каркас / монолитный фундамент и проверка специалистом — ленточного недостаточно, а каркас удорожает смету (оценивает инженер). Точный балл — по карте ОСР/СНиП для участка.",
+  },
+  streetSide: {
+    S: "Спереди",
+    N: "Сзади",
+    W: "Слева",
+    E: "Справа",
   },
   mepHints: {
     pipe_pipe_clash:
@@ -194,5 +206,7 @@ export default {
     clashHigh: "Конфликт сетей (выс.)",
     clashMedium: "Конфликт сетей (сред.)",
     selectedRoom: "Выбранная комната",
+    plot: "Участок и отступы",
+    street: "Улица",
   },
 };

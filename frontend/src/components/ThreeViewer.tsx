@@ -485,6 +485,34 @@ export function ThreeViewer() {
                 </svg>
                 <span>{t("viewer.daylight")}</span>
               </div>
+              {result.site && (
+                <div className="flex items-center gap-2">
+                  <svg viewBox="0 0 16 16" className="w-3.5 h-3.5 flex-shrink-0">
+                    <rect
+                      x="1.5"
+                      y="1.5"
+                      width="13"
+                      height="13"
+                      fill="none"
+                      stroke="#4f7a3f"
+                      strokeWidth="1.1"
+                      strokeDasharray="3 1 1 1"
+                    />
+                    <rect
+                      x="4"
+                      y="4"
+                      width="8"
+                      height="8"
+                      fill="none"
+                      stroke="#4f7a3f"
+                      strokeWidth="0.8"
+                      strokeDasharray="1.5 1"
+                      opacity="0.7"
+                    />
+                  </svg>
+                  <span>{t("viewer.plot")}</span>
+                </div>
+              )}
               {showMEP && (
                 <div className="flex items-center gap-2">
                   <svg viewBox="0 0 16 16" className="w-3.5 h-3.5 flex-shrink-0">

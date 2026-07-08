@@ -4,6 +4,7 @@ Uses Air Freezing Index (AFI) method for frost depth.
 """
 
 import math
+from dataclasses import dataclass
 
 from models import CountryCode, GeoClimateData
 
@@ -50,6 +51,29 @@ AFI_BY_COUNTRY: dict[str, dict] = {
 # Seismic zone → max allowed floors without special engineering
 SEISMIC_FLOOR_LIMITS = {1: 5, 2: 4, 3: 3, 4: 2}
 
+# Zones at/above this need the high-seismicity structural advisory (ж/б каркас /
+# монолитный фундамент). On this engine's internal 1–4 scale, 3–4 approximate
+# high MSK intensity; the exact site intensity is an ОСР/СНиП map value, NOT
+# something this tool asserts.
+SEISMIC_ADVISORY_ZONE = 3
+
+
+@dataclass
+class RegionResolution:
+    """How a (country, region) request resolved against the region index.
+
+    effective_country is the country whose region actually matched — it may
+    differ from the requested country (pick RU, type "Алматы" → KZ), and it is
+    what drives the local currency. recognized is False only when a region was
+    given but matched nothing, so the caller can flag it instead of silently
+    using country-average climate under the city's name.
+    """
+
+    effective_country: str
+    climate: dict
+    matched_key: str | None
+    recognized: bool
+
 
 # Wall thickness rules by frost depth (mm)
 def wall_thickness_by_frost(frost_depth_m: float) -> int:
@@ -88,15 +112,50 @@ def foundation_type_by_frost(frost_depth_m: float, seismic_zone: int) -> str:
 
 
 class GeoClimateCalculator:
-    def calculate(self, country: CountryCode, region: str | None, floors: int) -> GeoClimateData:
-        country_data = AFI_BY_COUNTRY.get(country.value, AFI_BY_COUNTRY["OTHER"])
+    def resolve(self, country: CountryCode, region: str | None) -> RegionResolution:
+        """Resolve a region name to its climate + effective country, globally.
 
-        climate = country_data.get("default", {})
-        if region:
-            for key in country_data:
-                if key.lower() in region.lower() or region.lower() in key.lower():
-                    climate = country_data[key]
-                    break
+        Priority: exact match inside the selected country → exact match in any
+        country → substring inside the selected country → substring in any
+        country. Anything left is unrecognized (recognized=False) and falls back
+        to the selected country's average. A region is a real place regardless of
+        which country the user picked, so its seismicity/frost must not be masked
+        by the picked country's default (the Almaty-under-Russia safety bug).
+        """
+        cc = country.value
+        country_data = AFI_BY_COUNTRY.get(cc, AFI_BY_COUNTRY["OTHER"])
+        default = country_data.get("default", {})
+
+        if not region or not region.strip():
+            return RegionResolution(cc, default, None, True)
+        r = region.strip().lower()
+
+        def regions(data: dict):
+            return ((k, v) for k, v in data.items() if k != "default")
+
+        # 1. exact match within the selected country
+        for key, val in regions(country_data):
+            if key.lower() == r:
+                return RegionResolution(cc, val, key, True)
+        # 2. exact match in any country → that region's country is effective
+        for oc, data in AFI_BY_COUNTRY.items():
+            for key, val in regions(data):
+                if key.lower() == r:
+                    return RegionResolution(oc, val, key, True)
+        # 3. substring within the selected country (e.g. "г. Алматы")
+        for key, val in regions(country_data):
+            if key.lower() in r or r in key.lower():
+                return RegionResolution(cc, val, key, True)
+        # 4. substring in any country
+        for oc, data in AFI_BY_COUNTRY.items():
+            for key, val in regions(data):
+                if key.lower() in r or r in key.lower():
+                    return RegionResolution(oc, val, key, True)
+        # 5. unrecognized — flag it, do not pretend
+        return RegionResolution(cc, default, None, False)
+
+    def calculate(self, country: CountryCode, region: str | None, floors: int) -> GeoClimateData:
+        climate = self.resolve(country, region).climate
 
         afi = climate["afi"]
         seismic = climate["seismic"]

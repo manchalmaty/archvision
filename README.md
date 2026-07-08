@@ -101,8 +101,10 @@ cd frontend && npx vitest run && npx tsc --noEmit
 
 ## Roadmap
 
-1. **Site placement v1** — plot rectangle by hand, RK setbacks (3/5 m), coverage
-   ≤ 30%, seismic flag → the first *real* regional code checks. Next up.
+1. **Real L/U/T footprints** — non-rectangular silhouettes. The proportions
+   control today only stretches a central-hall rectangle (honest, but a
+   rectangle); a real L/U/T outline and fitting it to the plot are the same
+   solver problem as site placement, so they're likely one pass together.
 2. Heating layer in the estimate (heat-loss data already computed).
 3. DXF export (`ezdxf`) — the bridge to CIS engineers' AutoCAD workflow.
 4. A/B plan comparison by cost delta.

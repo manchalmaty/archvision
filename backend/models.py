@@ -54,6 +54,10 @@ class BuildingParams(BaseModel):
     # When true, rotate the finished plan to the quarter-turn that best faces
     # rooms to the sun (actuator). The solver stays sun-blind; this is on top.
     auto_orient: bool = False
+    # Which plot edge abuts the street (red line). Drives the larger front
+    # setback; the other three edges get the neighbour setback. S = the plan's
+    # front (min-y / bottom) faces the street — the natural default.
+    street_side: str = "S"  # S|N|E|W
 
 
 class GeoClimateData(BaseModel):
@@ -101,6 +105,31 @@ class RoomLayout(BaseModel):
     sun: str = ""
 
 
+class SitePlan(BaseModel):
+    """The building placed on its plot, with the setback / coverage figures.
+
+    Offsets translate the plan (whose ground floor is anchored at the origin)
+    into the plot's coordinate frame; clearances are the actual metres of yard
+    on each compass edge. All figures are honest w×d geometry, matching the rest
+    of the app — nothing here subtracts wall thickness.
+    """
+
+    plot_width_m: float
+    plot_depth_m: float
+    building_width_m: float
+    building_depth_m: float
+    offset_x: float
+    offset_y: float
+    street_side: str  # S|N|E|W
+    street_setback_m: float
+    neighbor_setback_m: float
+    clearances: dict[str, float]  # {"S","N","W","E"} → yard metres on that edge
+    coverage_ratio: float
+    coverage_limit: float
+    seismic_zone: int
+    seismic_flag: bool
+
+
 class MEPConflict(BaseModel):
     conflict_id: str
     conflict_type: str
@@ -140,6 +169,9 @@ class GenerationResult(BaseModel):
     warnings: list[str]
     # Overall daylight score 0..100 for the chosen facing (sensor).
     insolation_score: float = 0.0
+    # Plot placement + setback/coverage figures. Present only when a plot size
+    # was given; None otherwise (the tool still works with no plot).
+    site: SitePlan | None = None
 
 
 class ComplianceRequest(BaseModel):
