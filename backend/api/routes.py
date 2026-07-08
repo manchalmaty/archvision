@@ -19,6 +19,7 @@ from core.insolation import annotate as annotate_insolation
 from core.insolation import score as insolation_score
 from core.llm_layout_engine import LLMLayoutEngine
 from core.orientation import best_turns, rotate_layout
+from core.plan_invariants import check_invariants
 from core.ratelimit import limiter
 from mep.clash_detector import ClashDetector
 from mep.pipe_router import PipeRouter
@@ -116,8 +117,22 @@ async def generate_plan(
     clash_detector = ClashDetector(rooms, pipes)
     conflicts = clash_detector.detect()
 
-    # 5. Compliance check via RAG
-    compliance_issues = await rag_checker.check(params, rooms)
+    # 5. Compliance check via RAG + the 9 deterministic invariants. The
+    # invariant checker used to run only in tests, so a plan violating rule 9
+    # (a 1.8 m "living room") shipped with a green "all rules passed" badge.
+    # Violations are ERRORs with the message text intact — the user must read
+    # WHAT is broken, not just see a lower score. Runs after auto-orient so it
+    # judges the final geometry.
+    compliance_issues = [
+        ComplianceIssue(
+            rule_id=f"INV-{v.rule}-{v.code.upper()}",
+            description=v.message,
+            severity="ERROR",
+            room_id=v.room_id,
+        )
+        for v in check_invariants(rooms, openness=params.openness)
+    ]
+    compliance_issues.extend(await rag_checker.check(params, rooms))
 
     # 6. Generate IFC file
     ifc_gen = IFCGenerator(project_id, params, rooms, pipes, geo_data)
@@ -257,7 +272,9 @@ async def list_projects(
                 "created_at": datetime.fromtimestamp(mtime(fname), tz=UTC).isoformat(),
                 "rooms": len(result.rooms),
                 "floors": max((r.floor for r in result.rooms), default=1),
-                "total_area_m2": round(sum(r.area_m2 for r in result.rooms), 1),
+                # Actual tiled footprint (w×d) — the same single definition the
+                # canvas, штамп and PDF show; area_m2 is the REQUEST, not the plan.
+                "total_area_m2": round(sum(r.width * r.depth for r in result.rooms), 1),
                 "country_currency": result.cost_estimate.currency,
             }
         )

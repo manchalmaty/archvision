@@ -17,7 +17,10 @@ from models import (
     WindowSpec,
 )
 
-WET_ZONES = {RoomType.KITCHEN, RoomType.BATHROOM, RoomType.TOILET}
+# UTILITY included: a laundry/хозблок is plumbing (mep.pipe_router agrees) and
+# belongs on the wet band's riser wall. Banded with the bedrooms it became a
+# 0.65 m sliver in the deep dry band — the family preset's tiled-fallback bug.
+WET_ZONES = {RoomType.KITCHEN, RoomType.BATHROOM, RoomType.TOILET, RoomType.UTILITY}
 
 # Private rooms are never a through-route: the door tree must not adopt another
 # room as a child *of* a bedroom, or you would walk through the bedroom to reach
@@ -83,7 +86,9 @@ USABLE_MIN_SIDE: dict[RoomType, float] = {
     RoomType.TOILET: 0.8,
     RoomType.HALLWAY: 0.9,
     RoomType.UTILITY: 1.2,
-    RoomType.GARAGE: 2.4,
+    # A car is ~1.8–2.0 m wide and the gate is 2.4 m: a 2.4 m garage cannot be
+    # entered. 3.0 is the physical floor, not a comfort preference.
+    RoomType.GARAGE: 3.0,
 }
 
 
@@ -658,8 +663,100 @@ class LayoutEngine:
             cursor_y += row_h
         return layouts
 
-    def _emit_row(self, layouts, floor, group, ox, oy, width) -> float:
-        """Lay one row of rooms spanning [ox, ox+width] exactly; return next y."""
+    # Small wet closets that may share one stacked column when their band is
+    # too deep for their areas — bathroom+toilet in one column is the classic
+    # "санузел столбиком" and keeps them on one plumbing wall (rule 5 bonus).
+    _STACKABLE = (RoomType.BATHROOM, RoomType.TOILET, RoomType.UTILITY)
+
+    @staticmethod
+    def _donated_widths(cells, width, rh=None) -> list[float]:
+        """Span for each cell of a row (cell = [room] or a stacked column).
+
+        Spans start area-proportional; a donation pass then lets cells with
+        spare span top up cells below their usable minimum (a donor never
+        drops below its own minimum nor 90% of its area — rule 2's floor), so
+        a 1.5 m² toilet can sit in a deep band beside bedrooms without the
+        whole house being widened to save it. Symmetric: called with
+        (members-as-cells, rh, cell_width) it distributes DEPTHS inside a
+        stacked column. `rh` is the perpendicular extent (defaults to the
+        exact-tiling depth area/width; a garage band passes its floored one).
+        """
+        area = sum(r.area_m2 for cell in cells for r in cell)
+        if rh is None:
+            rh = area / width if width > 0 else 0.0
+        if rh <= 0 or width <= 0:
+            return [0.0] * len(cells)
+        shares = [sum(r.area_m2 for r in cell) for cell in cells]
+        widths = [width * s / area for s in shares]
+        needs = [max(USABLE_MIN_SIDE.get(r.room_type, 1.5) for r in cell) for cell in cells]
+        donor_floor = [max(n, 0.901 * s / rh) for n, s in zip(needs, shares)]
+        deficit = sum(max(0.0, n - w) for n, w in zip(needs, widths))
+        surplus = sum(max(0.0, w - f) for f, w in zip(donor_floor, widths))
+        if 0 < deficit <= surplus:
+            scale = deficit / surplus
+            widths = [
+                n if w < n else w - max(0.0, w - f) * scale
+                for w, n, f in zip(widths, needs, donor_floor)
+            ]
+        return widths
+
+    @classmethod
+    def _cells_clear(cls, cells, width, rh=None) -> bool:
+        """Post-donation, does every cell (and every stacked member) clear its
+        usable minimum in BOTH directions?"""
+        ws = cls._donated_widths(cells, width, rh)
+        for w, cell in zip(ws, cells):
+            if w < max(USABLE_MIN_SIDE.get(r.room_type, 1.5) for r in cell) - 1e-9:
+                return False
+            if len(cell) > 1:
+                if rh is None:
+                    total = sum(r.area_m2 for c in cells for r in c)
+                    rh = total / width if width > 0 else 0.0
+                depths = cls._donated_widths([[m] for m in cell], rh, w)
+                for d, m in zip(depths, cell):
+                    if d < USABLE_MIN_SIDE.get(m.room_type, 1.5) - 1e-9:
+                        return False
+        return True
+
+    @classmethod
+    def _stack_cells(cls, group, width):
+        """Cells for one band, stacking small wet rooms into one column when
+        plain proportional widths (plus donation) cannot clear the minimums.
+
+        Returns None when stacking is unnecessary or impossible — the caller
+        keeps the legacy one-room-per-cell row, so passing programs keep their
+        exact geometry. The column members sort largest-first; the emitter
+        turns that into "biggest wet room faces the hallway" so the toilet
+        tucks behind the bathroom, not the other way around.
+        """
+        area = sum(r.area_m2 for r in group)
+        depth = area / width if width > 0 else 0.0
+        if depth <= 0:
+            return None
+        singles = [[r] for r in group]
+        if cls._cells_clear(singles, width):
+            return None
+        wet = [r for r in group if r.room_type in cls._STACKABLE]
+        if len(wet) < 2:
+            return None
+        # Every member's minimum must fit along the column's depth.
+        if sum(USABLE_MIN_SIDE.get(r.room_type, 1.5) for r in wet) > depth + 1e-9:
+            return None
+        cells = [[r] for r in group if r.room_type not in cls._STACKABLE]
+        cells.append(sorted(wet, key=lambda r: -r.area_m2))
+        return cells
+
+    def _emit_row(
+        self, layouts, floor, group, ox, oy, width, hall_side="end", min_depth=0.0
+    ) -> float:
+        """Lay one row of cells spanning [ox, ox+width] exactly; return next y.
+
+        A cell is one room or a stacked wet column (see _stack_cells). The
+        stack's largest member faces the hallway (`hall_side` = which y-edge of
+        this row touches it), so the toilet sits behind the bathroom. A row
+        with `min_depth` (garage: a car physically needs 3.0 m) may emit deeper
+        than area/width — its rooms honestly GROW rather than turn unusable.
+        """
         if not group:
             return oy
 
@@ -669,26 +766,41 @@ class LayoutEngine:
             except ValueError:
                 return len(ROOM_ORDER)
 
-        group = sorted(group, key=_order_key)
-        area = sum(r.area_m2 for r in group)
-        rh = round(area / width, 3) if width > 0 else 0.0
-        x = ox
-        for i, room in enumerate(group):
-            rw = round(ox + width - x, 3) if i == len(group) - 1 else round(room.area_m2 / rh, 3)
+        def emit(room, x, y, w, d):
             layouts.append(
                 RoomLayout(
                     room_id=str(uuid.uuid4()),
                     room_type=room.room_type,
                     name=room.name or room.room_type.value.replace("_", " ").title(),
                     x=round(x, 3),
-                    y=round(oy, 3),
+                    y=round(y, 3),
                     floor=floor,
-                    width=rw,
-                    depth=rh,
+                    width=w,
+                    depth=d,
                     area_m2=room.area_m2,
                 )
             )
-            x += rw
+
+        group = sorted(group, key=_order_key)
+        area = sum(r.area_m2 for r in group)
+        rh = round(max(area / width, min_depth), 3) if width > 0 else 0.0
+        cells = self._stack_cells(group, width) or [[r] for r in group]
+        cells.sort(key=lambda c: _order_key(c[0]))
+        widths = self._donated_widths(cells, width, rh)
+        x = ox
+        for i, cell in enumerate(cells):
+            cw = round(ox + width - x, 3) if i == len(cells) - 1 else round(widths[i], 3)
+            if len(cell) == 1:
+                emit(cell[0], x, oy, cw, rh)
+            else:
+                members = cell if hall_side == "start" else list(reversed(cell))
+                depths = self._donated_widths([[m] for m in members], rh, cw)
+                y = oy
+                for j, m in enumerate(members):
+                    md = round(oy + rh - y, 3) if j == len(members) - 1 else round(depths[j], 3)
+                    emit(m, x, y, cw, md)
+                    y = round(y + md, 3)
+            x += cw
         return round(oy + rh, 3)
 
     @staticmethod
@@ -755,25 +867,42 @@ class LayoutEngine:
             north, south = (dry, wet) if (wet and dry) else self._balance_bands(banded)
 
         # Size the footprint so each band is both deep enough for its deepest
-        # room AND wide enough that its narrowest room clears its minimum side.
+        # room AND wide enough that its narrowest cell clears its minimum side.
         # Upper bound (depth): width <= band_area / deepest_min.
-        # Lower bound (width): width >= narrowest_min * band_area / room_area.
-        # When the two conflict (too many rooms for one row) the width bound wins
-        # and the invariant checker honestly reports the remaining shortfall.
-        # Apply every depth cap first, then every min-side raise, so a later
-        # band's cap can't undo an earlier band's raise — the min-side bound is
-        # the documented winner.
+        # Lower bound (width): width >= narrowest_min * band_area / cell_area.
+        # A band whose narrow rooms can be rescued in-row (donation from
+        # neighbours with spare width, or stacking small wet rooms into one
+        # column) does NOT raise the width. When a raise is still needed it is
+        # CLAMPED to the habitable bands' depth caps: saving a 1.2 m² toilet
+        # must never flatten every other band to 1.5–2 m — that unbounded raise
+        # is exactly what used to ship whole unusable houses. Any remaining
+        # shortfall stays visible: check_invariants flags it red in the route.
         for band in (north, south, buffer_band):
             if not band:
                 continue
             band_area = sum(r.area_m2 for r in band)
             deepest = max(USABLE_MIN_SIDE.get(r.room_type, 1.5) for r in band)
             width = min(width, band_area / deepest)
+        ceiling = min(
+            (
+                sum(r.area_m2 for r in band)
+                / max(USABLE_MIN_SIDE.get(r.room_type, 1.5) for r in band)
+                for band in (north, south)
+                if band
+            ),
+            default=width,
+        )
         for band in (north, south, buffer_band):
+            if not band:
+                continue
+            cells = self._stack_cells(band, width) or [[r] for r in band]
+            if self._cells_clear(cells, width):
+                continue
             band_area = sum(r.area_m2 for r in band)
-            for r in band:
-                need_w = USABLE_MIN_SIDE.get(r.room_type, 1.5)
-                width = max(width, need_w * band_area / r.area_m2)
+            for cell in cells:
+                need_w = max(USABLE_MIN_SIDE.get(r.room_type, 1.5) for r in cell)
+                cell_area = sum(r.area_m2 for r in cell)
+                width = max(width, min(need_w * band_area / cell_area, ceiling))
         if self.params.plot_width_m:
             width = min(width, self.params.plot_width_m)
         width = max(width, 2.0)
@@ -785,29 +914,125 @@ class LayoutEngine:
             if not group:
                 return True
             gh = sum(r.area_m2 for r in group) / width
-            return gh >= 1.0 and all((r.area_m2 / gh) >= 0.7 for r in group)
+            # Judge the cells _emit_row will actually produce (stacking +
+            # donation), or a row those mechanisms rescue gets rejected first.
+            cells = self._stack_cells(group, width) or [[r] for r in group]
+            return gh >= 1.0 and all(w >= 0.7 for w in self._donated_widths(cells, width))
 
         if not (_row_ok(north) and _row_ok(south) and _row_ok(buffer_band)):
             return self._layout_tiled(floor, rooms, aspect_factor=aspect_factor)
 
-        layouts: list[RoomLayout] = []
-        y = self._emit_row(layouts, floor, north, 0.0, 0.0, width)
-        if hall is not None:
-            hall_h = round(max(hall.area_m2 / width, 1.3), 3)
-            layouts.append(
-                RoomLayout(
-                    room_id=str(uuid.uuid4()),
-                    room_type=hall.room_type,
-                    name=hall.name or "Hallway",
-                    x=0.0,
-                    y=round(y, 3),
-                    floor=floor,
-                    width=width,
-                    depth=hall_h,
-                    area_m2=hall.area_m2,
-                )
+        # The hallway band has a 1.3 m depth floor, so on a wide house it
+        # balloons past its request (the "15.6 m² прихожая" report — 20% of the
+        # house as corridor, whose printed dimension is the whole building
+        # width). When it overshoots 1.6×, the strip's W end goes to the
+        # smallest toilet/utility that fits a 1.3 m band (a guest WC by the
+        # entrance is classic planning) — the hall then prints its REAL extent.
+        # W end because the south band's wet cells sort first (ROOM_ORDER), so
+        # the pulled toilet lands on the bathroom's riser wall; the emit is
+        # re-verified and falls back to the legacy full band if the wet
+        # cluster would split (rule 5) anyway.
+        hall_h = round(max(hall.area_m2 / width, 1.3), 3) if hall is not None else 0.0
+        filler = None
+        if hall is not None and width * hall_h > 1.6 * hall.area_m2:
+            candidates = sorted(
+                (
+                    r
+                    for r in (*north, *south)
+                    if r.room_type in (RoomType.TOILET, RoomType.UTILITY)
+                    and USABLE_MIN_SIDE.get(r.room_type, 1.5) <= hall_h + 1e-9
+                ),
+                key=lambda r: r.area_m2,
             )
-            y = round(y + hall_h, 3)
-        y = self._emit_row(layouts, floor, south, 0.0, y, width)
-        self._emit_row(layouts, floor, buffer_band, 0.0, y, width)
-        return layouts
+            for cand in candidates:
+                wt = round(max(cand.area_m2 / hall_h, USABLE_MIN_SIDE[cand.room_type]), 3)
+                band = north if cand in north else south
+                if wt > 0.35 * width or len(band) <= 1:
+                    continue
+                # The donor band was SIZED with this room's area: pulling it
+                # must not sink the band's depth below its deepest min (that
+                # starved the kitchen to 1.5 m) nor break its cell minimums —
+                # the hallway gain is cosmetic, never worth a new red flag.
+                rest = [r for r in band if r is not cand]
+                rest_area = sum(r.area_m2 for r in rest)
+                deepest_rest = max(USABLE_MIN_SIDE.get(r.room_type, 1.5) for r in rest)
+                if rest_area / width < deepest_rest - 1e-9:
+                    continue
+                rest_cells = self._stack_cells(rest, width) or [[r] for r in rest]
+                if not self._cells_clear(rest_cells, width):
+                    continue
+                filler = (cand, wt)
+                break
+
+        def _emit_floor(pulled) -> list[RoomLayout]:
+            rows: list[RoomLayout] = []
+            nb = [r for r in north if pulled is None or r is not pulled[0]]
+            sb = [r for r in south if pulled is None or r is not pulled[0]]
+            y = self._emit_row(rows, floor, nb, 0.0, 0.0, width, hall_side="end")
+            if hall is not None:
+                hx = 0.0
+                if pulled is not None:
+                    cand, wt = pulled
+                    rows.append(
+                        RoomLayout(
+                            room_id=str(uuid.uuid4()),
+                            room_type=cand.room_type,
+                            name=cand.name or cand.room_type.value.replace("_", " ").title(),
+                            x=0.0,
+                            y=round(y, 3),
+                            floor=floor,
+                            width=wt,
+                            depth=hall_h,
+                            area_m2=cand.area_m2,
+                        )
+                    )
+                    hx = wt
+                rows.append(
+                    RoomLayout(
+                        room_id=str(uuid.uuid4()),
+                        room_type=hall.room_type,
+                        name=hall.name or "Hallway",
+                        x=hx,
+                        y=round(y, 3),
+                        floor=floor,
+                        width=round(width - hx, 3),
+                        depth=hall_h,
+                        area_m2=hall.area_m2,
+                    )
+                )
+                y = round(y + hall_h, 3)
+            y = self._emit_row(rows, floor, sb, 0.0, y, width, hall_side="start")
+            # The buffer band is the garage: its depth has a physical floor (a
+            # car does not shrink with the budget) — the band may grow past its
+            # requested area rather than emit a garage no car can enter.
+            buffer_min = (
+                max(USABLE_MIN_SIDE.get(r.room_type, 0.0) for r in buffer_band)
+                if buffer_band
+                else 0.0
+            )
+            self._emit_row(
+                rows, floor, buffer_band, 0.0, y, width, hall_side="start", min_depth=buffer_min
+            )
+            return rows
+
+        def _wet_connected(rows: list[RoomLayout]) -> bool:
+            wet_types = {RoomType.BATHROOM, RoomType.TOILET}
+            if openness == "closed":
+                wet_types.add(RoomType.KITCHEN)
+            wet = [r for r in rows if r.room_type in wet_types]
+            if len(wet) < 2:
+                return True
+            seen, stack = {wet[0].room_id}, [wet[0]]
+            while stack:
+                cur = stack.pop()
+                for other in wet:
+                    if other.room_id not in seen and _shared_len(cur, other) > 0.05:
+                        seen.add(other.room_id)
+                        stack.append(other)
+            return len(seen) == len(wet)
+
+        if filler is not None:
+            layouts = _emit_floor(filler)
+            if _wet_connected(layouts):
+                return layouts
+        return _emit_floor(None)

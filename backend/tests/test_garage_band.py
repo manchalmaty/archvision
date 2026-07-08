@@ -41,7 +41,7 @@ def test_garage_heavy_all_rooms_clear_min_sides():
 def test_garage_heavy_passes_all_invariants():
     rooms = _gen(GARAGE_HEAVY)
     violations = check_invariants(rooms)
-    assert violations == [], [f"{v.rule}: {v.detail}" for v in violations]
+    assert violations == [], [f"{v.rule}: {v.message}" for v in violations]
 
 
 def test_garage_gets_its_own_full_width_band():
@@ -63,7 +63,7 @@ def test_program_without_garage_unchanged_band_count():
     no_garage = [r for r in GARAGE_HEAVY if r.room_type != RoomType.GARAGE]
     rooms = _gen(no_garage)
     violations = check_invariants(rooms)
-    assert violations == [], [f"{v.rule}: {v.detail}" for v in violations]
+    assert violations == [], [f"{v.rule}: {v.message}" for v in violations]
 
 
 def _garage_and_floor(rooms):
@@ -127,3 +127,25 @@ def test_garage_stays_on_ground_floor_in_two_storey():
     rooms = LayoutEngine(params, GEO).generate()
     garage = next(r for r in rooms if r.room_type == RoomType.GARAGE)
     assert garage.floor == min(r.floor for r in rooms), "cars do not climb stairs"
+
+
+def test_garage_with_open_plan_passes_invariants():
+    params = BuildingParams(
+        rooms=GARAGE_HEAVY, country=CountryCode.RU, floors=1, openness="open"
+    )
+    rooms = LayoutEngine(params, GEO).generate()
+    violations = check_invariants(rooms, openness="open")
+    assert violations == [], [f"{v.rule}: {v.message}" for v in violations]
+    garage = next(r for r in rooms if r.room_type == RoomType.GARAGE)
+    assert any(d.kind == "gate" for d in garage.doors)
+
+
+def test_gate_survives_rotation():
+    from core.orientation import rotate_layout
+
+    rooms = _gen(GARAGE_HEAVY)
+    rotate_layout(rooms, 1)
+    garage, fr = _garage_and_floor(rooms)
+    gates = [d for d in garage.doors if d.kind == "gate"]
+    assert len(gates) == 1, "rotation must carry the gate, not clear or duplicate it"
+    assert not _adjacent_rooms(garage, gates[0].wall, fr), "rotated gate must stay external"
