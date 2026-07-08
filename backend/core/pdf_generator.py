@@ -92,14 +92,15 @@ _L = {
         "concrete": "Concrete",
         "brick": "Brick",
         "insul_m2": "Insulation",
-        "compliance": "Compliance Issues",
-        "no_issues": "All checked rules passed.",
+        "compliance": "Preliminary Checks (not a code review)",
+        "no_issues": "Areas and geometry checked. Building codes (SNiP/SP) "
+        "require review by a licensed specialist.",
         "fix": "Fix",
         "mep": "MEP Conflicts",
-        "no_clashes": "No MEP clashes detected.",
+        "no_clashes": "No clashes found. Checked: water riser and branches (draft).",
         "warnings": "Warnings",
-        "disclaimer": "Schematic design for preliminary assessment only. "
-        "Requires certification by a licensed architect.",
+        "disclaimer": "Draft layout and rough cost estimate — arrive at your "
+        "architect prepared. Not construction documents.",
     },
     "ru": {
         "title": "Отчёт по архитектурному эскизу",
@@ -125,14 +126,15 @@ _L = {
         "concrete": "Бетон",
         "brick": "Кирпич",
         "insul_m2": "Утеплитель",
-        "compliance": "Замечания по нормам",
-        "no_issues": "Все проверенные нормы соблюдены.",
+        "compliance": "Предварительная проверка (не проверка норм)",
+        "no_issues": "Площади и геометрия проверены. Проверка норм (СНиП/СП) — "
+        "у лицензированного специалиста.",
         "fix": "Рекомендация",
         "mep": "Конфликты инженерных сетей",
-        "no_clashes": "Конфликтов инженерных сетей не обнаружено.",
+        "no_clashes": "Конфликтов не найдено. Проверено: стояк и разводка воды (черновик).",
         "warnings": "Предупреждения",
-        "disclaimer": "Эскизный проект для предварительной оценки. "
-        "Требует заверения лицензированным архитектором.",
+        "disclaimer": "Черновая планировка и ориентировочная смета — чтобы прийти "
+        "к архитектору подготовленным. Не проектная документация.",
     },
     "kk": {
         "title": "Сәулеттік эскиз бойынша есеп",
@@ -158,14 +160,15 @@ _L = {
         "concrete": "Бетон",
         "brick": "Кірпіш",
         "insul_m2": "Жылу оқшаулағыш",
-        "compliance": "Нормалар бойынша ескертулер",
-        "no_issues": "Барлық тексерілген талаптар орындалды.",
+        "compliance": "Алдын ала тексеру (нормалар тексерісі емес)",
+        "no_issues": "Аудандар мен геометрия тексерілді. Нормаларды (ҚНжЕ) тексеру — "
+        "лицензияланған маманда.",
         "fix": "Ұсыныс",
         "mep": "Инженерлік желілер қақтығыстары",
-        "no_clashes": "Инженерлік желілер қақтығысы табылмады.",
+        "no_clashes": "Қақтығыстар табылмады. Тексерілді: су тірегі мен тарату (черновик).",
         "warnings": "Ескертулер",
-        "disclaimer": "Алдын ала бағалауға арналған эскиздік жоба. "
-        "Лицензияланған сәулетшінің растауын қажет етеді.",
+        "disclaimer": "Черновой жоспарлау және шамамен смета — сәулетшіге дайын "
+        "болып бару үшін. Жобалық құжаттама емес.",
     },
 }
 

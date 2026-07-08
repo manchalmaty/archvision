@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useStore } from "../store/useStore";
 import { PRESETS, FAMILY_KIDS_MIN, FAMILY_KIDS_MAX, type HouseholdPreset } from "../presets";
@@ -214,6 +214,22 @@ export function ParameterForm({ onGenerate }: Props) {
     isGenerating,
   } = useStore();
   const [roomsOpen, setRoomsOpen] = useState(false);
+  // "Add room" appends at the END of a possibly-scrolled-out list — without a
+  // scroll + flash the new row is invisible and the click looks like a no-op.
+  const [justAdded, setJustAdded] = useState<number | null>(null);
+  const newRoomRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (justAdded === null) return;
+    const scroll = setTimeout(
+      () => newRoomRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" }),
+      180
+    );
+    const clear = setTimeout(() => setJustAdded(null), 1400);
+    return () => {
+      clearTimeout(scroll);
+      clearTimeout(clear);
+    };
+  }, [justAdded]);
   const hasGarage = params.rooms.some((r) => r.room_type === "garage");
 
   const totalArea = params.rooms.reduce((s, r) => s + r.area_m2, 0);
@@ -556,7 +572,11 @@ export function ParameterForm({ onGenerate }: Props) {
           <div className="px-px">
             <div className="flex justify-end mb-2">
               <button
-                onClick={() => addRoom({ room_type: "bedroom", area_m2: 12 })}
+                onClick={() => {
+                  addRoom({ room_type: "bedroom", area_m2: 12 });
+                  setRoomsOpen(true);
+                  setJustAdded(params.rooms.length);
+                }}
                 className="text-xs text-brand-600 hover:text-brand-700 transition-colors"
               >
                 {t("form.addRoom")}
@@ -564,7 +584,11 @@ export function ParameterForm({ onGenerate }: Props) {
             </div>
             <div className="flex flex-col gap-2">
               {params.rooms.map((room, idx) => (
-                <div key={idx} className="card p-3 flex flex-col gap-2">
+                <div
+                  key={idx}
+                  ref={idx === justAdded ? newRoomRef : undefined}
+                  className={`card p-3 flex flex-col gap-2 ${idx === justAdded ? "flash-new" : ""}`}
+                >
                   <div className="flex items-center gap-2">
                     <select
                       className="input text-sm flex-1"
@@ -637,7 +661,6 @@ export function ParameterForm({ onGenerate }: Props) {
             t("form.generate")
           )}
         </button>
-        <p className="text-xs text-slate-600 text-center mt-2 pb-2">{t("form.formFooter")}</p>
       </div>
     </div>
   );

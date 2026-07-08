@@ -16,17 +16,33 @@ export default {
           700: "#a51810",
           900: "#5e0d09",
         },
-        // Cool "drafting paper" surfaces
+        // Warm drawing-paper surfaces — the brand palette (#F7F4EE paper), not
+        // Tailwind's cool slate: the UI inherits the sheet, not a SaaS shell.
         surface: {
-          dark: "#f8fafc", // app canvas (cool paper)
-          panel: "#f1f5f9", // side panels
-          card: "#ffffff", // cards / drawing sheet
-          border: "#e2e8f0", // hairline borders
+          dark: "#f2efe7", // app canvas (paper under the sheet)
+          panel: "#f7f4ee", // side panels (brand paper)
+          card: "#fffdf8", // cards / drawing sheet
+          border: "#e3ddcf", // hairline borders
+        },
+        // Warm ink ramp REPLACING Tailwind slate (anchored on brand gray
+        // #8C8A85): every existing text-slate-*/border-slate-* utility
+        // de-blues from this one table — same single-source trick as `brand`.
+        slate: {
+          50: "#f7f5f0",
+          100: "#edeae1",
+          200: "#dcd7c9",
+          300: "#c4beaf",
+          400: "#a39e90",
+          500: "#7c7768",
+          600: "#615c4f",
+          700: "#4a463c",
+          800: "#33302a",
+          900: "#201e19",
         },
       },
       fontFamily: {
-        sans: ["Inter", "system-ui", "sans-serif"],
-        display: ["Space Grotesk", "Inter", "sans-serif"],
+        sans: ["Golos Text", "system-ui", "sans-serif"],
+        display: ["Unbounded", "Golos Text", "sans-serif"],
         mono: ["JetBrains Mono", "monospace"],
       },
     },

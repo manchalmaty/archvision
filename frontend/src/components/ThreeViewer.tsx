@@ -450,9 +450,10 @@ export function ThreeViewer() {
         </div>
       )}
 
-      {/* Legend */}
+      {/* Legend — solid card: translucent bg interleaved with the SVG scale
+          bar underneath made both unreadable. */}
       {result && (
-        <div className="absolute bottom-4 left-4 card p-2 text-xs space-y-1 opacity-80">
+        <div className="absolute bottom-4 left-4 card p-2 text-xs space-y-1">
           {viewMode === "2d" && (
             <>
               <div className="flex items-center gap-2">

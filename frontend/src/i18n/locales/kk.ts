@@ -14,10 +14,11 @@ export default {
     dismissError: "Қатені жасыру",
     staleParams: "Параметрлер өзгерді — жоспарды қайта құрыңыз",
     shareLoadFailed: "Сілтеме бойынша жобаны жүктеу мүмкін болмады",
+    newProject: "Жаңа жоба",
     rateLimited: "Тым көп генерация — бір минут күтіп, қайталап көріңіз",
     openParams: "Параметрлерді ашу",
     disclaimer:
-      "Алдын ала бағалауға арналған эскиздік жоба. Лицензияланған сәулетшінің растауын қажет етеді.",
+      "Черновой жоспарлау және шамамен смета — сәулетшіге дайын болып бару үшін. Жобалық құжаттама емес.",
   },
   history: {
     title: "Менің жобаларым",
@@ -61,7 +62,6 @@ export default {
     customName: "Өз атауы (міндетті емес)",
     generate: "Жоспар құру",
     generatingBtn: "Құрылуда…",
-    formFooter: "IFC · 3D модель · инженерлік желілер · смета",
     sectionShapeOrient: "Пішін және бағдар",
     sectionSite: "Телім",
   },
@@ -133,7 +133,7 @@ export default {
     geoClimate: "Геоклимат және конструкция",
     costEstimate: "Смета",
     costBreakdown: "Смета бөлінісі",
-    compliance: "Нормалар ({{count}})",
+    compliance: "Алдын ала тексеру ({{count}})",
     frostDepth: "Қату тереңдігі",
     seismicZone: "Сейсмикалық аймақ",
     wallThickness: "Қабырға қалыңдығы",
@@ -144,8 +144,10 @@ export default {
     concrete: "Бетон",
     brick: "Кірпіш",
     insulationArea: "Жылу оқшаулағыш",
-    allRulesPassed: "✓ Барлық талаптар орындалды",
-    noClashes: "Инженерлік желілер қақтығысы жоқ",
+    precheckPassed: "Аудандар мен геометрия тексерілді",
+    codesNeedExpert: "Нормалар (ҚНжЕ) — лицензияланған маман тексеруі қажет",
+    noClashes: "Қақтығыстар табылмады",
+    mepCheckedScope: "Тексерілді: су тірегі мен тарату (черновик)",
     mepDraftNote:
       "Инженермен келісуге арналған нобай — тек стояк пен тарату сұлбасы, жұмыс спецификациясы емес.",
     total: "Барлығы",
@@ -160,6 +162,9 @@ export default {
     qualityGood: "Жақсы",
     qualityFair: "Орташа",
     qualityReview: "Тексеру қажет",
+    stampArea: "Ауданы",
+    stampFloors: "Қабат",
+    stampRef: "Шифр",
   },
   mepHints: {
     pipe_pipe_clash:

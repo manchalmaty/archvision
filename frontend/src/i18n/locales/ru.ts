@@ -14,10 +14,11 @@ export default {
     dismissError: "Скрыть ошибку",
     staleParams: "Параметры изменились — сгенерируйте план заново",
     shareLoadFailed: "Не удалось загрузить проект по ссылке",
+    newProject: "Новый проект",
     rateLimited: "Слишком много генераций — подождите минуту и попробуйте снова",
     openParams: "Открыть параметры",
     disclaimer:
-      "Эскизный проект для предварительной оценки. Требует заверения лицензированным архитектором.",
+      "Черновая планировка и ориентировочная смета — чтобы прийти к архитектору подготовленным. Не проектная документация.",
   },
   history: {
     title: "Мои проекты",
@@ -61,7 +62,6 @@ export default {
     customName: "Своё название (необязательно)",
     generate: "Сгенерировать план",
     generatingBtn: "Генерация…",
-    formFooter: "IFC · 3D-модель · инженерные сети · смета",
     sectionShapeOrient: "Форма и ориентация",
     sectionSite: "Участок",
   },
@@ -133,7 +133,7 @@ export default {
     geoClimate: "Геоклимат и конструктив",
     costEstimate: "Смета",
     costBreakdown: "Разбивка сметы",
-    compliance: "Нормы ({{count}})",
+    compliance: "Предварительная проверка ({{count}})",
     frostDepth: "Глубина промерзания",
     seismicZone: "Сейсмическая зона",
     wallThickness: "Толщина стен",
@@ -144,8 +144,10 @@ export default {
     concrete: "Бетон",
     brick: "Кирпич",
     insulationArea: "Утеплитель",
-    allRulesPassed: "✓ Все нормы соблюдены",
-    noClashes: "Конфликтов инженерных сетей нет",
+    precheckPassed: "Площади и геометрия проверены",
+    codesNeedExpert: "Нормы (СНиП/СП) — проверка у лицензированного специалиста",
+    noClashes: "Конфликтов не найдено",
+    mepCheckedScope: "Проверено: стояк и разводка воды (черновик)",
     mepDraftNote:
       "Черновик для согласования с инженером — только схема стояка и разводки, не рабочая спецификация.",
     total: "Всего",
@@ -160,6 +162,9 @@ export default {
     qualityGood: "Хорошо",
     qualityFair: "Средне",
     qualityReview: "Нужна проверка",
+    stampArea: "Площадь",
+    stampFloors: "Этажей",
+    stampRef: "Шифр",
   },
   mepHints: {
     pipe_pipe_clash:

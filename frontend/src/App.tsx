@@ -26,8 +26,17 @@ let shareLoadInFlight: string | null = null;
 
 export default function App() {
   const { t, i18n } = useTranslation();
-  const { params, setResult, setGenerating, isGenerating, result, resultStale, error, setError } =
-    useStore();
+  const {
+    params,
+    setResult,
+    setGenerating,
+    isGenerating,
+    result,
+    resultStale,
+    error,
+    setError,
+    clearProject,
+  } = useStore();
   // Panel-open lives in the store so the 2D viewer can offset its zoom widget.
   const rightOpen = useStore((s) => s.rightPanelOpen);
   const setRightOpen = useStore((s) => s.setRightPanelOpen);
@@ -92,6 +101,13 @@ export default function App() {
 
   const handleCancel = () => abortRef.current?.abort();
 
+  // Fresh start: F5 deliberately restores the plan via the #/p/{id} hash, so
+  // "new project" must drop both the state AND the hash or reload resurrects it.
+  const handleNewProject = () => {
+    clearProject();
+    history.replaceState(null, "", location.pathname + location.search);
+  };
+
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100vh", overflow: "hidden" }}>
       {/* Header */}
@@ -115,7 +131,7 @@ export default function App() {
             </svg>
           </button>
           {/* Brand mark — the "AV" monogram, white on ArchVision red */}
-          <div className="w-9 h-9 rounded-md bg-brand-500 flex items-center justify-center flex-shrink-0">
+          <div className="w-9 h-9 rounded-sm bg-brand-500 flex items-center justify-center flex-shrink-0">
             <svg viewBox="0 0 220 140" className="w-6 h-6" fill="#ffffff" aria-hidden="true">
               <path d="M14 120 L30 120 L58 22 L46 22 Z" />
               <path d="M62 22 L74 22 L102 120 L86 120 Z" />
@@ -125,15 +141,23 @@ export default function App() {
             </svg>
           </div>
           <div>
-            <h1 className="font-display text-lg font-bold tracking-tight text-slate-900 leading-none">
+            <h1 className="font-display text-[15px] font-bold tracking-tight text-slate-900 leading-none">
               ArchVision<span className="text-brand-500">&nbsp;AI</span>
             </h1>
-            <p className="hidden sm:block font-mono text-[10px] uppercase tracking-[0.18em] text-slate-500 mt-0.5">
+            <p className="hidden sm:block text-[11px] text-slate-500 mt-0.5">
               {t("app.subtitle")}
             </p>
           </div>
         </div>
         <div className="flex items-center gap-2">
+          {result && (
+            <button
+              onClick={handleNewProject}
+              className="hidden sm:inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold text-slate-600 border border-surface-border rounded hover:text-slate-800 hover:bg-surface-card transition-colors"
+            >
+              + {t("app.newProject")}
+            </button>
+          )}
           <HistoryMenu />
           {/* Language switcher */}
           <div className="flex bg-surface-card border border-surface-border rounded-lg p-0.5">
@@ -151,7 +175,7 @@ export default function App() {
               </button>
             ))}
           </div>
-          <span className="hidden sm:inline-block text-xs text-slate-500 border border-surface-border rounded px-2 py-1">
+          <span className="hidden sm:inline-block text-[10px] font-semibold text-slate-500 border border-surface-border rounded-full px-2 py-px">
             Beta
           </span>
         </div>
@@ -177,7 +201,7 @@ export default function App() {
         </aside>
 
         {/* Center — always fills remaining space, never shifts */}
-        <main className="flex-1 relative bg-surface-dark overflow-hidden">
+        <main className="flex-1 relative bg-surface-dark paper-grid overflow-hidden">
           <Suspense fallback={null}>
             <ThreeViewer />
           </Suspense>

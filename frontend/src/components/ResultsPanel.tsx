@@ -45,7 +45,7 @@ function Accordion({
 }) {
   const [open, setOpen] = useState(defaultOpen);
   return (
-    <div className="border-b border-surface-border">
+    <div className="border-b border-surface-border dim-rule">
       <button
         onClick={() => setOpen(!open)}
         className="w-full flex items-center justify-between gap-2 py-[11px] px-1 rounded-md hover:bg-slate-50 transition-colors group"
@@ -120,26 +120,27 @@ function GeoCard() {
     <div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6, marginBottom: 6 }}>
         {items.map(({ label, value }) => (
-          <div key={label} style={{ background: "#ffffff", borderRadius: 8, padding: "8px 10px" }}>
-            <p style={{ fontSize: 11, color: "#6b7280", marginBottom: 3 }}>{label}</p>
-            <p style={{ fontSize: 14, fontFamily: "monospace", color: "#1f2937", fontWeight: 600 }}>
+          <div key={label} style={{ background: "#fffdf8", borderRadius: 8, padding: "8px 10px" }}>
+            <p style={{ fontSize: 11, color: "#7c7768", marginBottom: 3 }}>{label}</p>
+            <p style={{ fontSize: 14, fontFamily: "monospace", color: "#33302a", fontWeight: 600 }}>
               {value}
             </p>
           </div>
         ))}
       </div>
-      <div style={{ background: "#ffffff", borderRadius: 8, padding: "8px 10px" }}>
-        <p style={{ fontSize: 11, color: "#6b7280", marginBottom: 3 }}>
+      <div style={{ background: "#fffdf8", borderRadius: 8, padding: "8px 10px" }}>
+        <p style={{ fontSize: 11, color: "#7c7768", marginBottom: 3 }}>
           {t("results.foundationType")}
         </p>
-        <p style={{ fontSize: 13, color: "#1f2937" }}>{g.foundation_type}</p>
+        <p style={{ fontSize: 13, color: "#33302a" }}>{g.foundation_type}</p>
       </div>
     </div>
   );
 }
 
-// The headline figure — always visible (Stripe-style): big, ink-coloured (color
-// is reserved for status), local currency primary with USD as the quiet second line.
+// The headline figure — always visible, framed as the drawing sheet's title
+// block (штамп): thick outer frame, machine-print figure, data cells below.
+// Ink-coloured (color is reserved for status), local currency primary.
 function CostHero() {
   const { t } = useTranslation();
   const { result } = useStore();
@@ -148,25 +149,43 @@ function CostHero() {
   const usd = `$${c.total_cost_usd.toLocaleString()}`;
   const local = `${c.total_cost_local.toLocaleString()} ${c.currency}`;
   const isUsd = c.currency === "USD";
+  const area = result.rooms.reduce((s, r) => s + r.width * r.depth, 0);
+  const floors = new Set(result.rooms.map((r) => r.floor)).size;
+  const ref = result.project_id.slice(0, 8).toUpperCase();
+  const cells = [
+    { label: t("results.stampArea"), value: `${Math.round(area)} m²` },
+    { label: t("results.stampFloors"), value: String(floors) },
+    { label: t("results.stampRef"), value: ref },
+  ];
   return (
-    <div className="px-0.5 pt-1 pb-4" key={result.project_id}>
-      <p className="text-[10px] text-slate-400 uppercase tracking-[0.1em] mb-1.5">
-        {t("results.costEstimate")}
-      </p>
-      <p
-        className="font-display font-bold text-slate-900 leading-none tracking-tight text-[38px]"
-        style={{ fontVariantNumeric: "tabular-nums", animation: "fade-up 0.35s ease-out" }}
-      >
-        {isUsd ? usd : local}
-      </p>
-      {!isUsd && (
-        <p
-          className="font-mono text-[13px] text-slate-400 mt-1.5"
-          style={{ animation: "fade-up 0.35s ease-out 0.06s backwards" }}
-        >
-          ≈ {usd}
+    <div className="stamp-frame mt-1 mb-4" key={result.project_id}>
+      <div className="px-3 pt-2.5 pb-3">
+        <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-[0.08em] mb-1.5">
+          {t("results.costEstimate")}
         </p>
-      )}
+        <p
+          className="font-mono font-bold text-slate-900 leading-none tracking-tight text-[27px]"
+          style={{ animation: "fade-up 0.35s ease-out" }}
+        >
+          {isUsd ? usd : local}
+        </p>
+        {!isUsd && (
+          <p
+            className="font-mono text-[12px] text-slate-400 mt-1.5"
+            style={{ animation: "fade-up 0.35s ease-out 0.06s backwards" }}
+          >
+            ≈ {usd}
+          </p>
+        )}
+      </div>
+      <div className="grid grid-cols-3">
+        {cells.map(({ label, value }, i) => (
+          <div key={label} className={`stamp-cell border-t ${i > 0 ? "border-l" : ""}`}>
+            <p className="text-[9px] text-slate-500 uppercase tracking-[0.06em] mb-0.5">{label}</p>
+            <p className="font-mono text-[11.5px] text-slate-800 truncate">{value}</p>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
@@ -176,6 +195,13 @@ function CostBreakdown() {
   const { result } = useStore();
   if (!result) return null;
   const c = result.cost_estimate;
+  // Same currency as the hero above — a $ breakdown under a KZT total reads
+  // like two different estimates.
+  const rate = c.total_cost_usd > 0 ? c.total_cost_local / c.total_cost_usd : 1;
+  const fmt = (usd: number) =>
+    c.currency === "USD"
+      ? `$${usd.toLocaleString()}`
+      : `${Math.round(usd * rate).toLocaleString()} ${c.currency}`;
   return (
     <div>
       <div style={{ display: "flex", flexDirection: "column", gap: 2, marginBottom: 10 }}>
@@ -187,16 +213,16 @@ function CostBreakdown() {
               justifyContent: "space-between",
               alignItems: "center",
               padding: "5px 2px",
-              borderBottom: "1px solid #eff2f6",
+              borderBottom: "1px solid #eae5d9",
             }}
           >
-            <span style={{ fontSize: 13, color: "#4b5563", textTransform: "capitalize" }}>
+            <span style={{ fontSize: 13, color: "#615c4f", textTransform: "capitalize" }}>
               {k.replace("_usd", "").replace(/_/g, " ")}
             </span>
             <span
-              style={{ fontSize: 13, fontFamily: "monospace", color: "#374151", fontWeight: 600 }}
+              style={{ fontSize: 13, fontFamily: "monospace", color: "#4a463c", fontWeight: 600 }}
             >
-              ${(v as number).toLocaleString()}
+              {fmt(v as number)}
             </span>
           </div>
         ))}
@@ -210,14 +236,14 @@ function CostBreakdown() {
           <div
             key={label}
             style={{
-              background: "#f8fafc",
+              background: "#f5f2ea",
               borderRadius: 6,
               padding: "7px 4px",
               textAlign: "center",
             }}
           >
-            <p style={{ fontSize: 10, color: "#6b7280", marginBottom: 3 }}>{label}</p>
-            <p style={{ fontSize: 12, fontFamily: "monospace", color: "#1f2937" }}>{value}</p>
+            <p style={{ fontSize: 10, color: "#7c7768", marginBottom: 3 }}>{label}</p>
+            <p style={{ fontSize: 12, fontFamily: "monospace", color: "#33302a" }}>{value}</p>
           </div>
         ))}
       </div>
@@ -232,21 +258,42 @@ function ComplianceCard() {
   const issues = result.compliance_issues;
 
   if (issues.length === 0) {
+    // Traffic light, not a blanket "all codes pass": we check areas and
+    // geometry, a licensed specialist checks the actual building codes.
     return (
-      <div
-        style={{
-          display: "inline-flex",
-          alignItems: "center",
-          gap: 6,
-          background: "#ecfdf5",
-          border: "1px solid #166534",
-          borderRadius: 20,
-          padding: "4px 12px",
-          fontSize: 13,
-          color: "#15803d",
-        }}
-      >
-        {t("results.allRulesPassed")}
+      <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+        <div
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 6,
+            background: "#ecfdf5",
+            border: "1px solid #166534",
+            borderRadius: 20,
+            padding: "4px 12px",
+            fontSize: 13,
+            color: "#15803d",
+            alignSelf: "flex-start",
+          }}
+        >
+          ✓ {t("results.precheckPassed")}
+        </div>
+        <div
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 6,
+            background: "#fffbeb",
+            border: "1px solid #d97706",
+            borderRadius: 20,
+            padding: "4px 12px",
+            fontSize: 13,
+            color: "#b45309",
+            alignSelf: "flex-start",
+          }}
+        >
+          ⚠ {t("results.codesNeedExpert")}
+        </div>
       </div>
     );
   }
@@ -256,7 +303,7 @@ function ComplianceCard() {
       {issues.map((issue) => (
         <div
           key={issue.rule_id}
-          style={{ background: "#ffffff", borderRadius: 8, padding: "8px 10px" }}
+          style={{ background: "#fffdf8", borderRadius: 8, padding: "8px 10px" }}
         >
           <span
             style={{
@@ -274,9 +321,9 @@ function ComplianceCard() {
           >
             {issue.severity}
           </span>
-          <p style={{ fontSize: 13, color: "#374151", marginTop: 5 }}>{issue.description}</p>
+          <p style={{ fontSize: 13, color: "#4a463c", marginTop: 5 }}>{issue.description}</p>
           {issue.suggested_fix && (
-            <p style={{ fontSize: 12, color: "#6b7280", marginTop: 3 }}>→ {issue.suggested_fix}</p>
+            <p style={{ fontSize: 12, color: "#7c7768", marginTop: 3 }}>→ {issue.suggested_fix}</p>
           )}
         </div>
       ))}
@@ -325,12 +372,58 @@ function MEPTab() {
   );
 
   if (conflicts.length === 0) {
+    // Status badge (icon + title + scope subtitle): the subtitle names what
+    // WAS checked — a bare "no clashes" would imply disciplines we don't do.
     return (
       <div style={{ paddingTop: 8 }}>
         {disclaimer}
-        <div style={{ padding: "28px 16px", textAlign: "center" }}>
-          <p style={{ fontSize: 36, marginBottom: 8 }}>✓</p>
-          <p style={{ fontSize: 14, color: "#15803d" }}>{t("results.noClashes")}</p>
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 12,
+            background: "#fffdf8",
+            border: "1px solid #dcd7c9",
+            borderRadius: 8,
+            padding: "12px 14px",
+            marginTop: 4,
+          }}
+        >
+          <span
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              justifyContent: "center",
+              width: 30,
+              height: 30,
+              borderRadius: "50%",
+              background: "#ecfdf5",
+              border: "1.5px solid #15803d",
+              color: "#15803d",
+              flexShrink: 0,
+            }}
+          >
+            <svg
+              viewBox="0 0 12 12"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth={1.8}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              width={14}
+              height={14}
+            >
+              <path d="M2.5 6.5l2.5 2.5 4.5-5" />
+            </svg>
+          </span>
+          <div>
+            <p style={{ fontSize: 13, fontWeight: 600, color: "#33302a" }}>
+              {t("results.noClashes")}
+            </p>
+            <p style={{ fontSize: 11, color: "#7c7768", marginTop: 2 }}>
+              {t("results.mepCheckedScope")}
+            </p>
+          </div>
         </div>
       </div>
     );
@@ -392,7 +485,7 @@ function MEPTab() {
             LOW: {low}
           </span>
         )}
-        <span style={{ fontSize: 12, color: "#6b7280", alignSelf: "center" }}>
+        <span style={{ fontSize: 12, color: "#7c7768", alignSelf: "center" }}>
           {t("results.total")}: {conflicts.length}
         </span>
       </div>
@@ -435,11 +528,11 @@ function MEPTab() {
             {hint && (
               <details style={{ marginTop: 6 }}>
                 <summary
-                  style={{ fontSize: 11, color: "#4b5563", cursor: "pointer", userSelect: "none" }}
+                  style={{ fontSize: 11, color: "#615c4f", cursor: "pointer", userSelect: "none" }}
                 >
                   {t("results.howToFix")}
                 </summary>
-                <p style={{ fontSize: 12, color: "#374151", marginTop: 4, lineHeight: 1.5 }}>
+                <p style={{ fontSize: 12, color: "#4a463c", marginTop: 4, lineHeight: 1.5 }}>
                   {hint}
                 </p>
               </details>
@@ -498,9 +591,9 @@ function ExportTab() {
       >
         {t("results.copyLink")}
       </button>
-      <p style={{ fontSize: 12, color: "#9ca3af", textAlign: "center", marginTop: 8 }}>
+      <p style={{ fontSize: 12, color: "#a39e90", textAlign: "center", marginTop: 8 }}>
         {t("results.projectId")}{" "}
-        <span style={{ fontFamily: "monospace", color: "#6b7280" }}>
+        <span style={{ fontFamily: "monospace", color: "#7c7768" }}>
           {result.project_id.slice(0, 8)}
         </span>
       </p>
@@ -544,7 +637,7 @@ export function ResultsPanel({ onClose }: Props) {
               style={{
                 fontSize: 11,
                 fontWeight: 600,
-                color: "#9ca3af",
+                color: "#a39e90",
                 textTransform: "uppercase",
                 letterSpacing: "0.1em",
               }}
@@ -565,7 +658,7 @@ export function ResultsPanel({ onClose }: Props) {
                     background: `${q.color}15`,
                   }}
                 >
-                  {t(q.labelKey)} {q.score}
+                  {t(q.labelKey)} · {q.score}/100
                 </span>
               );
             })()}

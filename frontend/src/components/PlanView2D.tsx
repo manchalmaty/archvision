@@ -202,8 +202,14 @@ function RoomLabel({
   const { t } = useTranslation();
   const cx = room.x + room.width / 2;
   const cy = fy(room.y + room.depth / 2);
-  const fs = Math.min(Math.max(Math.min(room.width, room.depth) * 0.18, 0.24), 0.46);
-  const maxChars = Math.max(3, Math.floor((room.width - 0.3) / (fs * 0.6)));
+  const base = Math.min(Math.max(Math.min(room.width, room.depth) * 0.18, 0.24), 0.46);
+  const fitAt = (span: number) => (span - 0.3) / (label.length * 0.6);
+  // A narrow-but-deep room (toilet, utility) labels along its long axis like a
+  // real drawing rather than truncating to "Ту…"; shrink-to-fit before either.
+  const vertical = room.depth > room.width && fitAt(room.width) < 0.2;
+  const span = vertical ? room.depth : room.width;
+  const fs = Math.min(base, Math.max(fitAt(span), 0.2));
+  const maxChars = Math.max(3, Math.floor((span - 0.3) / (fs * 0.6)));
   const name = label.length > maxChars ? label.slice(0, maxChars - 1) + "…" : label;
   // Keep on-plan labels to name + area; dimensions show only for the selected
   // room (deliberate) — otherwise the hover card carries them, so the third line
@@ -237,38 +243,40 @@ function RoomLabel({
             </g>
           );
         })()}
-      <text
-        x={cx}
-        y={cy - fs * 0.35}
-        fontSize={fs}
-        fill="#1f2937"
-        fontWeight={600}
-        textAnchor="middle"
-      >
-        {name}
-      </text>
-      <text
-        x={cx}
-        y={cy + fs * 0.85}
-        fontSize={fs * 0.78}
-        fill="#6b7280"
-        textAnchor="middle"
-        className="font-mono"
-      >
-        {(room.width * room.depth).toFixed(1)} m²
-      </text>
-      {showDims && (
+      <g transform={vertical ? `rotate(-90 ${cx} ${cy})` : undefined}>
         <text
           x={cx}
-          y={cy + fs * 1.95}
-          fontSize={fs * 0.62}
-          fill="#9ca3af"
+          y={cy - fs * 0.35}
+          fontSize={fs}
+          fill="#1f2937"
+          fontWeight={600}
+          textAnchor="middle"
+        >
+          {name}
+        </text>
+        <text
+          x={cx}
+          y={cy + fs * 0.85}
+          fontSize={fs * 0.78}
+          fill="#6b7280"
           textAnchor="middle"
           className="font-mono"
         >
-          {room.width.toFixed(1)} × {room.depth.toFixed(1)}
+          {(room.width * room.depth).toFixed(1)} m²
         </text>
-      )}
+        {showDims && (
+          <text
+            x={cx}
+            y={cy + fs * 1.95}
+            fontSize={fs * 0.62}
+            fill="#9ca3af"
+            textAnchor="middle"
+            className="font-mono"
+          >
+            {room.width.toFixed(1)} × {room.depth.toFixed(1)}
+          </text>
+        )}
+      </g>
     </g>
   );
 }
@@ -464,8 +472,12 @@ const PlanSheet = memo(function PlanSheet({
         </text>
       </g>
 
-      {/* Scale bar */}
-      <g transform={`translate(${minX} ${maxY + 1.2})`} pointerEvents="none">
+      {/* Scale bar — bottom centre: the HTML legend owns the bottom-left
+          corner and the floor caption the bottom-right. */}
+      <g
+        transform={`translate(${(minX + maxX) / 2 - scaleSegments / 2} ${maxY + 1.2})`}
+        pointerEvents="none"
+      >
         {Array.from({ length: scaleSegments }, (_, i) => (
           <rect
             key={i}

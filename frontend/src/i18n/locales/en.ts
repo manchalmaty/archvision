@@ -14,10 +14,11 @@ export default {
     dismissError: "Dismiss error",
     staleParams: "Parameters changed — regenerate to update the plan",
     shareLoadFailed: "Could not load the shared project",
+    newProject: "New project",
     rateLimited: "Too many generations — please wait a minute and try again",
     openParams: "Open parameters",
     disclaimer:
-      "Schematic design for preliminary assessment. Requires certification by a licensed architect.",
+      "Draft layout and rough cost estimate — arrive at your architect prepared. Not construction documents.",
   },
   history: {
     title: "My projects",
@@ -61,7 +62,6 @@ export default {
     customName: "Custom name (optional)",
     generate: "Generate Plan",
     generatingBtn: "Generating…",
-    formFooter: "IFC · 3D model · MEP routing · cost estimate",
     sectionShapeOrient: "Shape & Orientation",
     sectionSite: "Site",
   },
@@ -133,7 +133,7 @@ export default {
     geoClimate: "Geo-Climate & structure",
     costEstimate: "Cost Estimate",
     costBreakdown: "Cost breakdown",
-    compliance: "Compliance ({{count}})",
+    compliance: "Preliminary checks ({{count}})",
     frostDepth: "Frost depth",
     seismicZone: "Seismic zone",
     wallThickness: "Wall thickness",
@@ -144,8 +144,10 @@ export default {
     concrete: "Concrete",
     brick: "Brick",
     insulationArea: "Insulation",
-    allRulesPassed: "✓ All rules passed",
-    noClashes: "No MEP clashes detected",
+    precheckPassed: "Areas & geometry checked",
+    codesNeedExpert: "Building codes (SNiP/SP) — needs a licensed specialist",
+    noClashes: "No clashes found",
+    mepCheckedScope: "Checked: water riser & branches (draft)",
     mepDraftNote:
       "Draft for coordination with an engineer — schematic riser & routing only, not a buildable spec.",
     total: "Total",
@@ -160,6 +162,9 @@ export default {
     qualityGood: "Good",
     qualityFair: "Fair",
     qualityReview: "Needs review",
+    stampArea: "Area",
+    stampFloors: "Floors",
+    stampRef: "Ref",
   },
   mepHints: {
     pipe_pipe_clash:

@@ -136,6 +136,9 @@ interface AppState {
   setResult: (r: GenerationResult | null) => void;
   /** Revert to the previous plan in history (no-op if none). */
   undoResult: () => void;
+  /** Fresh start: drop the plan and its history (params stay — they are the
+      user's input). The caller also clears the #/p/{id} share hash. */
+  clearProject: () => void;
   setGenerating: (v: boolean) => void;
   setError: (msg: string | null) => void;
   setActiveFloor: (f: number) => void;
@@ -264,6 +267,8 @@ export const useStore = create<AppState>((set) => ({
       const [prev, ...rest] = s.history;
       return { result: prev, history: rest, resultStale: false, selectedRoomId: null };
     }),
+  clearProject: () =>
+    set({ result: null, history: [], resultStale: false, selectedRoomId: null, error: null }),
   setGenerating: (v) => set({ isGenerating: v }),
   setError: (msg) => set({ error: msg }),
   setActiveFloor: (f) => set({ activeFloor: f }),
