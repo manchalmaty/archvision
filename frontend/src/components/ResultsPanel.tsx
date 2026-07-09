@@ -67,24 +67,34 @@ function Accordion({
 
 // A tiny status pill — green tick when clean, red count when there are issues.
 // Color carries the status (Vercel/Linear), so a collapsed section still reads.
-function StatusBadge({ count }: { count: number }) {
-  const ok = count === 0;
-  return ok ? (
-    <span className="inline-flex items-center justify-center min-w-[18px] rounded-full px-1.5 py-px bg-emerald-50 border border-emerald-300 text-emerald-700">
-      <svg
-        viewBox="0 0 12 12"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth={2}
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        className="w-3 h-3"
-      >
-        <path d="M2.5 6.5l2.5 2.5 4.5-5" />
-      </svg>
-    </span>
-  ) : (
-    <span className="inline-flex items-center gap-1 min-w-[18px] justify-center rounded-full px-1.5 py-px bg-red-50 border border-red-200 text-red-700 text-[11px] font-bold">
+function StatusBadge({ count, warns = 0 }: { count: number; warns?: number }) {
+  if (count === 0 && warns === 0) {
+    return (
+      <span className="inline-flex items-center justify-center min-w-[18px] rounded-full px-1.5 py-px bg-emerald-50 border border-emerald-300 text-emerald-700">
+        <svg
+          viewBox="0 0 12 12"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth={2}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          className="w-3 h-3"
+        >
+          <path d="M2.5 6.5l2.5 2.5 4.5-5" />
+        </svg>
+      </span>
+    );
+  }
+  // Errors (red) outrank warnings (amber): a warning-only state is honest amber,
+  // not a red "something is broken" count.
+  const amber = count === 0;
+  const cls = amber
+    ? "bg-amber-50 border-amber-300 text-amber-700"
+    : "bg-red-50 border-red-200 text-red-700";
+  return (
+    <span
+      className={`inline-flex items-center gap-1 min-w-[18px] justify-center rounded-full px-1.5 py-px border text-[11px] font-bold ${cls}`}
+    >
       <svg
         viewBox="0 0 12 12"
         fill="none"
@@ -97,7 +107,7 @@ function StatusBadge({ count }: { count: number }) {
         <path d="M6 1.2L11 10H1L6 1.2z" />
         <path d="M6 4.8v2.4M6 8.9v.05" />
       </svg>
-      {count}
+      {amber ? warns : count}
     </span>
   );
 }
@@ -832,8 +842,13 @@ export function ResultsPanel({ onClose }: Props) {
             )}
             <Accordion
               title={t("results.compliance", { count: result.compliance_issues.length })}
-              badge={<StatusBadge count={result.compliance_issues.length} />}
-              defaultOpen={result.compliance_issues.length > 0}
+              badge={
+                <StatusBadge
+                  count={result.compliance_issues.filter((i) => i.severity === "ERROR").length}
+                  warns={result.compliance_issues.filter((i) => i.severity !== "ERROR").length}
+                />
+              }
+              defaultOpen={result.compliance_issues.some((i) => i.severity === "ERROR")}
             >
               <ComplianceCard />
             </Accordion>

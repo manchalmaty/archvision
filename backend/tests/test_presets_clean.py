@@ -63,4 +63,12 @@ def test_preset_defaults_generate_clean(preset, garage):
     params = BuildingParams(rooms=rooms_in, country=CountryCode.KZ, floors=1)
     rooms = LayoutEngine(params, geo).generate()
     violations = check_invariants(rooms)
-    assert violations == [], [f"{v.rule}: {v.message}" for v in violations]
+    # No RED (ERROR) flag on a mainstream preset. In closed mode a garage doors
+    # into the kitchen (a soft buffer) → an honest rule-10 WARNING (amber, "add a
+    # mudroom for ideal"), which is allowed — it is not a red flag and never a
+    # silent green.
+    errors = [v for v in violations if v.severity == "ERROR"]
+    assert errors == [], [f"{v.rule}: {v.message}" for v in errors]
+    assert all(v.rule == 10 and v.severity == "WARNING" for v in violations), (
+        [f"{v.rule}/{v.severity}: {v.message}" for v in violations]
+    )

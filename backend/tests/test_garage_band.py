@@ -41,7 +41,13 @@ def test_garage_heavy_all_rooms_clear_min_sides():
 def test_garage_heavy_passes_all_invariants():
     rooms = _gen(GARAGE_HEAVY)
     violations = check_invariants(rooms)
-    assert violations == [], [f"{v.rule}: {v.message}" for v in violations]
+    # GARAGE_HEAVY is closed: its wet band carries the kitchen, so the garage
+    # doors into the kitchen — a soft buffer. That is now an honest rule-10
+    # WARNING (allowed but not ideal), never a silent green and never a hard
+    # ERROR. Nothing else may be violated.
+    errors = [v for v in violations if v.severity == "ERROR"]
+    assert errors == [], [f"{v.rule}: {v.message}" for v in errors]
+    assert all(v.rule == 10 for v in violations), [f"{v.rule}: {v.message}" for v in violations]
 
 
 def test_garage_gets_its_own_full_width_band():

@@ -946,6 +946,63 @@ class LayoutEngine:
             width = min(width, self.params.plot_width_m)
         width = max(width, 2.0)
 
+        # Garage tambour (a PLACEMENT constraint, not a door swap): the garage is
+        # emitted as the last band, so it borders only the `south` band. When that
+        # band carries no buffer (no hallway/utility) — e.g. a no-utility program
+        # in open/mixed, where the kitchen has moved to the social band — the
+        # garage would strand against bath/toilet/bedroom. Carve a narrow hallway
+        # cell into `south`; ROOM_ORDER sorts hallways to the W edge, so the wet
+        # cluster stays contiguous (rule 5) and the cell touches BOTH the central
+        # hallway (below) and the garage (above): house ↔ hall ↔ tambour ↔ garage.
+        # Committed only if the augmented band still clears every minimum at this
+        # width; otherwise the garage keeps its honest fallback (rule 10 flags a
+        # kitchen door as a WARNING, a bath/bedroom door as an ERROR).
+        tambour = None
+        hall_area = hall.area_m2 if hall is not None else 0.0
+        # Only when the garage-adjacent band has NO buffer at all — not a true one
+        # (hallway/utility) and not even a soft one (kitchen/living) — would the
+        # garage strand against bath/toilet/bedroom (a rule-10 ERROR). That is the
+        # only case worth adding a mudroom for. When a kitchen sits there (closed
+        # mode), the garage doors into it and rule 10 ships an honest WARNING —
+        # no extra room, no wider house.
+        _GARAGE_ADJ_BUFFERS = (
+            RoomType.HALLWAY,
+            RoomType.UTILITY,
+            RoomType.KITCHEN,
+            RoomType.LIVING_ROOM,
+        )
+        if (
+            buffer_band
+            and hall is not None
+            and not any(r.room_type in _GARAGE_ADJ_BUFFERS for r in south)
+        ):
+            # Small on purpose: the cell emits as a ~0.9 m sliver, so its requested
+            # area must stay under what a sliver at band depth yields, or rule 2
+            # (area >= 90% requested) trips it. It is carved from the hallway's
+            # own area so the total circulation the user asked for is conserved.
+            tambour_area = round(min(1.5, max(hall.area_m2 - 1.5, 0.0)), 2)
+            if tambour_area >= 1.0:
+                cand = RoomInput(room_type=RoomType.HALLWAY, area_m2=tambour_area)
+                south_aug = south + [cand]
+                # A dense band (e.g. two bedrooms) has no spare span for the extra
+                # cell at the current width — and a deep band lifts the neighbours'
+                # donor floor so donation can't rescue it either. Try the current
+                # width first (cheap, seats a light band), then the habitable
+                # `ceiling` (the widest the bedrooms tolerate before their depth
+                # goes below minimum). Widening past `ceiling` to add a mudroom is
+                # a worse trade than the honest fallback, so we stop there.
+                ceiling_w = min(ceiling, self.params.plot_width_m) if self.params.plot_width_m else ceiling
+                for cand_w in (width, ceiling_w):
+                    if cand_w < width - 1e-9:
+                        continue
+                    cells = self._stack_cells(south_aug, cand_w) or [[r] for r in south_aug]
+                    if self._cells_clear(cells, cand_w):
+                        tambour = cand
+                        south = south_aug
+                        width = cand_w
+                        hall_area = round(hall.area_m2 - tambour_area, 2)
+                        break
+
         # Guard: only reject central-hall for genuinely degenerate bands (a room
         # thinner than 0.7 m). For everything else central-hall beats an enfilade,
         # so we prefer it even when proportions are merely tight.
@@ -971,9 +1028,12 @@ class LayoutEngine:
         # the pulled toilet lands on the bathroom's riser wall; the emit is
         # re-verified and falls back to the legacy full band if the wet
         # cluster would split (rule 5) anyway.
-        hall_h = round(max(hall.area_m2 / width, 1.3), 3) if hall is not None else 0.0
+        hall_h = round(max(hall_area / width, 1.3), 3) if hall is not None else 0.0
+        # The overshoot filler (pull a WC into the central strip) is independent of
+        # the tambour: it trims the CENTRAL hall, the tambour lives in the SOUTH
+        # band. They coexist — the emit re-verifies wet connectivity for both.
         filler = None
-        if hall is not None and width * hall_h > 1.6 * hall.area_m2:
+        if hall is not None and width * hall_h > 1.6 * hall_area:
             candidates = sorted(
                 (
                     r
@@ -1036,7 +1096,7 @@ class LayoutEngine:
                         floor=floor,
                         width=round(width - hx, 3),
                         depth=hall_h,
-                        area_m2=hall.area_m2,
+                        area_m2=hall_area,
                     )
                 )
                 y = round(y + hall_h, 3)

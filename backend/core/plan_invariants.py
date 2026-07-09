@@ -37,7 +37,12 @@ BUFFER = {RoomType.HALLWAY}
 EXT_DOOR_OK = BUFFER | {RoomType.GARAGE}
 # Rule 10 — the garage may connect to the house only through a transitional /
 # service zone; a direct door into a bedroom or wet room is a hygiene defect.
-GARAGE_BUFFER_OK = {RoomType.HALLWAY, RoomType.UTILITY, RoomType.KITCHEN, RoomType.LIVING_ROOM}
+#   TRUE buffer (hallway/utility/mudroom) → clean, the intended entry.
+#   SOFT buffer (kitchen/living) → allowed but not ideal (fumes into the
+#     cooking/living zone), so it ships an honest WARNING, not a silent green.
+#   FORBIDDEN (bedroom/bath/toilet) → ERROR.
+GARAGE_TRUE_BUFFER = {RoomType.HALLWAY, RoomType.UTILITY}
+GARAGE_SOFT_BUFFER = {RoomType.KITCHEN, RoomType.LIVING_ROOM}
 GARAGE_FORBIDDEN = PRIVATE | {RoomType.BATHROOM, RoomType.TOILET}
 
 # Rule 9 reads the same usable-minimum table the layout engine sizes bands from,
@@ -57,6 +62,10 @@ class Violation:
     code: str
     message: str
     room_id: str | None = None
+    # Most invariants are hard failures (ERROR). A few are "allowed but not
+    # ideal" (WARNING) — e.g. a garage that reaches the house through the kitchen
+    # instead of a mudroom buffer: honest amber, never a silent green.
+    severity: str = "ERROR"
 
 
 def _overlaps(a: RoomLayout, b: RoomLayout) -> bool:
@@ -226,6 +235,7 @@ def check_invariants(rooms: list[RoomLayout], openness: str = "closed") -> list[
             interior = [d for d in g.doors if getattr(d, "kind", "door") != "gate"]
             targets = [t for d in interior if (t := _door_target(g, d, fr))]
             bad = next((t for t in targets if t.room_type in GARAGE_FORBIDDEN), None)
+            soft = next((t for t in targets if t.room_type in GARAGE_SOFT_BUFFER), None)
             if bad is not None:
                 v.append(
                     Violation(
@@ -236,9 +246,22 @@ def check_invariants(rooms: list[RoomLayout], openness: str = "closed") -> list[
                         g.room_id,
                     )
                 )
-            elif not any(t.room_type in GARAGE_BUFFER_OK for t in targets):
-                # No good door: if every interior neighbour is a private/wet room,
-                # the garage can only reach the house through one — flag it.
+            elif any(t.room_type in GARAGE_TRUE_BUFFER for t in targets):
+                pass  # ideal — a real mudroom/hallway/utility buffer
+            elif soft is not None:
+                v.append(
+                    Violation(
+                        10,
+                        "garage_soft_buffer",
+                        f'garage reaches the house through "{soft.name}" with no mudroom '
+                        f"buffer — allowed but not ideal (exhaust/dirt into a living zone)",
+                        g.room_id,
+                        severity="WARNING",
+                    )
+                )
+            elif not targets:
+                # No interior door: if every interior neighbour is a private/wet
+                # room, the garage can only reach the house through one — flag it.
                 neighbours = [n for w in WALLS for n in _adjacent_rooms(g, w, fr)]
                 if neighbours and all(n.room_type in GARAGE_FORBIDDEN for n in neighbours):
                     v.append(

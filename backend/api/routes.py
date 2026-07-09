@@ -140,7 +140,7 @@ async def generate_plan(
         ComplianceIssue(
             rule_id=f"INV-{v.rule}-{v.code.upper()}",
             description=v.message,
-            severity="ERROR",
+            severity=v.severity,
             room_id=v.room_id,
         )
         for v in check_invariants(rooms, openness=params.openness)

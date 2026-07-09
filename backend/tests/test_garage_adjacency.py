@@ -56,7 +56,9 @@ class TestEnginePreference:
                 f"garage opens into {target.room_type} — must route through a buffer"
             )
 
-    def test_garage_program_has_no_rule10_violation(self):
+    def test_garage_program_has_no_rule10_error(self):
+        # Closed mode: the garage doors into the kitchen (a soft buffer) — an
+        # honest rule-10 WARNING, never a hard ERROR.
         params = BuildingParams(
             rooms=[
                 RoomInput(room_type=RoomType.LIVING_ROOM, area_m2=20),
@@ -69,7 +71,8 @@ class TestEnginePreference:
             country=CountryCode.KZ, floors=1, building_shape="rectangular",
         )
         layouts = LayoutEngine(params, geo).generate()
-        assert all(v.rule != 10 for v in check_invariants(layouts))
+        r10 = [v for v in check_invariants(layouts) if v.rule == 10]
+        assert all(v.severity != "ERROR" for v in r10), [v.message for v in r10]
 
 
 class TestRule10:

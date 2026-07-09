@@ -73,7 +73,16 @@ class TestBugReportScenario:
         # the original report) and the PDF printed the whole house width as
         # the hall's dimension. When it overshoots, the strip's end goes to a
         # small service room, so the hall's figure is its real extent.
-        rooms = LayoutEngine(make("mixed"), geo).generate()
+        #
+        # Tested WITHOUT the garage: a garage now earns a tambour (a second
+        # hallway cell), which restructures the band and is covered by
+        # test_garage_placement. Here we isolate the overshoot filler itself.
+        no_garage = [r.model_copy() for r in BUG_REPORT_ROOMS if r.room_type != RoomType.GARAGE]
+        params = BuildingParams(
+            rooms=no_garage, country=CountryCode.KZ, floors=1, plot_width_m=12.0,
+            building_shape="rectangular", openness="mixed", spaciousness=0.0,
+        )
+        rooms = LayoutEngine(params, geo).generate()
         hall = next(r for r in rooms if r.room_type == RoomType.HALLWAY)
         plan_w = max(r.x + r.width for r in rooms) - min(r.x for r in rooms)
         requested = next(
@@ -81,10 +90,7 @@ class TestBugReportScenario:
         )
         assert hall.width < plan_w - 0.5, "hall must not span the full house width"
         assert hall.width * hall.depth <= 2.0 * requested * 0.8  # spaciousness=0 → ×0.80
-        violations = check_invariants(rooms, openness="mixed")
-        # As above: only the garage-buffer flag (rule 10) is expected here.
-        non_garage = [v for v in violations if v.rule != 10]
-        assert non_garage == [], [f"{v.rule}: {v.message}" for v in non_garage]
+        assert check_invariants(rooms, openness="mixed") == []
 
     def test_no_band_flattened_below_deepest_min(self):
         # The clamp: whatever raise happens, living/kitchen/bedroom bands keep
