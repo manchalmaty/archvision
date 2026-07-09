@@ -6,15 +6,6 @@ uvicorn[standard]==0.30.6
 pydantic==2.9.2
 pydantic-settings==2.5.2
 
-# Database (comment out if no local postgres)
-asyncpg==0.29.0
-sqlalchemy[asyncio]==2.0.35
-psycopg2-binary==2.9.9
-
-# Task queue (comment out if no local redis)
-celery==5.4.0
-redis==5.1.1
-
 # Numerical computing
 numpy==2.1.1
 scipy==1.14.1
