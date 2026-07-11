@@ -5,7 +5,7 @@ cost estimate, localized PDF report and IFC export for residential houses in the
 RU/KZ/CIS market. Генератор архитектурных эскизов: планировка, черновик
 инженерки и ориентировочная смета — чтобы прийти к архитектору подготовленным.
 
-![Generation demo — plan, ₸ estimate, title-block](docs/demo.gif)
+![Generation demo — plan, ₽ estimate, title-block](docs/demo.gif)
 
 ![ArchVision AI — generated plan with title-block estimate](docs/hero.png)
 
@@ -95,7 +95,7 @@ User input → GeoClimate calc (frost depth, seismic zone, wall/insulation)
 ## Tests
 
 ```bash
-cd backend && pytest -q          # 212 tests: engine geometry, invariants, API
+cd backend && pytest -q          # 262 tests: engine geometry, invariants, API
 cd frontend && npx vitest run && npx tsc --noEmit
 ```
 
