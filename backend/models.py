@@ -158,6 +158,33 @@ class CostEstimate(BaseModel):
     breakdown: dict
 
 
+class PlanVariant(BaseModel):
+    """One row of the cost-Δ decision table.
+
+    The same room program re-tiled by the DETERMINISTIC rule engine at a fixed
+    spaciousness setting — never the LLM, so every figure is reproducible.
+    Deltas are vs the cheapest row; delta_driver names the dominant material
+    system behind that delta ("concrete" | "walls").
+    """
+
+    label: str  # compact | balanced | roomy
+    spaciousness: float
+    footprint_m2: float  # Σ w×d over all floors — the same figure the штамп shows
+    concrete_m3: float
+    brick_m3: float
+    total_cost_local: float
+    total_cost_usd: float
+    currency: str
+    delta_local: float = 0.0
+    delta_usd: float = 0.0
+    delta_footprint_m2: float = 0.0
+    delta_concrete_m3: float = 0.0
+    delta_driver: str = ""  # "" on the cheapest row
+    # ERROR-severity invariant + site violations on the re-tiled plan: a cheaper
+    # row that breaks minimum room sizes must say so in the row that tempts.
+    red_flags: int = 0
+
+
 class GenerationResult(BaseModel):
     project_id: str
     rooms: list[RoomLayout]
@@ -177,6 +204,9 @@ class GenerationResult(BaseModel):
     # reads dangerously low. Surfaces an "unverified seismicity" caveat so the
     # number never looks authoritative — fail loud, not low.
     region_recognized: bool = True
+    # Cost-Δ decision table, sorted by cost ascending. Default [] keeps
+    # pre-variants stored results loadable.
+    variants: list[PlanVariant] = []
 
 
 class ComplianceRequest(BaseModel):

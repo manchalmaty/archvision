@@ -22,6 +22,7 @@ from core.orientation import best_turns, rotate_layout
 from core.plan_invariants import check_invariants
 from core.ratelimit import limiter
 from core.site_planner import check_site, plan_site
+from core.variants import build_variants
 from mep.clash_detector import ClashDetector
 from mep.pipe_router import PipeRouter
 from models import (
@@ -180,6 +181,11 @@ async def generate_plan(
     estimator = CostEstimator(rooms, geo_data, effective_country)
     cost = estimator.estimate()
 
+    # 7a. Cost-Δ decision table: the same program at three deterministic
+    # spaciousness settings, sorted by cost — the honest "what does roomier
+    # actually cost" comparison next to the hero figure.
+    variants = build_variants(params, geo_data, effective_country)
+
     result = GenerationResult(
         project_id=project_id,
         rooms=rooms,
@@ -192,6 +198,7 @@ async def generate_plan(
         insolation_score=insolation_score(rooms, params.facing),
         site=site,
         region_recognized=region_res.recognized,
+        variants=variants,
     )
 
     # Persist the result next to the IFC so /report/{id} and project history

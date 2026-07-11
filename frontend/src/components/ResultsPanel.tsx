@@ -364,6 +364,116 @@ function CostBreakdown() {
   );
 }
 
+// Cost-Δ decision table: the same program re-tiled at three deterministic
+// spaciousness settings, sorted by cost. Honest rows — a cheaper variant that
+// breaks minimum sizes carries its red count right next to the tempting saving.
+function VariantsCard() {
+  const { t } = useTranslation();
+  const { result, params, setParams } = useStore();
+  if (!result || result.variants.length === 0) return null;
+  const fmtMoney = (v: number, cur: string) =>
+    cur === "USD" ? `$${v.toLocaleString()}` : `${v.toLocaleString()} ${cur}`;
+  const labelKey: Record<string, string> = {
+    compact: "results.variantCompact",
+    balanced: "results.variantBalanced",
+    roomy: "results.variantRoomy",
+  };
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+      {result.variants.map((v) => {
+        const current = params.spaciousness === v.spaciousness;
+        return (
+          <div
+            key={v.label}
+            style={{ background: "#fffdf8", borderRadius: 8, padding: "8px 10px" }}
+          >
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                gap: 8,
+              }}
+            >
+              <span style={{ fontSize: 12, fontWeight: 700, color: "#33302a" }}>
+                {t(labelKey[v.label] ?? v.label)}
+                <span style={{ fontWeight: 400, color: "#7c7768", marginLeft: 6 }}>
+                  {Math.round(v.footprint_m2)} m²
+                </span>
+              </span>
+              <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <span
+                  style={{
+                    fontSize: 13,
+                    fontFamily: "monospace",
+                    fontWeight: 600,
+                    color: "#33302a",
+                  }}
+                >
+                  {fmtMoney(v.total_cost_local, v.currency)}
+                </span>
+                <StatusBadge count={v.red_flags} />
+              </span>
+            </div>
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                gap: 8,
+                marginTop: 3,
+              }}
+            >
+              <span style={{ fontSize: 11, color: "#7c7768", lineHeight: 1.4 }}>
+                {v.delta_local === 0
+                  ? t("results.variantCheapest")
+                  : t(
+                      v.delta_driver === "concrete"
+                        ? "results.variantDeltaConcrete"
+                        : "results.variantDeltaWalls",
+                      {
+                        delta: fmtMoney(v.delta_local, v.currency),
+                        area: v.delta_footprint_m2,
+                        concrete: v.delta_concrete_m3,
+                      }
+                    )}
+              </span>
+              {current ? (
+                <span
+                  style={{
+                    fontSize: 10,
+                    fontWeight: 700,
+                    color: "#7c7768",
+                    border: "1px solid #dcd7c9",
+                    borderRadius: 10,
+                    padding: "1px 8px",
+                    flexShrink: 0,
+                  }}
+                >
+                  {t("results.variantCurrent")}
+                </span>
+              ) : (
+                <button
+                  onClick={() => {
+                    setParams({ spaciousness: v.spaciousness });
+                    toast.success(t("results.variantApplied"));
+                  }}
+                  className="text-[10px] font-bold px-2 py-px rounded-[10px] border border-surface-border text-slate-500 transition-all duration-150 hover:text-brand-600 hover:border-brand-100 hover:bg-brand-50 flex-shrink-0"
+                >
+                  {t("results.variantApply")}
+                </button>
+              )}
+            </div>
+          </div>
+        );
+      })}
+      <p style={{ fontSize: 11, color: "#a39e90", lineHeight: 1.4 }}>
+        {t("results.variantsNote")}
+      </p>
+    </div>
+  );
+}
+
 function ComplianceCard() {
   const { t } = useTranslation();
   const { result } = useStore();
@@ -822,6 +932,27 @@ export function ResultsPanel({ onClose }: Props) {
             <Accordion title={t("results.costBreakdown")}>
               <CostBreakdown />
             </Accordion>
+            {result.variants.length > 0 && (
+              <Accordion
+                title={t("results.variants")}
+                badge={(() => {
+                  // The hook while collapsed: how much the cheapest variant
+                  // saves vs the plan on the canvas.
+                  const saving =
+                    result.cost_estimate.total_cost_local -
+                    result.variants[0].total_cost_local;
+                  if (saving < 1) return undefined;
+                  const cur = result.variants[0].currency;
+                  return (
+                    <span className="inline-flex items-center rounded-full px-1.5 py-px bg-emerald-50 border border-emerald-300 text-emerald-700 text-[10px] font-bold font-mono">
+                      −{cur === "USD" ? `$${saving.toLocaleString()}` : `${saving.toLocaleString()} ${cur}`}
+                    </span>
+                  );
+                })()}
+              >
+                <VariantsCard />
+              </Accordion>
+            )}
             <Accordion title={t("results.geoClimate")}>
               <GeoCard />
             </Accordion>

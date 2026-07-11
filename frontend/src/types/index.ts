@@ -127,6 +127,26 @@ export interface ProjectSummary {
   country_currency: string;
 }
 
+// One row of the cost-Δ decision table: the same program re-tiled by the
+// deterministic rule engine at a fixed spaciousness setting. Deltas are vs the
+// cheapest row; delta_driver names the dominant material system behind the Δ.
+export interface PlanVariant {
+  label: "compact" | "balanced" | "roomy";
+  spaciousness: number;
+  footprint_m2: number;
+  concrete_m3: number;
+  brick_m3: number;
+  total_cost_local: number;
+  total_cost_usd: number;
+  currency: string;
+  delta_local: number;
+  delta_usd: number;
+  delta_footprint_m2: number;
+  delta_concrete_m3: number;
+  delta_driver: "concrete" | "walls" | "";
+  red_flags: number;
+}
+
 export interface GenerationResult {
   project_id: string;
   rooms: RoomLayout[];
@@ -141,6 +161,8 @@ export interface GenerationResult {
   // False when the typed region wasn't in the climate index → the geo/seismic
   // figures are country averages (may read low). Drives an "unverified" caveat.
   region_recognized: boolean;
+  // Cost-Δ decision table, sorted by cost ascending (may be empty).
+  variants: PlanVariant[];
 }
 
 // The building placed on its plot (present only when a plot size was given).

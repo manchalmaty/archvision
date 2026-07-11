@@ -83,6 +83,11 @@ The room solver stays **blind to sun** (it places by function: wet/social/privat
 - **Sun badge ≠ MEP dot:** the 2D sun rating is a rayed SUN glyph (`SUN_RAYS` in `PlanView2D`), not a plain disc, with its own legend row (`viewer.daylight`) — a plain amber disc collided with the medium-MEP-conflict marker.
 - **Headline quality score** (`ResultsPanel.planQualityScore`) now folds in daylight: `round(0.7·issueScore + 0.3·insolation_score)`, so a clean-but-dim plan no longer reads the same "100" as a sunny one.
 
+### Cost-Δ variants (roadmap C, DONE 2026-07-12) — the decision table, not a gallery
+- `core/variants.py build_variants()` — 3 FIXED settings (compact 0.0 / balanced 0.5 / roomy 1.0), **rule engine only** (never Groq: the table the user acts on must be reproducible), computed inside `generate-plan` → `GenerationResult.variants` (default `[]` keeps pre-variants `{id}.json` loadable), **sorted by cost ascending**.
+- Row = footprint Σw×d, cost, Δ vs cheapest, `delta_driver` ∈ concrete|walls (from `cost.breakdown`: concrete+rebar vs brick+insulation; labor excluded — fixed fraction, can't win), `red_flags` = invariant ERRORs + site breaches on the re-tiled plan (mirror-tested against the actual checkers).
+- FE: accordion «Варианты по бюджету» under Cost breakdown; collapsed badge = saving vs the canvas plan; «применить» ONLY sets the spaciousness slider (no auto-generate — rate limit) + toast; row matching current slider gets a «текущий» chip; honesty note names the deterministic engine. Tests: `backend/tests/test_variants.py`.
+
 ### Household presets (`frontend/src/presets.ts`)
 - `couple` / `family` / `single` / `rental` → `buildPresetRooms(preset, kids?, garage?)`
 - Family preset: `kids` param (1–4) controls bedroom count

@@ -26,6 +26,11 @@ RU/KZ/CIS market. Генератор архитектурных эскизов: 
   whole plan to the sun.
 - **Cost estimate** — strip-foundation model, local currency (KZT/RUB) with USD
   reference, presented as a drawing title block (штамп).
+- **Cost-Δ variants** — the same program at three deterministic spaciousness
+  settings (compact / balanced / roomy) as a decision table sorted by cost:
+  each row shows the Δ vs the cheapest and its one causal driver
+  («+265 570 ₽: +11.8 m² → +5.4 m³ of concrete») plus an honest red-flag count.
+  Rule engine only — reproducible, not an LLM gallery.
 - **Exports** — localized PDF report (en/ru/kk) with the actual plan drawing,
   IFC (BIM), share-by-link, PNG.
 
@@ -95,7 +100,7 @@ User input → GeoClimate calc (frost depth, seismic zone, wall/insulation)
 ## Tests
 
 ```bash
-cd backend && pytest -q          # 262 tests: engine geometry, invariants, API
+cd backend && pytest -q          # 269 tests: engine geometry, invariants, API
 cd frontend && npx vitest run && npx tsc --noEmit
 ```
 
@@ -107,15 +112,8 @@ cd frontend && npx vitest run && npx tsc --noEmit
    solver problem as site placement, so they're likely one pass together.
 2. Heating layer in the estimate (heat-loss data already computed).
 3. DXF export (`ezdxf`) — the bridge to CIS engineers' AutoCAD workflow.
-4. **Cost-Δ variant comparison** — the same program at three deterministic
-   spaciousness settings (compact / balanced / roomy), shown as a decision
-   table sorted by cost, not a swipeable gallery: each row is footprint m²,
-   total ₸/₽, Δ vs the cheapest, the one driver of that Δ (concrete volume /
-   exterior wall), and the honesty red-flag count. Deterministic, not an LLM
-   generator — reproducibility is the honesty brand. This is the comparison
-   Drafted can't copy without building the estimator underneath it.
-5. Wall thickness in areas (geometry, PDF, cost, IFC together).
-6. 3D viewer polish (currently hidden; code in place).
+4. Wall thickness in areas (geometry, PDF, cost, IFC together).
+5. 3D viewer polish (currently hidden; code in place).
 
 ## License
 
