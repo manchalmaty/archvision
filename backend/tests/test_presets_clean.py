@@ -16,6 +16,7 @@ import pytest
 from core.geo_calculator import GeoClimateCalculator
 from core.layout_engine import LayoutEngine
 from core.plan_invariants import check_invariants
+from core.walls import annotate_net_dims
 from models import BuildingParams, CountryCode, RoomInput, RoomType
 
 geo = GeoClimateCalculator().calculate(CountryCode.KZ, None, 1)
@@ -62,6 +63,9 @@ def test_preset_defaults_generate_clean(preset, garage):
         rooms_in.append(RoomInput(room_type=R.GARAGE, area_m2=22))
     params = BuildingParams(rooms=rooms_in, country=CountryCode.KZ, floors=1)
     rooms = LayoutEngine(params, geo).generate()
+    # The production route annotates net dims BEFORE the invariants, so rules
+    # 2 and 9 judge CLEAR figures — pin the presets against that real path.
+    annotate_net_dims(rooms, geo)
     violations = check_invariants(rooms)
     # No RED (ERROR) flag on a mainstream preset. In closed mode a garage doors
     # into the kitchen (a soft buffer) → an honest rule-10 WARNING (amber, "add a

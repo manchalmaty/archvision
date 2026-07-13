@@ -45,8 +45,11 @@ RU/KZ/CIS market. Генератор архитектурных эскизов: 
   the engine tiles a draft, measures what the walls eat at each room's actual
   position, and retiles with grossed axis targets (two deterministic passes).
   Room figures on the canvas, PDF and DXF are net; the axis figure (walls
-  included) rides next to it, explicitly labeled — and the invariant that
-  checks requested-vs-delivered judges the net figure too.
+  included) rides next to it, explicitly labeled — and the invariants judge
+  the clear figures too: requested-vs-delivered AND minimum room dimensions
+  («2.2 m clear» flags even when the axis line reads 2.5). The engine sizes
+  bands with position-aware wall pads so mainstream programs clear their
+  minimums instead of flag-flooding.
 - **Cost-Δ variants** — the same program at three deterministic spaciousness
   settings (compact / balanced / roomy) as a decision table sorted by cost:
   each row shows the Δ vs the cheapest and its one causal driver
@@ -70,9 +73,8 @@ RU/KZ/CIS market. Генератор архитектурных эскизов: 
 - **Not a buildable MEP spec.** Slopes, pressure and drain sizing are an
   engineer's job — the draft exists so that conversation starts earlier.
 - Building-level figures (footprint, штамп, site coverage, cost basis) are
-  axis-line — the real outer envelope. Room-level figures are net (usable).
-  Minimum-dimension checks still judge axis lines until corner-aware sizing
-  lands (roadmap) — documented, not hidden.
+  axis-line — the real outer envelope. Room-level figures are net (usable),
+  and every room-level check judges the clear dimensions.
 
 ## Quick start
 
@@ -131,7 +133,7 @@ User input → GeoClimate calc (frost depth, seismic zone, wall/insulation)
 ## Tests
 
 ```bash
-cd backend && pytest -q          # 277 tests: engine geometry, invariants, API
+cd backend && pytest -q          # 282 tests: engine geometry, invariants, API
 cd frontend && npx vitest run && npx tsc --noEmit
 ```
 
@@ -140,8 +142,6 @@ cd frontend && npx vitest run && npx tsc --noEmit
 1. **U/T footprints + multi-floor L** — the L landed in v1.5 (one floor,
    ≥2 bedrooms; honest fallback otherwise). U/T need courtyard perimeter
    support in the cost/heating models before they can be honest values.
-2. Minimum room dimensions judged on CLEAR (net) figures — needs corner-aware
-   band sizing so thick-wall corner rooms are grown, not just flagged.
 
 ## License
 

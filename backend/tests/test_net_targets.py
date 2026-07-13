@@ -65,10 +65,11 @@ def test_area_m2_still_prints_the_request():
     assert got == requested, f"{got} != {requested} — grossed targets leaked into area_m2"
 
 
-def test_garage_request_not_grossed():
+def test_garage_delivers_clear_parking_metres():
     layouts = _generate(rooms=PROGRAM + [RoomInput(room_type=RoomType.GARAGE, area_m2=22)])
     garage = next(r for r in layouts if r.room_type == RoomType.GARAGE)
-    assert garage.area_m2 == 22.0
+    assert garage.area_m2 == 22.0  # the printed request is the user's figure
+    assert garage.net_area >= 0.9 * 22.0  # ...and the clear metres deliver it
 
 
 def test_two_passes_are_deterministic():

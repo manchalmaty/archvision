@@ -184,15 +184,20 @@ def check_invariants(
             if not r.doors:
                 v.append(Violation(3, "no_door", f'"{r.name}" has no door', r.room_id))
 
-        # Rule 9 — minimum usable dimension per room type
+        # Rule 9 — minimum usable dimension per room type, judged on CLEAR
+        # (net) figures when annotated: furniture lives between the walls, not
+        # between the axis lines. Axis fallback keeps un-annotated callers and
+        # old stored results on the legacy behaviour.
         for r in fr:
             min_side = MIN_DIMENSION.get(r.room_type, 1.5)
-            if min(r.width, r.depth) < min_side - 0.01:
+            w = r.net_width if r.net_width is not None else r.width
+            d = r.net_depth if r.net_depth is not None else r.depth
+            if min(w, d) < min_side - 0.01:
                 v.append(
                     Violation(
                         9,
                         "narrow",
-                        f'"{r.name}" is only {min(r.width, r.depth):.2f}m wide '
+                        f'"{r.name}" is only {min(w, d):.2f}m clear '
                         f"(needs {min_side:.1f}m) — furniture will not fit",
                         r.room_id,
                     )
