@@ -107,6 +107,9 @@ The room solver stays **blind to sun** (it places by function: wet/social/privat
 - `estimate_heating(rooms, geo)` — U-value envelope method over the REAL geo-driven wall/insulation thicknesses; window fraction = `1 − EXT_SOLID_FRAC` (imports the cost model's constant — single source); vent 0.35 ACH; garage EXCLUDED (unheated buffer, `heated_area_m2` proves it in tests). `GeoClimateData.design_temp_c` is DERIVED from AFI (`−(5+0.45·√AFI)`, fit vs СП 131 anchors, ±5 °C draft — boiler margin ×1.25 absorbs it); None on old stored results, and `GenerationResult.heating` defaults None too.
 - **Heating cost lives INSIDE `CostEstimator.estimate()`** (lazy import to dodge the import cycle; added AFTER labor — installed price, don't double-multiply) → hero, variants, PDF and the breakdown line stay consistent automatically. UI: «Отопление (черновик)» accordion + honest amber note (не СП 50). Tests: `backend/tests/test_heating.py`.
 
+### DXF export (release 4, DONE 2026-07-13) — `backend/core/dxf_generator.py`
+- `GET /api/v1/dxf/{id}?lang=` → `generate_dxf(result, lang)`: R2010, **mm units** (CIS CAD convention — engine metres ×1000), layers WALLS(7)/DOORS(1)/WINDOWS(5)/LABELS(8), floors side by side in one modelspace with «Этаж N» captions, room labels via the PDF's `_room_label` (single localization source). Openings = one LINE on the host wall per spec (sketch handoff, no swing arcs). Dep: `ezdxf==1.4.4` (MIT) in both requirements files. Tests parse the emitted file BACK with ezdxf (`tests/test_dxf.py`); visual check = ezdxf drawing add-on → matplotlib PNG (matplotlib is dev-venv only, NOT in requirements).
+
 ### PDF (`backend/core/pdf_generator.py`)
 - Embeds actual 2D floor plan drawing (one per floor) via reportlab vector graphics
 - `_floor_plan_drawing(rooms, avail_w, caption, lang)` → `Drawing` (lang threaded for localized labels)

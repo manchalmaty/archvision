@@ -16,6 +16,9 @@ openai==1.54.4
 # PDF generation
 reportlab==4.2.2
 
+# DXF (AutoCAD) export
+ezdxf==1.4.4
+
 # HTTP client
 httpx==0.27.2
 

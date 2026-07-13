@@ -16,3 +16,6 @@ python-multipart==0.0.12
 
 # PDF reports
 reportlab==4.2.2
+
+# DXF (AutoCAD) export
+ezdxf==1.4.4

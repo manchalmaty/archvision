@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import toast from "react-hot-toast";
 import { useStore } from "../store/useStore";
-import { ifcDownloadUrl, pdfReportUrl, shareUrl } from "../api/client";
+import { dxfExportUrl, ifcDownloadUrl, pdfReportUrl, shareUrl } from "../api/client";
 import { exportPlanPng } from "./planExport";
 import { needsSecondFloorHint } from "./secondFloorHint";
 import { Chevron, Reveal } from "./disclosure";
@@ -861,6 +861,14 @@ function ExportTab() {
         style={{ textAlign: "center", fontSize: 14, padding: "11px", display: "block" }}
       >
         {t("results.exportPdf")}
+      </a>
+      <a
+        href={dxfExportUrl(result.project_id, i18n.resolvedLanguage)}
+        download={`archvision_${result.project_id.slice(0, 8)}.dxf`}
+        className="btn-secondary"
+        style={{ textAlign: "center", fontSize: 14, padding: "11px", display: "block" }}
+      >
+        {t("results.exportDxf")}
       </a>
       {/* Exporter only exists while the 2D svg is mounted */}
       {viewMode === "2d" && (

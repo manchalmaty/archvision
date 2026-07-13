@@ -175,6 +175,7 @@ export default {
     howToFix: "How to fix?",
     downloadIfc: "↓ Download IFC",
     exportPdf: "↓ Export PDF",
+    exportDxf: "↓ DXF (AutoCAD)",
     exportPng: "↓ Plan as PNG",
     copyLink: "🔗 Copy share link",
     linkCopied: "Link copied!",

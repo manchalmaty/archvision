@@ -352,6 +352,22 @@ async def pdf_report(
     )
 
 
+@router.get("/dxf/{project_id}")
+async def dxf_export(
+    project_id: str = UUID_PATH,
+    lang: str = Query("en", pattern="^(en|ru|kk)$"),
+):
+    """Localized DXF (AutoCAD) export of the 2D plan."""
+    from core.dxf_generator import generate_dxf
+
+    result = _load_result(project_id)
+    return Response(
+        content=generate_dxf(result, lang),
+        media_type="application/dxf",
+        headers={"Content-Disposition": f'attachment; filename="archvision_{project_id[:8]}.dxf"'},
+    )
+
+
 @router.get("/countries")
 async def list_countries():
     return geo_calc.supported_countries()

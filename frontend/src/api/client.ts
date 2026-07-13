@@ -116,6 +116,11 @@ export function pdfReportUrl(projectId: string, lang?: string): string {
   return `/api/v1/report/${projectId}?lang=${PDF_LANGS.has(base) ? base : "en"}`;
 }
 
+export function dxfExportUrl(projectId: string, lang?: string): string {
+  const base = (lang || "en").split("-")[0];
+  return `/api/v1/dxf/${projectId}?lang=${PDF_LANGS.has(base) ? base : "en"}`;
+}
+
 /** Extract a human-readable message from an unknown error (axios or otherwise). */
 export function getErrorMessage(e: unknown, fallback = "Request failed"): string {
   if (axios.isAxiosError(e)) {

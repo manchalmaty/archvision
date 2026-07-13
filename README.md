@@ -42,7 +42,8 @@ RU/KZ/CIS market. Генератор архитектурных эскизов: 
   («+265 570 ₽: +11.8 m² → +5.4 m³ of concrete») plus an honest red-flag count.
   Rule engine only — reproducible, not an LLM gallery.
 - **Exports** — localized PDF report (en/ru/kk) with the actual plan drawing,
-  IFC (BIM), share-by-link, PNG.
+  DXF (AutoCAD — mm units, WALLS/DOORS/WINDOWS/LABELS layers, localized room
+  labels), IFC (BIM), share-by-link, PNG.
 
 ## What it does NOT do (on purpose)
 
@@ -92,7 +93,7 @@ User input → GeoClimate calc (frost depth, seismic zone, wall/insulation)
            → Daylight sensor / auto-orientation
            → MEP draft (riser + branches) + clash advisories
            → Heat loss (envelope U-values) → boiler sizing
-           → Cost estimator (strip foundation + heating) → PDF (en/ru/kk) · IFC
+           → Cost estimator (strip foundation + heating) → PDF (en/ru/kk) · DXF · IFC
 ```
 
 ## Endpoints
@@ -106,13 +107,14 @@ User input → GeoClimate calc (frost depth, seismic zone, wall/insulation)
 | GET | `/api/v1/projects/{id}` | Full stored result (share-by-link) |
 | GET | `/api/v1/download/{id}` | Download IFC file |
 | GET | `/api/v1/report/{id}?lang=en\|ru\|kk` | Localized PDF report |
+| GET | `/api/v1/dxf/{id}?lang=en\|ru\|kk` | DXF (AutoCAD) export of the 2D plan |
 | GET | `/api/v1/countries` | Supported countries + regions |
 | GET | `/health` | Liveness + storage writability |
 
 ## Tests
 
 ```bash
-cd backend && pytest -q          # 248 tests: engine geometry, invariants, API
+cd backend && pytest -q          # 252 tests: engine geometry, invariants, API
 cd frontend && npx vitest run && npx tsc --noEmit
 ```
 
@@ -122,9 +124,8 @@ cd frontend && npx vitest run && npx tsc --noEmit
    control today only stretches a central-hall rectangle (honest, but a
    rectangle); a real L/U/T outline and fitting it to the plot are the same
    solver problem as site placement, so they're likely one pass together.
-2. DXF export (`ezdxf`) — the bridge to CIS engineers' AutoCAD workflow.
-3. Wall thickness in areas (geometry, PDF, cost, IFC together).
-4. 3D viewer polish (currently hidden; code in place).
+2. Wall thickness in areas (geometry, PDF, cost, IFC together).
+3. 3D viewer polish (currently hidden; code in place).
 
 ## License
 

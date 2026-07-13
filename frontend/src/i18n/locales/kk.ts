@@ -175,6 +175,7 @@ export default {
     howToFix: "Қалай түзетуге болады?",
     downloadIfc: "↓ IFC жүктеу",
     exportPdf: "↓ PDF экспорттау",
+    exportDxf: "↓ DXF (AutoCAD)",
     exportPng: "↓ Жоспарды PNG етіп",
     copyLink: "🔗 Сілтемені көшіру",
     linkCopied: "Сілтеме көшірілді!",
