@@ -55,6 +55,10 @@ RU/KZ/CIS market. Генератор архитектурных эскизов: 
 - **Exports** — localized PDF report (en/ru/kk) with the actual plan drawing,
   DXF (AutoCAD — mm units, WALLS/DOORS/WINDOWS/LABELS layers, localized room
   labels), IFC (BIM), share-by-link, PNG.
+- **3D walkthrough view** — the plan as a cardboard model on the drawing desk
+  (same warm-paper palette and pastel room fills as the 2D plan), doors,
+  windows, garage gate, a 1.8 m mannequin for scale, orbit/zoom, per-floor
+  view, localized net-area room labels.
 
 ## What it does NOT do (on purpose)
 
@@ -138,7 +142,6 @@ cd frontend && npx vitest run && npx tsc --noEmit
    support in the cost/heating models before they can be honest values.
 2. Minimum room dimensions judged on CLEAR (net) figures — needs corner-aware
    band sizing so thick-wall corner rooms are grown, not just flagged.
-3. 3D viewer polish (currently hidden; code in place).
 
 ## License
 

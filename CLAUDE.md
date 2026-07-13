@@ -55,7 +55,7 @@ Visual/browser check: API path prefix is `/api/v1` (e.g. `POST /api/v1/generate-
 - «Нормы» renamed to «Предварительная проверка» everywhere (UI accordion, PDF section): we check areas+geometry, NOT building codes. Clean state is a TRAFFIC LIGHT: green «Площади и геометрия проверены» + amber «Нормы (СНиП/СП) — проверка у специалиста». Keys: `results.precheckPassed`/`codesNeedExpert` (old `allRulesPassed` deleted).
 - MEP clean state is a status badge (icon + title + scope subtitle `results.mepCheckedScope`): the subtitle names what WAS checked («стояк и разводка воды (черновик)») — a bare "no clashes" implies disciplines we don't do.
 - Footer/PDF disclaimer: «Черновая планировка и ориентировочная смета — чтобы прийти к архитектору подготовленным. Не проектная документация.»
-- Repo is publish-ready: README (hero `docs/hero.png`, what-it-does-NOT section, roadmap with site-placement first), MIT LICENSE. 3D switcher hidden (`VIEW_MODES` in ThreeViewer — re-add the "3d" entry to restore).
+- Repo is publish-ready: README (hero `docs/hero.png`, what-it-does-NOT section, roadmap with site-placement first), MIT LICENSE. **3D RESTORED (release 8, 2026-07-13)**: VIEW_MODES has both entries again; the scene is warm-paper blueprint (bg `#f4f0e6`, flat high-ambient «cardboard model» light — hard shadows ate the pastels), walls use the SAME `ROOM_FILL_2D` pastels as the 2D plan (`ROOM_COLORS` dark-era palette DELETED), labels via `roomDisplayName` + NET area (the flip's primary), door kinds honoured (opening = translucent void, gate = light panel). CameraRig effect needs `camera` in deps — `makeDefault` swaps the camera after the rig positions the old one and the house opens half out of frame (mount race). Headless verify: SwiftShader needs `--use-angle=swiftshader --enable-unsafe-swiftshader` + ~7 s first-frame settle.
 
 ### Three-category filter (never mix these up)
 - **Invariants** — always enforced, no UI toggle
@@ -202,7 +202,7 @@ frontend/src/
 - No comments unless WHY is non-obvious
 - No backwards-compat shims for removed code
 - Tailwind v3 only (no v4 syntax)
-- Touch 3D viewer (`ThreeViewer.tsx`) only if explicitly asked
+- Touch 3D viewer (`ThreeViewer.tsx`) only if explicitly asked (asked & restored in release 8 — the rule still applies to incidental churn)
 - Never mock the database / external services in tests that are meant to catch real integration bugs
 - RUB primary currency for RU/KZ, USD secondary
 

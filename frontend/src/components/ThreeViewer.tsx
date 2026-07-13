@@ -4,8 +4,9 @@ import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { OrbitControls, Grid, Text, Box, Cylinder, PerspectiveCamera } from "@react-three/drei";
 import * as THREE from "three";
 import { useStore } from "../store/useStore";
-import { ROOM_COLORS, SEVERITY_COLORS } from "./roomColors";
+import { DEFAULT_FILL_2D, ROOM_FILL_2D, SEVERITY_COLORS } from "./roomColors";
 import { floorRooms, roomsBBox, clampPos } from "./planGeometry";
+import { roomDisplayName } from "./roomName";
 import { PlanView2D } from "./PlanView2D";
 import type { RoomLayout, MEPConflict, DoorSpec, WindowSpec } from "../types";
 
@@ -22,7 +23,9 @@ function RoomMesh({
   selected: boolean;
   onClick: () => void;
 }) {
-  const color = ROOM_COLORS[room.room_type] || "#607080";
+  const { t } = useTranslation();
+  // The same pastel fills the 2D plan uses — one palette, both viewers.
+  const color = ROOM_FILL_2D[room.room_type] || DEFAULT_FILL_2D;
   const z = (room.floor - 1) * FLOOR_HEIGHT;
   const wt = 0.12; // internal partition thickness (120mm); external wall is the building envelope
 
@@ -34,10 +37,10 @@ function RoomMesh({
         onClick();
       }}
     >
-      {/* Floor slab */}
+      {/* Floor slab — warm paper, matching the blueprint design language */}
       <Box args={[room.width, SLAB_H, room.depth]}>
         <meshStandardMaterial
-          color={selected ? "#60a5fa" : "#2d3748"}
+          color={selected ? "#60a5fa" : "#eae4d6"}
           roughness={0.9}
           metalness={0.0}
         />
@@ -103,17 +106,18 @@ function RoomMesh({
         <WindowVisual key={`w${i}`} win={win} roomWidth={room.width} roomDepth={room.depth} />
       ))}
 
-      {/* Room label */}
+      {/* Room label — localized name + the NET (usable) figure, the same
+          primary the canvas, PDF and DXF show since the net-target flip. */}
       <Text
         position={[0, 0.5, 0]}
         rotation={[-Math.PI / 2, 0, 0]}
         fontSize={0.35}
-        color="#e2e8f0"
+        color="#33302a"
         anchorX="center"
         anchorY="middle"
         maxWidth={room.width - 0.2}
       >
-        {`${room.name}\n${room.area_m2.toFixed(1)}m²`}
+        {`${roomDisplayName(room, t)}\n${(room.net_area ?? room.width * room.depth).toFixed(1)}m²`}
       </Text>
     </group>
   );
@@ -150,9 +154,22 @@ function DoorVisual({
     pos = [roomWidth / 2, cy, dpos + dw / 2 - roomDepth / 2];
     args = [dt, dh, dw];
   }
+  // A cased opening is a void, not a leaf — render it as a barely-there pane
+  // so merged open-plan rooms don't look bricked shut. A garage gate reads as
+  // a lighter industrial panel; ordinary doors stay warm wood.
+  if (door.kind === "opening") {
+    return (
+      <Box args={args} position={pos}>
+        <meshStandardMaterial color="#ffffff" transparent opacity={0.15} />
+      </Box>
+    );
+  }
   return (
     <Box args={args} position={pos}>
-      <meshStandardMaterial color="#4a2c1a" roughness={0.7} />
+      <meshStandardMaterial
+        color={door.kind === "gate" ? "#9a958a" : "#4a2c1a"}
+        roughness={0.7}
+      />
     </Box>
   );
 }
@@ -216,21 +233,21 @@ function HumanMannequin({ position }: { position: [number, number, number] }) {
     <group position={position}>
       {/* Body */}
       <Cylinder args={[0.2, 0.2, 1.1, 8]} position={[0, 0.9, 0]}>
-        <meshStandardMaterial color="#94a3b8" roughness={0.7} />
+        <meshStandardMaterial color="#8c8a85" roughness={0.7} />
       </Cylinder>
       {/* Head */}
       <Box args={[0.3, 0.3, 0.3]} position={[0, 1.65, 0]}>
-        <meshStandardMaterial color="#cbd5e1" roughness={0.7} />
+        <meshStandardMaterial color="#a8a49b" roughness={0.7} />
       </Box>
       {/* Legs */}
       <Cylinder args={[0.1, 0.1, 0.8, 8]} position={[-0.12, 0.4, 0]}>
-        <meshStandardMaterial color="#94a3b8" roughness={0.7} />
+        <meshStandardMaterial color="#8c8a85" roughness={0.7} />
       </Cylinder>
       <Cylinder args={[0.1, 0.1, 0.8, 8]} position={[0.12, 0.4, 0]}>
-        <meshStandardMaterial color="#94a3b8" roughness={0.7} />
+        <meshStandardMaterial color="#8c8a85" roughness={0.7} />
       </Cylinder>
       {/* Height label */}
-      <Text position={[0.5, 1.0, 0]} fontSize={0.2} color="#64748b" anchorX="left">
+      <Text position={[0.5, 1.0, 0]} fontSize={0.2} color="#615c4f" anchorX="left">
         1.8m
       </Text>
     </group>
@@ -286,10 +303,12 @@ function CameraRig() {
     controlsRef.current.target.set(cx, fy, cz);
     camera.position.set(cx + dist, fy + dist * 0.7, cz + dist);
     controlsRef.current.update();
-    // Recenter only on a new generation (project_id) or floor change — not on
-    // every camera move, so the user's manual orbit/zoom is preserved.
+    // Recenter on a new generation (project_id), floor change, or when
+    // makeDefault swaps in the real camera (mount race: without the `camera`
+    // dep this effect positioned the OLD default camera and the house opened
+    // half out of frame) — not on every move, so manual orbit is preserved.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [result?.project_id, activeFloor]);
+  }, [result?.project_id, activeFloor, camera]);
 
   return (
     <OrbitControls
@@ -347,26 +366,32 @@ export function ThreeViewer() {
     useStore();
   const maxFloor = result ? Math.max(...result.rooms.map((r) => r.floor)) : 1;
 
-  // 3D view is hidden for now. The 3D <Canvas> below is kept; restore the
-  // switcher by uncommenting the "3d" entry here.
+  // 2D is the primary view (default); 3D is the walkthrough check —
+  // restored in release 8 with the blueprint palette and net-area labels.
   const VIEW_MODES: { mode: "3d" | "2d"; label: string }[] = [
-    // { mode: "3d", label: "3D" },
     { mode: "2d", label: t("viewer.plan2d") },
+    { mode: "3d", label: "3D" },
   ];
 
   return (
     <div className="relative w-full h-full min-h-[400px]">
       {viewMode === "3d" ? (
         <Canvas shadows gl={{ logarithmicDepthBuffer: true }}>
+          {/* Warm paper scene — the 3D view inherits the drawing, not a night
+              render: paper background, mm-grid in warm ink, sunlight tones. */}
+          <color attach="background" args={["#f4f0e6"]} />
           <PerspectiveCamera makeDefault position={[15, 12, 15]} fov={45} />
-          <ambientLight intensity={0.4} />
+          {/* Flat, high-ambient light — a cardboard model on a drawing desk,
+              not a night render; hard shadows would eat the pastel walls. */}
+          <ambientLight intensity={1.05} />
           <directionalLight
             castShadow
             position={[10, 20, 10]}
-            intensity={1.5}
+            intensity={0.9}
+            color="#fff4e0"
             shadow-mapSize={[2048, 2048]}
           />
-          <pointLight position={[-10, 10, -10]} intensity={0.5} color="#6080ff" />
+          <pointLight position={[-10, 10, -10]} intensity={0.35} color="#f0e8d8" />
 
           <Grid
             infiniteGrid
@@ -374,8 +399,8 @@ export function ThreeViewer() {
             cellThickness={0.3}
             sectionSize={5}
             sectionThickness={0.8}
-            cellColor="#1e293b"
-            sectionColor="#334155"
+            cellColor="#d8d2c2"
+            sectionColor="#b5ae9c"
             fadeDistance={40}
             position={[0, -0.01, 0]}
           />
@@ -387,8 +412,7 @@ export function ThreeViewer() {
         <PlanView2D />
       )}
 
-      {/* 2D / 3D view toggle — 3D is HIDDEN (its code below is kept, not deleted);
-          re-add `{ mode: "3d" as const, label: "3D" }` to VIEW_MODES to restore it. */}
+      {/* 2D / 3D view toggle */}
       {result && VIEW_MODES.length > 1 && (
         <div className="absolute top-4 left-1/2 -translate-x-1/2 flex bg-surface-card border border-surface-border rounded-lg p-0.5 shadow-lg z-10">
           {VIEW_MODES.map(({ mode, label }) => (
