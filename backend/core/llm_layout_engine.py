@@ -249,16 +249,26 @@ class LLMLayoutEngine:
         self.warnings: list[str] = []
         self._rule = LayoutEngine(params, geo)
 
+    @property
+    def silhouette_m2(self) -> float | None:
+        # Set by the rule engine for non-rectangular silhouettes; the LLM path
+        # only ever produces rectangles, so None is correct there.
+        return self._rule.silhouette_m2
+
     def generate(self) -> list[RoomLayout]:
         client = _get_client()
         # Open/mixed planning needs deterministic social-zone geometry (merged
         # kitchen-living, no central hallway) the LLM prompt does not express, so
-        # those modes always use the rule engine.
+        # those modes always use the rule engine. Same for the L silhouette —
+        # the prompt only knows the rectangular central-hall plan.
         open_plan = getattr(self.params, "openness", "closed") != "closed"
-        if not client or open_plan:
+        l_shape = getattr(self.params, "building_shape", "rectangular") == "l_shape"
+        if not client or open_plan or l_shape:
             logger.info(
                 "Using rule-based layout (%s)",
-                "no GROQ_API_KEY" if not client else f"openness={self.params.openness}",
+                "no GROQ_API_KEY"
+                if not client
+                else ("l_shape" if l_shape else f"openness={self.params.openness}"),
             )
             result = self._rule.generate()
             self.warnings.extend(self._rule.warnings)

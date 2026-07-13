@@ -70,6 +70,7 @@ export default {
   shapes: {
     rectangular: "Вытянутая",
     square: "Компактная",
+    l_shape: "Г-образная",
   },
   openness: {
     title: "Открытость планировки",

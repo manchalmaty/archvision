@@ -150,7 +150,9 @@ async def generate_plan(
             severity=v.severity,
             room_id=v.room_id,
         )
-        for v in check_invariants(rooms, openness=params.openness)
+        for v in check_invariants(
+            rooms, openness=params.openness, silhouette_m2=layout_engine.silhouette_m2
+        )
     ]
     compliance_issues.extend(await rag_checker.check(params, rooms))
 

@@ -31,12 +31,17 @@ def build_variants(
     for label, s in VARIANT_SETTINGS:
         p = params.model_copy(update={"spaciousness": s}, deep=True)
         try:
-            rooms = LayoutEngine(p, geo).generate()
+            engine = LayoutEngine(p, geo)
+            rooms = engine.generate()
         except Exception:  # a setting that cannot tile is a missing row, not a 500
             logger.warning("variant %r failed to tile — row skipped", label)
             continue
         red = sum(
-            1 for v in check_invariants(rooms, openness=p.openness) if v.severity == "ERROR"
+            1
+            for v in check_invariants(
+                rooms, openness=p.openness, silhouette_m2=engine.silhouette_m2
+            )
+            if v.severity == "ERROR"
         )
         if p.plot_width_m and p.plot_depth_m:
             site = plan_site(rooms, p.plot_width_m, p.plot_depth_m, p.street_side, geo.seismic_zone)

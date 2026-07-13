@@ -123,7 +123,11 @@ def _wet_clusters(wet: list[RoomLayout]) -> int:
     return clusters
 
 
-def check_invariants(rooms: list[RoomLayout], openness: str = "closed") -> list[Violation]:
+def check_invariants(
+    rooms: list[RoomLayout],
+    openness: str = "closed",
+    silhouette_m2: float | None = None,
+) -> list[Violation]:
     v: list[Violation] = []
     floors = sorted({r.floor for r in rooms})
     by_floor = {f: [r for r in rooms if r.floor == f] for f in floors}
@@ -148,9 +152,13 @@ def check_invariants(rooms: list[RoomLayout], openness: str = "closed") -> list[
             bbox = (max(r.x + r.width for r in fr) - min_x) * (
                 max(r.y + r.depth for r in fr) - min_y
             )
+            # A non-rectangular silhouette (the L) covers its own declared
+            # outline, not its bounding box — judged against the bbox a
+            # healthy L reads as a floor full of gaps.
+            denom = silhouette_m2 if silhouette_m2 else bbox
             covered = sum(r.width * r.depth for r in fr)
-            if bbox > 0 and covered < COVERAGE_MIN * bbox:
-                v.append(Violation(1, "gap", f"floor {f} has {bbox - covered:.1f}m² of gaps"))
+            if denom > 0 and covered < COVERAGE_MIN * denom:
+                v.append(Violation(1, "gap", f"floor {f} has {denom - covered:.1f}m² of gaps"))
 
         # Rule 2 — areas respected
         for r in fr:

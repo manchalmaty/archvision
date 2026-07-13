@@ -91,10 +91,23 @@ const SHAPES: { id: BuildingShape; icon: JSX.Element }[] = [
       </svg>
     ),
   },
-  // L/U/T shapes are deliberately NOT offered: the engine builds a central-hall
-  // rectangle only, so those pictograms would promise a silhouette it never
-  // produces. Real L/U/T footprints are on the roadmap (next to site placement).
-  // These two are honest — a rectangle and a square ARE the proportions choice.
+  {
+    // A REAL L since release 6: bedroom wing off the hallway joint, the notch
+    // faces the street. U/T stay out until they truly tile.
+    id: "l_shape",
+    icon: (
+      <svg
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth={2.5}
+        strokeLinejoin="round"
+        className="w-full h-full"
+      >
+        <path d="M2 3h9v10h11v8H2z" />
+      </svg>
+    ),
+  },
 ];
 
 const OPENNESS: Openness[] = ["closed", "mixed", "open"];

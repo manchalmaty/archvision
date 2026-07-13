@@ -284,8 +284,12 @@ class LayoutEngine:
         # Non-blocking issues found during layout (e.g. plot overflow);
         # the API route merges these into GenerationResult.warnings.
         self.warnings: list[str] = []
+        # Declared per-floor outline area for non-rectangular silhouettes (the
+        # L). None = rectangle; invariant rule 1 then judges against the bbox.
+        self.silhouette_m2: float | None = None
 
     def generate(self) -> list[RoomLayout]:
+        self.silhouette_m2 = None
         rooms = self._ensure_essentials(list(self.params.rooms))
         rooms = scale_room_areas(rooms, getattr(self.params, "spaciousness", 0.5))
         rooms_per_floor = self._distribute_floors(rooms)
@@ -613,8 +617,107 @@ class LayoutEngine:
 
     def _layout_floor(self, floor: int, rooms) -> list[RoomLayout]:
         shape = getattr(self.params, "building_shape", "rectangular")
+        if shape == "l_shape":
+            out = self._layout_l(floor, rooms)
+            if out is not None:
+                return out
         aspect = self._SHAPE_ASPECT.get(shape, 1.35)
         return self._layout_central_hall(floor, rooms, aspect_factor=aspect)
+
+    def _layout_l(self, floor: int, rooms) -> list[RoomLayout] | None:
+        """Real L-shape: wing A + a bedroom wing whose corridor CONTINUES the
+        hallway strip through the seam.
+
+        Wing A is the proven central-hall bar (social + wet core + garage).
+        Wing B extends east of it: a corridor cell on the same y-band as the
+        hallway strip, bedrooms in a row above it up to wing A's north edge —
+        so circulation lives at the joint BY CONSTRUCTION (the old wing
+        layouts stranded the hallway in a corner and routed through a toilet).
+        The missing south band of wing B is the notch: a street-facing nook.
+
+        Returns None (with a warning) when the program cannot honestly form an
+        L — the caller falls back to the rectangle.
+        """
+        if self.params.floors > 1:
+            self.warnings.append(
+                "L-образный план пока поддерживает один этаж — использован "
+                "прямоугольный план."
+            )
+            return None
+        bedrooms = [r for r in rooms if r.room_type == RoomType.BEDROOM]
+        rest = [r for r in rooms if r.room_type != RoomType.BEDROOM]
+        if len(bedrooms) < 2:
+            self.warnings.append(
+                "Для L-образного плана нужно ≥2 спален (крыло спален) — "
+                "использован прямоугольный план."
+            )
+            return None
+
+        # Wing A: squarish so the bar plus the wing read as an L, not a stick.
+        wing_a = self._layout_central_hall(floor, rest, aspect_factor=1.0)
+        halls = [r for r in wing_a if r.room_type == RoomType.HALLWAY]
+        w1 = max(r.x + r.width for r in wing_a)
+        depth_a = max(r.y + r.depth for r in wing_a)
+        hall = max(halls, key=lambda r: r.width) if halls else None
+        # The corridor can only continue through the seam if the hallway strip
+        # actually reaches it (a tiled fallback inside wing A may not).
+        if hall is None or hall.x + hall.width < w1 - 1e-6:
+            self.warnings.append(
+                "Коридор не доходит до стыка крыльев — использован "
+                "прямоугольный план."
+            )
+            return None
+
+        # Wing B: bedrooms in one row over the corridor. Depth targets a GOOD
+        # bedroom proportion (~1.2 aspect) — sizing to the flush edge alone
+        # produced 5.8×2.4 pencil bedrooms and a 22 m snake that blew the plot
+        # setbacks. Snap flush with wing A's north edge only when it is close;
+        # otherwise a small step in the outline beats unusable rooms.
+        bed_min = USABLE_MIN_SIDE[RoomType.BEDROOM]
+        mean_area = sum(r.area_m2 for r in bedrooms) / len(bedrooms)
+        d_prop = math.sqrt(mean_area / 1.2)
+        d_flush = depth_a - (hall.y + hall.depth)
+        d_b = d_flush if abs(d_prop - d_flush) <= 0.5 else d_prop
+        d_b = round(min(max(d_b, bed_min), 4.2), 3)
+        widths = [round(max(r.area_m2 / d_b, bed_min), 3) for r in bedrooms]
+
+        layouts = list(wing_a)
+        wb = round(sum(widths), 3)
+        layouts.append(
+            RoomLayout(
+                room_id=str(uuid.uuid4()),
+                room_type=RoomType.HALLWAY,
+                name="Hallway",
+                x=round(w1, 3),
+                y=hall.y,
+                floor=floor,
+                width=wb,
+                depth=hall.depth,
+                # The corridor prints its real figure (hallway-real-figure rule);
+                # it is new circulation the L adds, not carved from the request.
+                area_m2=round(wb * hall.depth, 2),
+            )
+        )
+        x = w1
+        bed_y = round(hall.y + hall.depth, 3)
+        for r, wd in zip(bedrooms, widths):
+            layouts.append(
+                RoomLayout(
+                    room_id=str(uuid.uuid4()),
+                    room_type=r.room_type,
+                    name=r.name or "Bedroom",
+                    x=round(x, 3),
+                    y=bed_y,
+                    floor=floor,
+                    width=wd,
+                    depth=d_b,
+                    area_m2=r.area_m2,
+                )
+            )
+            x = round(x + wd, 3)
+
+        self.silhouette_m2 = round(w1 * depth_a + wb * (hall.depth + d_b), 2)
+        return layouts
 
     def _layout_tiled(
         self,

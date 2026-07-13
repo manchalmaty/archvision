@@ -84,9 +84,9 @@ function loadParams(): BuildingParams {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (raw) {
       const params = { ...DEFAULT_PARAMS, ...JSON.parse(raw) };
-      // Storage written before the honest-proportions contract may hold
-      // l_shape/u_shape/t_shape — the backend now rejects those with 422.
-      if (params.building_shape !== "rectangular" && params.building_shape !== "square") {
+      // Storage may hold u_shape/t_shape from before the honest-shape
+      // contract — the backend rejects those with 422. l_shape is real again.
+      if (!["rectangular", "square", "l_shape"].includes(params.building_shape)) {
         params.building_shape = "rectangular";
       }
       return params;

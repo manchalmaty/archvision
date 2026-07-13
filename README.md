@@ -15,6 +15,11 @@ RU/KZ/CIS market. Генератор архитектурных эскизов: 
   custom room list — deterministic central-hall layout engine, with an optional
   LLM loop (Groq) that is *validated by the same geometry rules and falls back
   to the rule engine*. No API key needed: fully offline by default.
+- **Real L-shape** — a genuine two-wing silhouette (not a stretched rectangle):
+  the bedroom wing's corridor continues the hallway strip through the joint,
+  so circulation is correct by construction; the notch faces the street.
+  Coverage, invariants and net areas all judge the true outline. U/T stay out
+  until they truly tile.
 - **9 deterministic invariants** checked on every plan and shipped as visible
   red flags (never a silent "best effort"): overlaps/coverage, areas, door on
   every room, no transit through bedrooms, shared wet riser, entry buffer
@@ -119,16 +124,15 @@ User input → GeoClimate calc (frost depth, seismic zone, wall/insulation)
 ## Tests
 
 ```bash
-cd backend && pytest -q          # 258 tests: engine geometry, invariants, API
+cd backend && pytest -q          # 269 tests: engine geometry, invariants, API
 cd frontend && npx vitest run && npx tsc --noEmit
 ```
 
 ## Roadmap
 
-1. **Real L/U/T footprints** — non-rectangular silhouettes. The proportions
-   control today only stretches a central-hall rectangle (honest, but a
-   rectangle); a real L/U/T outline and fitting it to the plot are the same
-   solver problem as site placement, so they're likely one pass together.
+1. **U/T footprints + multi-floor L** — the L landed in v1.5 (one floor,
+   ≥2 bedrooms; honest fallback otherwise). U/T need courtyard perimeter
+   support in the cost/heating models before they can be honest values.
 2. Engine targets net areas — size rooms so the USABLE area matches the
    request and judge minimum dimensions on net figures (the display layer
    already shows both; this flips the primary).

@@ -103,7 +103,12 @@ def plan_site(
     }
 
     plot_area = plot_width * plot_depth
-    coverage = (bw * bd) / plot_area if plot_area > 0 else 0.0
+    # Coverage counts the BUILT footprint, not the bbox: an L-shaped house is
+    # often chosen exactly to fit the 30% limit — charging its notch as built
+    # area would defeat the point. For rectangles the two are identical.
+    ground_floor = min(r.floor for r in rooms) if rooms else 1
+    built = sum(r.width * r.depth for r in rooms if r.floor == ground_floor)
+    coverage = built / plot_area if plot_area > 0 else 0.0
 
     return SitePlan(
         plot_width_m=round(plot_width, 2),
