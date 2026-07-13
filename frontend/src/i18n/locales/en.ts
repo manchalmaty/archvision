@@ -144,6 +144,13 @@ export default {
     variantApplied: "Budget ↔ Spacious slider updated — regenerate the plan",
     variantsNote:
       "Computed by the deterministic engine: apply a setting and regenerate to see that variant on the canvas.",
+    heating: "Heating (draft)",
+    heatDesignTemp: "Design temperature",
+    heatLoss: "Heat loss",
+    heatSpecific: "Specific",
+    heatBoiler: "Boiler (recommended)",
+    heatingNote:
+      "Draft envelope heat-loss estimate; the temperature is climate-index derived. Not a thermal calculation (СП 50) — an engineer sizes the boiler and the system.",
     secondFloorHint: "The program does not fit on one floor — try two.",
     secondFloorApply: "2 floors",
     secondFloorApplied: "Floor count updated — regenerate the plan",

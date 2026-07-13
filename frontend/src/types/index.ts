@@ -56,6 +56,18 @@ export interface GeoClimateData {
   insulation_thickness_mm: number;
   snow_load_kpa: number;
   wind_load_kpa: number;
+  // Index-derived design winter temperature; null on pre-heating results.
+  design_temp_c?: number | null;
+}
+
+// Sketch-level design heat loss (U-value envelope) + boiler sizing — a draft
+// for the engineer conversation, not a СП 50 thermal calculation.
+export interface HeatingEstimate {
+  design_temp_c: number;
+  heated_area_m2: number;
+  heat_loss_kw: number;
+  specific_w_m2: number;
+  boiler_kw: number;
 }
 
 export interface DoorSpec {
@@ -165,6 +177,8 @@ export interface GenerationResult {
   region_recognized: boolean;
   // Cost-Δ decision table, sorted by cost ascending (may be empty).
   variants: PlanVariant[];
+  // Draft heat-loss + boiler sizing; null on pre-heating stored results.
+  heating: HeatingEstimate | null;
 }
 
 // The building placed on its plot (present only when a plot size was given).

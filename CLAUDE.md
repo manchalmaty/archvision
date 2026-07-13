@@ -103,6 +103,10 @@ The room solver stays **blind to sun** (it places by function: wet/social/privat
 - Interior walls counted ONCE via `(Σ perimeters - exterior) / 2`
 - Target: ~0.7 m³/m² concrete (was ~1.6 before fix)
 
+### Heating draft (release 3, DONE 2026-07-13) — `backend/core/heat_calculator.py`
+- `estimate_heating(rooms, geo)` — U-value envelope method over the REAL geo-driven wall/insulation thicknesses; window fraction = `1 − EXT_SOLID_FRAC` (imports the cost model's constant — single source); vent 0.35 ACH; garage EXCLUDED (unheated buffer, `heated_area_m2` proves it in tests). `GeoClimateData.design_temp_c` is DERIVED from AFI (`−(5+0.45·√AFI)`, fit vs СП 131 anchors, ±5 °C draft — boiler margin ×1.25 absorbs it); None on old stored results, and `GenerationResult.heating` defaults None too.
+- **Heating cost lives INSIDE `CostEstimator.estimate()`** (lazy import to dodge the import cycle; added AFTER labor — installed price, don't double-multiply) → hero, variants, PDF and the breakdown line stay consistent automatically. UI: «Отопление (черновик)» accordion + honest amber note (не СП 50). Tests: `backend/tests/test_heating.py`.
+
 ### PDF (`backend/core/pdf_generator.py`)
 - Embeds actual 2D floor plan drawing (one per floor) via reportlab vector graphics
 - `_floor_plan_drawing(rooms, avail_w, caption, lang)` → `Drawing` (lang threaded for localized labels)

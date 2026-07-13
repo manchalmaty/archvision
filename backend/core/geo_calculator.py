@@ -166,6 +166,12 @@ class GeoClimateCalculator:
         C = 0.026
         frost_depth_m = round(C * math.sqrt(afi), 2)
 
+        # Design winter temperature from the same index (fit against СП 131
+        # anchor cities: Москва −28, Новосибирск −37, Краснодар −19). Draft
+        # accuracy ±5 °C — heat loss is linear in ΔT, so a boiler sized with a
+        # 25% margin absorbs it; the UI labels the figure as index-derived.
+        design_temp_c = -round(5 + 0.45 * math.sqrt(afi))
+
         wall_mm = wall_thickness_by_frost(frost_depth_m)
         insulation_mm = insulation_by_frost(frost_depth_m)
         foundation = foundation_type_by_frost(frost_depth_m, seismic)
@@ -180,6 +186,7 @@ class GeoClimateCalculator:
             insulation_thickness_mm=insulation_mm,
             snow_load_kpa=snow_kpa,
             wind_load_kpa=wind_kpa,
+            design_temp_c=design_temp_c,
         )
 
     def supported_countries(self):

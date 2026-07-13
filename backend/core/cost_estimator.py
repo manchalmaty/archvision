@@ -26,6 +26,12 @@ MATERIAL_COSTS_USD = {
     "labor_factor": 0.5,  # 50% of materials for labor
 }
 
+# Heating system draft prices (installed, labor included — the labor factor
+# below must not multiply them again)
+HEATING_BASE_USD = 500  # boiler strapping, controls, safety group
+HEATING_PER_KW_USD = 60  # boiler + emitters per design kW
+HEATING_PER_M2_USD = 12  # distribution piping per heated m²
+
 # Local currency multipliers relative to USD
 CURRENCY_INFO = {
     "RU": ("RUB", 90.0),
@@ -95,7 +101,23 @@ class CostEstimator:
 
         materials_cost = concrete_cost + brick_cost + insulation_cost + rebar_cost
         labor_cost = materials_cost * MATERIAL_COSTS_USD["labor_factor"]
-        total_usd = materials_cost + labor_cost
+
+        # Heating system sized from the envelope heat loss — the same estimator
+        # everywhere (hero, variants, PDF), so a roomier plan honestly pays for
+        # its bigger boiler too. Lazy import: heat_calculator reuses this
+        # module's geometry constants.
+        from core.heat_calculator import estimate_heating
+
+        heating = estimate_heating(self.rooms, self.geo)
+        heating_cost = 0.0
+        if heating:
+            heating_cost = (
+                HEATING_BASE_USD
+                + HEATING_PER_KW_USD * heating.boiler_kw
+                + HEATING_PER_M2_USD * heating.heated_area_m2
+            )
+
+        total_usd = materials_cost + labor_cost + heating_cost
 
         currency, rate = CURRENCY_INFO.get(self.country.value, ("USD", 1.0))
         total_local = round(total_usd * rate, 0)
@@ -113,5 +135,6 @@ class CostEstimator:
                 "insulation_usd": round(insulation_cost, 0),
                 "rebar_usd": round(rebar_cost, 0),
                 "labor_usd": round(labor_cost, 0),
+                "heating_usd": round(heating_cost, 0),
             },
         )

@@ -32,6 +32,10 @@ RU/KZ/CIS market. Генератор архитектурных эскизов: 
   out loud instead of borrowing a low country average.
 - **Cost estimate** — strip-foundation model, local currency (KZT/RUB) with USD
   reference, presented as a drawing title block (штамп).
+- **Heating draft** — envelope heat loss (U-value method over the real
+  geo-driven wall/insulation thicknesses), climate-index design temperature,
+  boiler sizing with margin, and a heating line in the estimate. The garage
+  stays unheated — it is the plan's thermal buffer.
 - **Cost-Δ variants** — the same program at three deterministic spaciousness
   settings (compact / balanced / roomy) as a decision table sorted by cost:
   each row shows the Δ vs the cheapest and its one causal driver
@@ -87,7 +91,8 @@ User input → GeoClimate calc (frost depth, seismic zone, wall/insulation)
            → Site placement (setbacks · coverage · seismic advisory → red flags)
            → Daylight sensor / auto-orientation
            → MEP draft (riser + branches) + clash advisories
-           → Cost estimator (strip foundation) → PDF (en/ru/kk) · IFC
+           → Heat loss (envelope U-values) → boiler sizing
+           → Cost estimator (strip foundation + heating) → PDF (en/ru/kk) · IFC
 ```
 
 ## Endpoints
@@ -107,7 +112,7 @@ User input → GeoClimate calc (frost depth, seismic zone, wall/insulation)
 ## Tests
 
 ```bash
-cd backend && pytest -q          # 241 tests: engine geometry, invariants, API
+cd backend && pytest -q          # 248 tests: engine geometry, invariants, API
 cd frontend && npx vitest run && npx tsc --noEmit
 ```
 
@@ -117,10 +122,9 @@ cd frontend && npx vitest run && npx tsc --noEmit
    control today only stretches a central-hall rectangle (honest, but a
    rectangle); a real L/U/T outline and fitting it to the plot are the same
    solver problem as site placement, so they're likely one pass together.
-2. Heating layer in the estimate (heat-loss data already computed).
-3. DXF export (`ezdxf`) — the bridge to CIS engineers' AutoCAD workflow.
-4. Wall thickness in areas (geometry, PDF, cost, IFC together).
-5. 3D viewer polish (currently hidden; code in place).
+2. DXF export (`ezdxf`) — the bridge to CIS engineers' AutoCAD workflow.
+3. Wall thickness in areas (geometry, PDF, cost, IFC together).
+4. 3D viewer polish (currently hidden; code in place).
 
 ## License
 

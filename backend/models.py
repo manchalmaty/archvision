@@ -72,6 +72,10 @@ class GeoClimateData(BaseModel):
     insulation_thickness_mm: int
     snow_load_kpa: float
     wind_load_kpa: float
+    # Design winter temperature DERIVED from the same climate index (AFI) that
+    # drives frost depth — a draft figure, not a СП 131 lookup. None on results
+    # stored before the heating layer existed.
+    design_temp_c: float | None = None
 
 
 class DoorSpec(BaseModel):
@@ -188,6 +192,22 @@ class PlanVariant(BaseModel):
     red_flags: int = 0
 
 
+class HeatingEstimate(BaseModel):
+    """Sketch-level design heat loss (U-value envelope method) + boiler sizing.
+
+    Honest draft, same contract as the cost model: real geo-driven wall and
+    insulation thicknesses, the cost model's 30% window fraction, ventilation
+    air change. NOT a thermal engineering calculation (СП 50) — the figure
+    exists so the heating conversation with an engineer starts earlier.
+    """
+
+    design_temp_c: float
+    heated_area_m2: float  # garage excluded — it is an unheated buffer
+    heat_loss_kw: float
+    specific_w_m2: float
+    boiler_kw: float
+
+
 class GenerationResult(BaseModel):
     project_id: str
     rooms: list[RoomLayout]
@@ -210,6 +230,8 @@ class GenerationResult(BaseModel):
     # Cost-Δ decision table, sorted by cost ascending. Default [] keeps
     # pre-variants stored results loadable.
     variants: list[PlanVariant] = []
+    # Draft heat-loss + boiler sizing. None on pre-heating stored results.
+    heating: HeatingEstimate | None = None
 
 
 class ComplianceRequest(BaseModel):

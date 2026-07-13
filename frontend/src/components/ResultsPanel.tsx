@@ -365,6 +365,47 @@ function CostBreakdown() {
   );
 }
 
+// Draft heat loss + boiler sizing — the estimate the heating line in the cost
+// breakdown is priced from. Honest scope note names what it is NOT (СП 50).
+function HeatingCard() {
+  const { t } = useTranslation();
+  const { result } = useStore();
+  if (!result?.heating) return null;
+  const h = result.heating;
+  const cells = [
+    { label: t("results.heatDesignTemp"), value: `${h.design_temp_c} °C` },
+    { label: t("results.heatLoss"), value: `${h.heat_loss_kw} kW` },
+    { label: t("results.heatSpecific"), value: `${Math.round(h.specific_w_m2)} W/m²` },
+    { label: t("results.heatBoiler"), value: `${Math.round(h.boiler_kw)} kW` },
+  ];
+  return (
+    <div>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6, marginBottom: 6 }}>
+        {cells.map(({ label, value }) => (
+          <div key={label} style={{ background: "#fffdf8", borderRadius: 8, padding: "8px 10px" }}>
+            <p style={{ fontSize: 11, color: "#7c7768", marginBottom: 3 }}>{label}</p>
+            <p style={{ fontSize: 14, fontFamily: "monospace", color: "#33302a", fontWeight: 600 }}>
+              {value}
+            </p>
+          </div>
+        ))}
+      </div>
+      <div
+        style={{
+          background: "#fff8ec",
+          border: "1px solid #f5d9a8",
+          borderRadius: 8,
+          padding: "8px 10px",
+        }}
+      >
+        <p style={{ fontSize: 12, color: "#8a6d2f", lineHeight: 1.45 }}>
+          {t("results.heatingNote")}
+        </p>
+      </div>
+    </div>
+  );
+}
+
 // Cost-Δ decision table: the same program re-tiled at three deterministic
 // spaciousness settings, sorted by cost. Honest rows — a cheaper variant that
 // breaks minimum sizes carries its red count right next to the tempting saving.
@@ -987,6 +1028,11 @@ export function ResultsPanel({ onClose }: Props) {
             <Accordion title={t("results.geoClimate")}>
               <GeoCard />
             </Accordion>
+            {result.heating && (
+              <Accordion title={t("results.heating")}>
+                <HeatingCard />
+              </Accordion>
+            )}
             {result.site && (
               <Accordion
                 title={t("results.site")}

@@ -14,6 +14,7 @@ from ai.rag_engine import ComplianceChecker
 from config import settings
 from core.cost_estimator import CostEstimator
 from core.geo_calculator import GeoClimateCalculator
+from core.heat_calculator import estimate_heating
 from core.ifc_generator import IFCGenerator
 from core.insolation import annotate as annotate_insolation
 from core.insolation import score as insolation_score
@@ -199,6 +200,7 @@ async def generate_plan(
         site=site,
         region_recognized=region_res.recognized,
         variants=variants,
+        heating=estimate_heating(rooms, geo_data),
     )
 
     # Persist the result next to the IFC so /report/{id} and project history
