@@ -4,6 +4,10 @@ import { motion, type Transition } from "framer-motion";
 
 type BorderTrailProps = {
   className?: string;
+  // The trail paints only inside the wrapper's transparent border ring; the
+  // default 1px reads on a small card but drowns on a full-bleed canvas —
+  // pass e.g. "border-[3px]" here to thicken the visible track.
+  containerClassName?: string;
   size?: number;
   transition?: Transition;
   delay?: number;
@@ -13,6 +17,7 @@ type BorderTrailProps = {
 
 export function BorderTrail({
   className,
+  containerClassName,
   size = 60,
   transition,
   delay,
@@ -28,7 +33,12 @@ export function BorderTrail({
   };
 
   return (
-    <div className="pointer-events-none absolute inset-0 rounded-[inherit] border border-transparent [mask-clip:padding-box,border-box] [mask-composite:intersect] [mask-image:linear-gradient(transparent,transparent),linear-gradient(#000,#000)]">
+    <div
+      className={cn(
+        "pointer-events-none absolute inset-0 rounded-[inherit] border border-transparent [mask-clip:padding-box,border-box] [mask-composite:intersect] [mask-image:linear-gradient(transparent,transparent),linear-gradient(#000,#000)]",
+        containerClassName
+      )}
+    >
       <motion.div
         className={cn("absolute aspect-square bg-zinc-500", className)}
         style={{
