@@ -24,6 +24,12 @@ RU/KZ/CIS market. Генератор архитектурных эскизов: 
   cost-risk advisories (long branch, wet-over-dry).
 - **Daylight** — per-room insolation rating + optional auto-orientation of the
   whole plan to the sun.
+- **Site placement (участок)** — the house is placed on its plot: street
+  red-line setback (5 m) and neighbour setbacks (3 m), 30% coverage limit,
+  buildable envelope drawn on the plan. Breaches ship as red `SITE-*` flags,
+  never silently. Region-aware seismicity: typing «Алматы» prices in ₸ and
+  flags zone 4 with a framework advisory — an unrecognized region says so
+  out loud instead of borrowing a low country average.
 - **Cost estimate** — strip-foundation model, local currency (KZT/RUB) with USD
   reference, presented as a drawing title block (штамп).
 - **Cost-Δ variants** — the same program at three deterministic spaciousness
@@ -78,6 +84,7 @@ User input → GeoClimate calc (frost depth, seismic zone, wall/insulation)
            → Layout engine (central-hall tiling · wet-room stacking ·
              LLM loop gated by deterministic validator → rule-engine fallback)
            → Invariant check (9 rules → visible red flags)
+           → Site placement (setbacks · coverage · seismic advisory → red flags)
            → Daylight sensor / auto-orientation
            → MEP draft (riser + branches) + clash advisories
            → Cost estimator (strip foundation) → PDF (en/ru/kk) · IFC
