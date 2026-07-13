@@ -100,7 +100,7 @@ User input → GeoClimate calc (frost depth, seismic zone, wall/insulation)
 ## Tests
 
 ```bash
-cd backend && pytest -q          # 269 tests: engine geometry, invariants, API
+cd backend && pytest -q          # 241 tests: engine geometry, invariants, API
 cd frontend && npx vitest run && npx tsc --noEmit
 ```
 

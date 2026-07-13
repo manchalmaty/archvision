@@ -144,6 +144,9 @@ export default {
     variantApplied: "Budget ↔ Spacious slider updated — regenerate the plan",
     variantsNote:
       "Computed by the deterministic engine: apply a setting and regenerate to see that variant on the canvas.",
+    secondFloorHint: "The program does not fit on one floor — try two.",
+    secondFloorApply: "2 floors",
+    secondFloorApplied: "Floor count updated — regenerate the plan",
     compliance: "Preliminary checks ({{count}})",
     frostDepth: "Frost depth",
     seismicZone: "Seismic zone",

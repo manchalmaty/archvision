@@ -601,17 +601,14 @@ class LayoutEngine:
 
         return per_floor
 
-    # Footprint proportions per shape. Every shape now uses the central-hall
-    # layout: the wing layouts (L/U/T) stranded the hallway in a corner touching
-    # only wet rooms, which forced circulation through a toilet. A compact
-    # central corridor is a usable plan for every silhouette; the shape only
-    # nudges how wide vs deep the footprint is.
+    # Footprint proportions — the honest meaning of building_shape. Everything
+    # uses the central-hall layout: the wing layouts (L/U/T) stranded the
+    # hallway in a corner touching only wet rooms, which forced circulation
+    # through a toilet, so those values were removed from the API contract
+    # (models.BuildingParams pattern) rather than silently flattened here.
     _SHAPE_ASPECT = {
         "square": 1.0,
         "rectangular": 1.35,
-        "l_shape": 1.3,
-        "u_shape": 1.4,
-        "t_shape": 1.45,
     }
 
     def _layout_floor(self, floor: int, rooms) -> list[RoomLayout]:

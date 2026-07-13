@@ -9,7 +9,7 @@ from tests.conftest import rooms_overlap
 
 geo = GeoClimateCalculator().calculate(CountryCode.KZ, None, 1)
 
-SHAPES = ["rectangular", "square", "l_shape", "u_shape", "t_shape"]
+SHAPES = ["rectangular", "square"]
 
 
 def make_params(**overrides) -> BuildingParams:
@@ -79,7 +79,7 @@ class TestPlotConstraint:
 
     @pytest.mark.parametrize("shape", SHAPES)
     def test_plot_fits_or_warns(self, shape):
-        # Winged shapes (U/T) may be geometrically impossible on a narrow plot —
+        # A program may be geometrically impossible on a narrow plot —
         # the contract is: fit within the plot, or emit an explicit warning.
         params = make_params(building_shape=shape, plot_width_m=9.0, plot_depth_m=30.0)
         engine = LayoutEngine(params, geo)

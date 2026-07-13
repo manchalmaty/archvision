@@ -38,7 +38,10 @@ class BuildingParams(BaseModel):
     floors: int = Field(ge=1, le=5)
     plot_width_m: float | None = Field(default=None, gt=0)
     plot_depth_m: float | None = Field(default=None, gt=0)
-    building_shape: str = "rectangular"  # rectangular|square|l_shape|u_shape|t_shape
+    # Honest proportions of the central-hall rectangle — the engine never tiles
+    # L/U/T silhouettes, so those values are not offered. Real L/U/T footprints
+    # are a roadmap item and will return as new values when they truly tile.
+    building_shape: str = Field(default="rectangular", pattern="^(rectangular|square)$")
     # Openness of the social zone (a preference, not an invariant):
     #   closed — every room walled, kitchen on the wet riser, entrance via hallway
     #   mixed  — kitchen+living open as one volume, bedrooms behind a hallway

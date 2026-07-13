@@ -4,6 +4,7 @@ import toast from "react-hot-toast";
 import { useStore } from "../store/useStore";
 import { ifcDownloadUrl, pdfReportUrl, shareUrl } from "../api/client";
 import { exportPlanPng } from "./planExport";
+import { needsSecondFloorHint } from "./secondFloorHint";
 import { Chevron, Reveal } from "./disclosure";
 
 type Tab = "ANALYSIS" | "MEP" | "EXPORT";
@@ -476,9 +477,10 @@ function VariantsCard() {
 
 function ComplianceCard() {
   const { t } = useTranslation();
-  const { result } = useStore();
+  const { result, params, setParams } = useStore();
   if (!result) return null;
   const issues = result.compliance_issues;
+  const secondFloor = needsSecondFloorHint(issues, params.floors);
 
   if (issues.length === 0) {
     // Traffic light, not a blanket "all codes pass": we check areas and
@@ -523,9 +525,38 @@ function ComplianceCard() {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-      {issues.map((issue) => (
+      {secondFloor && (
         <div
-          key={issue.rule_id}
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: 10,
+            background: "#fff8ec",
+            border: "1px solid #f5d9a8",
+            borderRadius: 8,
+            padding: "8px 10px",
+          }}
+        >
+          <p style={{ fontSize: 12, color: "#8a6d2f", lineHeight: 1.45 }}>
+            {t("results.secondFloorHint")}
+          </p>
+          <button
+            onClick={() => {
+              setParams({ floors: 2 });
+              toast.success(t("results.secondFloorApplied"));
+            }}
+            className="text-[11px] font-bold px-2.5 py-1 rounded-[7px] border border-amber-400 text-amber-800 bg-amber-50 transition-all duration-150 hover:bg-amber-100 flex-shrink-0"
+          >
+            {t("results.secondFloorApply")}
+          </button>
+        </div>
+      )}
+      {issues.map((issue, i) => (
+        <div
+          // rule_id alone is NOT unique — one rule can flag several rooms
+          // (five bedrooms → five INV-9-NARROW entries).
+          key={`${issue.rule_id}:${issue.room_id ?? i}`}
           style={{ background: "#fffdf8", borderRadius: 8, padding: "8px 10px" }}
         >
           <span

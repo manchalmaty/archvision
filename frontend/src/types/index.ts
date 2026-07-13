@@ -18,7 +18,9 @@ export interface RoomInput {
   name?: string;
 }
 
-export type BuildingShape = "rectangular" | "square" | "l_shape" | "u_shape" | "t_shape";
+// Honest proportions of the central-hall rectangle. L/U/T silhouettes are NOT
+// offered — the engine never tiles them (roadmap item, next to site placement).
+export type BuildingShape = "rectangular" | "square";
 
 // Social-zone openness (a preference): closed = every room walled; mixed =
 // kitchen+living open as one volume but bedrooms behind a hallway; open = no

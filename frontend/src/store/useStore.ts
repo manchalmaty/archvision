@@ -82,7 +82,15 @@ const DEFAULT_PARAMS: BuildingParams = {
 function loadParams(): BuildingParams {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) return { ...DEFAULT_PARAMS, ...JSON.parse(raw) };
+    if (raw) {
+      const params = { ...DEFAULT_PARAMS, ...JSON.parse(raw) };
+      // Storage written before the honest-proportions contract may hold
+      // l_shape/u_shape/t_shape — the backend now rejects those with 422.
+      if (params.building_shape !== "rectangular" && params.building_shape !== "square") {
+        params.building_shape = "rectangular";
+      }
+      return params;
+    }
   } catch {
     /* corrupt or unavailable storage — fall back to defaults */
   }

@@ -76,7 +76,7 @@ def _get_client() -> OpenAI | None:
 def _estimate_footprint(params: BuildingParams, floor_rooms: list) -> tuple[float, float]:
     total = sum(r.area_m2 for r in floor_rooms)
     gross = total * 1.22  # ~22% for walls + circulation
-    aspect = 1.3 if params.building_shape in ("rectangular", "l_shape", "t_shape") else 1.0
+    aspect = 1.3 if params.building_shape == "rectangular" else 1.0
     w = round(math.sqrt(gross * aspect), 1)
     h = round(gross / max(w, 0.1), 1)
     if params.plot_width_m:

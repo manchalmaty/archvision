@@ -29,7 +29,7 @@ Visual/browser check: API path prefix is `/api/v1` (e.g. `POST /api/v1/generate-
 ## Key architecture decisions (do not re-derive)
 
 ### Layout engine (`backend/core/layout_engine.py`)
-- **Central-hall layout only** — full-width hallway band splits rooms north/south. L/U/T silhouettes are plot shapes, NOT layout types.
+- **Central-hall layout only** — full-width hallway band splits rooms north/south. `building_shape` ∈ `rectangular|square` ONLY (pydantic pattern, 2026-07-13): the l/u/t values were silent aliases for near-identical aspects (1.3–1.45) — a public API promising silhouettes the engine never tiles. Rejected with 422 now; FE `loadParams()` coerces legacy stored values to `rectangular`. Real L/U/T = roadmap, returns as NEW values when they truly tile. Contract pinned by `tests/test_shape_contract.py` (incl. `_SHAPE_ASPECT` == API pattern).
 - `USABLE_MIN_SIDE` dict — shared between layout engine and invariant checker (single source of truth for minimum room dimension per type)
 - `_layout_central_hall()` — main layout function for all shapes
 - `_assign_floor_doors()` + `_assign_windows()` — BFS door tree rooted at hallway; hallway gets exactly ONE entrance door on external wall
@@ -87,6 +87,9 @@ The room solver stays **blind to sun** (it places by function: wet/social/privat
 - `core/variants.py build_variants()` — 3 FIXED settings (compact 0.0 / balanced 0.5 / roomy 1.0), **rule engine only** (never Groq: the table the user acts on must be reproducible), computed inside `generate-plan` → `GenerationResult.variants` (default `[]` keeps pre-variants `{id}.json` loadable), **sorted by cost ascending**.
 - Row = footprint Σw×d, cost, Δ vs cheapest, `delta_driver` ∈ concrete|walls (from `cost.breakdown`: concrete+rebar vs brick+insulation; labor excluded — fixed fraction, can't win), `red_flags` = invariant ERRORs + site breaches on the re-tiled plan (mirror-tested against the actual checkers).
 - FE: accordion «Варианты по бюджету» under Cost breakdown; collapsed badge = saving vs the canvas plan; «применить» ONLY sets the spaciousness slider (no auto-generate — rate limit) + toast; row matching current slider gets a «текущий» chip; honesty note names the deterministic engine. Tests: `backend/tests/test_variants.py`.
+
+### Second-floor hint (DONE 2026-07-13) — data-driven, never presumptive
+- `frontend/src/components/secondFloorHint.ts needsSecondFloorHint(issues, floors)`: amber hint + «2 этажа» button in `ComplianceCard` when floors==1 AND the checkers actually flagged a squeeze (`/^INV-(2|9)-/` ERROR). Button only sets `floors: 2` + toast (same no-auto-generate pattern as variants apply). Hint hides reactively the moment floors flips — the stale red issues stay until regeneration, by design. Closes the family-3–4-kids-on-one-floor storyline: red → one click → «Хорошо». i18n ×3, unit-tested.
 
 ### Household presets (`frontend/src/presets.ts`)
 - `couple` / `family` / `single` / `rental` → `buildPresetRooms(preset, kids?, garage?)`
@@ -194,6 +197,10 @@ These cost real cycles. Read before touching shell, geometry, or adding UI/metri
 - In bash heredocs, Windows paths with `\` get mangled (`C:\\Program Files` → backslashes stripped → broken path). Use FORWARD slashes for Windows paths in any script written via heredoc — Node and Python accept them.
 - Foreground `sleep` is blocked; never chain `sleep N && cmd`. Use `run_in_background` or Monitor.
 - PowerShell cwd persists between tool calls — re-`cd` into the dir you're already in errors. Check first.
+
+### Browser-driving the app (puppeteer verification)
+- The dev Groq key is free-tier THROTTLED: closed-mode generation hits 429-retry loops and takes ~90–150 s before the rule-engine fallback returns. Browser waits must exceed `LLM_TIME_BUDGET_S`; a 45–90 s wait times out and looks like a frontend bug.
+- Don't gate a "regenerated" wait on toasts or on the hint disappearing — toasts are transient and the second-floor hint hides REACTIVELY when params change. Wait on the штамп cell text (e.g. «ЭТАЖЕЙ 2») — it only changes when the new result actually lands.
 
 ### MCP / sub-agents
 - `claude mcp add` mid-session does NOT load the tools into the running session — they appear only after a reload. Don't try to call them the same turn; tell the user to reload, or fall back (we used `puppeteer-core` → system Chrome for screenshots).
