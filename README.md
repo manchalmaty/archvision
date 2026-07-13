@@ -15,11 +15,14 @@ RU/KZ/CIS market. Генератор архитектурных эскизов: 
   custom room list — deterministic central-hall layout engine, with an optional
   LLM loop (Groq) that is *validated by the same geometry rules and falls back
   to the rule engine*. No API key needed: fully offline by default.
-- **Real L-shape** — a genuine two-wing silhouette (not a stretched rectangle):
-  the bedroom wing's corridor continues the hallway strip through the joint,
-  so circulation is correct by construction; the notch faces the street.
-  Coverage, invariants and net areas all judge the true outline. U/T stay out
-  until they truly tile.
+- **Real L-shape, one or two storeys** — a genuine two-wing silhouette (not a
+  stretched rectangle): the wing's corridor continues the hallway strip
+  through the joint, so circulation is correct by construction. One floor →
+  the bedroom wing; two floors → the classic Г-дом: the garage wing on the
+  ground (person-door through the corridor buffer, gate onto the notch
+  courtyard — the driveway), bedrooms in a rectangle pinned to the main bar's
+  width upstairs. Coverage, invariants and net areas judge the true per-floor
+  outlines. U/T stay out until they truly tile.
 - **9 deterministic invariants** checked on every plan and shipped as visible
   red flags (never a silent "best effort"): overlaps/coverage, areas, door on
   every room, no transit through bedrooms, shared wet riser, entry buffer
@@ -133,15 +136,15 @@ User input → GeoClimate calc (frost depth, seismic zone, wall/insulation)
 ## Tests
 
 ```bash
-cd backend && pytest -q          # 282 tests: engine geometry, invariants, API
+cd backend && pytest -q          # 288 tests: engine geometry, invariants, API
 cd frontend && npx vitest run && npx tsc --noEmit
 ```
 
 ## Roadmap
 
-1. **U/T footprints + multi-floor L** — the L landed in v1.5 (one floor,
-   ≥2 bedrooms; honest fallback otherwise). U/T need courtyard perimeter
-   support in the cost/heating models before they can be honest values.
+1. **U/T footprints** — they need true-perimeter support in the cost/heating
+   models (a courtyard makes the exterior longer than the bbox) before they
+   can be honest values.
 
 ## License
 

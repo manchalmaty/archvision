@@ -28,8 +28,16 @@ WET_ZONES = {RoomType.KITCHEN, RoomType.BATHROOM, RoomType.TOILET, RoomType.UTIL
 # it (invariant rule 4). So bedrooms stay leaves, like wet rooms.
 PRIVATE_ZONES = {RoomType.BEDROOM}
 
-# Rooms that must be on ground floor (plumbing access)
-GROUND_FLOOR_ZONES = {RoomType.KITCHEN, RoomType.BATHROOM, RoomType.TOILET, RoomType.HALLWAY}
+# Rooms that must be on ground floor (plumbing access). UTILITY is plumbing
+# too (laundry riser) — sent upstairs it also became the lone tiny wet band
+# that capped the whole upper floor's width to ~3 m (pencil bedrooms).
+GROUND_FLOOR_ZONES = {
+    RoomType.KITCHEN,
+    RoomType.BATHROOM,
+    RoomType.TOILET,
+    RoomType.HALLWAY,
+    RoomType.UTILITY,
+}
 
 # Architectural ordering: entry → wet service → social → private → utility
 ROOM_ORDER = [
@@ -293,9 +301,12 @@ class LayoutEngine:
         # Non-blocking issues found during layout (e.g. plot overflow);
         # the API route merges these into GenerationResult.warnings.
         self.warnings: list[str] = []
-        # Declared per-floor outline area for non-rectangular silhouettes (the
-        # L). None = rectangle; invariant rule 1 then judges against the bbox.
-        self.silhouette_m2: float | None = None
+        # Declared outline area for non-rectangular silhouettes (the L).
+        # None = rectangle (rule 1 judges the bbox); float = every floor is
+        # the L (single-floor); dict {floor: m²} = per-floor outlines (the
+        # two-storey Г: L ground, rectangular upper floors judged by bbox).
+        self.silhouette_m2: dict[int, float] | float | None = None
+        self._l_w1: float | None = None
         # Sizing pad (release 9): rule 9 judges CLEAR dimensions, so every
         # engine minimum is padded by the worst wall loss an axis can carry —
         # one exterior wall + half a partition. Uniform and conservative:
@@ -373,6 +384,7 @@ class LayoutEngine:
 
     def _tile(self, rooms) -> list[RoomLayout]:
         self.silhouette_m2 = None
+        self._l_w1 = None
         rooms_per_floor = self._distribute_floors(rooms)
         layouts = []
         for floor_idx, floor_rooms in enumerate(rooms_per_floor):
@@ -703,33 +715,55 @@ class LayoutEngine:
         return self._layout_central_hall(floor, rooms, aspect_factor=aspect)
 
     def _layout_l(self, floor: int, rooms) -> list[RoomLayout] | None:
-        """Real L-shape: wing A + a bedroom wing whose corridor CONTINUES the
-        hallway strip through the seam.
+        """Real L-shape: wing A + a wing whose corridor CONTINUES the hallway
+        strip through the seam.
 
-        Wing A is the proven central-hall bar (social + wet core + garage).
-        Wing B extends east of it: a corridor cell on the same y-band as the
-        hallway strip, bedrooms in a row above it up to wing A's north edge —
-        so circulation lives at the joint BY CONSTRUCTION (the old wing
-        layouts stranded the hallway in a corner and routed through a toilet).
-        The missing south band of wing B is the notch: a street-facing nook.
+        Wing A is the proven central-hall bar (social + wet core). Wing B
+        extends east of it: a corridor cell on the same y-band as the hallway
+        strip, its rooms in a row above it — so circulation lives at the joint
+        BY CONSTRUCTION (the old wing layouts stranded the hallway in a corner
+        and routed through a toilet). The missing south band of wing B is the
+        notch: a street-facing nook.
+
+        One floor → the bedroom wing (release 6). Two-plus floors → the
+        classic Г-дом (release 10): the GROUND wing carries the garage (+
+        utility) — the person-door enters through the corridor buffer and the
+        gate faces the notch courtyard, which is the driveway — while the
+        upper floors are bedroom rectangles pinned to wing A's width.
 
         Returns None (with a warning) when the program cannot honestly form an
         L — the caller falls back to the rectangle.
         """
-        if self.params.floors > 1:
-            self.warnings.append(
-                "L-образный план пока поддерживает один этаж — использован "
-                "прямоугольный план."
+        multi = self.params.floors > 1
+        if multi and floor > 1:
+            # Upper floors exist only over wing A; if the ground L fell back,
+            # fall back here too so both floors stay one honest rectangle.
+            if self._l_w1 is None:
+                return None
+            return self._layout_central_hall(
+                floor, rooms, aspect_factor=1.0, max_width=self._l_w1
             )
-            return None
-        bedrooms = [r for r in rooms if r.room_type == RoomType.BEDROOM]
-        rest = [r for r in rooms if r.room_type != RoomType.BEDROOM]
-        if len(bedrooms) < 2:
-            self.warnings.append(
-                "Для L-образного плана нужно ≥2 спален (крыло спален) — "
-                "использован прямоугольный план."
-            )
-            return None
+
+        if multi:
+            wing_rooms = [
+                r for r in rooms if r.room_type in (RoomType.GARAGE, RoomType.UTILITY)
+            ]
+            rest = [r for r in rooms if r not in wing_rooms]
+            if not wing_rooms:
+                self.warnings.append(
+                    "Для двухэтажного L-плана нужен гараж или хозблок (крыло "
+                    "первого этажа) — использован прямоугольный план."
+                )
+                return None
+        else:
+            wing_rooms = [r for r in rooms if r.room_type == RoomType.BEDROOM]
+            rest = [r for r in rooms if r.room_type != RoomType.BEDROOM]
+            if len(wing_rooms) < 2:
+                self.warnings.append(
+                    "Для L-образного плана нужно ≥2 спален (крыло спален) — "
+                    "использован прямоугольный план."
+                )
+                return None
 
         # Wing A: squarish so the bar plus the wing read as an L, not a stick.
         wing_a = self._layout_central_hall(floor, rest, aspect_factor=1.0)
@@ -746,18 +780,25 @@ class LayoutEngine:
             )
             return None
 
-        # Wing B: bedrooms in one row over the corridor. Depth targets a GOOD
-        # bedroom proportion (~1.2 aspect) — sizing to the flush edge alone
-        # produced 5.8×2.4 pencil bedrooms and a 22 m snake that blew the plot
-        # setbacks. Snap flush with wing A's north edge only when it is close;
-        # otherwise a small step in the outline beats unusable rooms.
-        bed_min = self._smin(RoomType.BEDROOM)
-        mean_area = sum(r.area_m2 for r in bedrooms) / len(bedrooms)
-        d_prop = math.sqrt(mean_area / 1.2)
+        # Wing B: its rooms in one row over the corridor. Depth targets a GOOD
+        # proportion (~1.2–1.3 aspect of the wing's driver room) — sizing to
+        # the flush edge alone produced 5.8×2.4 pencil bedrooms and a 22 m
+        # snake that blew the plot setbacks. Snap flush with wing A's north
+        # edge only when it is close; otherwise a small step in the outline
+        # beats unusable rooms. The garage wing is driven by the garage (its
+        # padded minimum is a physical floor) and may sit deeper than 4.2.
+        wing_min = max(self._smin(r.room_type) for r in wing_rooms)
+        driver_area = max(r.area_m2 for r in wing_rooms)
+        d_prop = math.sqrt(driver_area / 1.3) if multi else math.sqrt(
+            (sum(r.area_m2 for r in wing_rooms) / len(wing_rooms)) / 1.2
+        )
         d_flush = depth_a - (hall.y + hall.depth)
         d_b = d_flush if abs(d_prop - d_flush) <= 0.5 else d_prop
-        d_b = round(min(max(d_b, bed_min), 4.2), 3)
-        widths = [round(max(r.area_m2 / d_b, bed_min), 3) for r in bedrooms]
+        d_cap = 6.0 if multi else 4.2
+        d_b = round(min(max(d_b, wing_min), max(d_cap, wing_min)), 3)
+        widths = [
+            round(max(r.area_m2 / d_b, self._smin(r.room_type)), 3) for r in wing_rooms
+        ]
 
         layouts = list(wing_a)
         wb = round(sum(widths), 3)
@@ -782,15 +823,15 @@ class LayoutEngine:
             )
         )
         x = w1
-        bed_y = round(hall.y + corr_depth, 3)
-        for r, wd in zip(bedrooms, widths):
+        wing_y = round(hall.y + corr_depth, 3)
+        for r, wd in zip(wing_rooms, widths):
             layouts.append(
                 RoomLayout(
                     room_id=str(uuid.uuid4()),
                     room_type=r.room_type,
-                    name=r.name or "Bedroom",
+                    name=r.name or r.room_type.value.replace("_", " ").title(),
                     x=round(x, 3),
-                    y=bed_y,
+                    y=wing_y,
                     floor=floor,
                     width=wd,
                     depth=d_b,
@@ -799,7 +840,11 @@ class LayoutEngine:
             )
             x = round(x + wd, 3)
 
-        self.silhouette_m2 = round(w1 * depth_a + wb * (corr_depth + d_b), 2)
+        l_area = round(w1 * depth_a + wb * (corr_depth + d_b), 2)
+        # Per-floor outline: the ground floor is an L, upper floors are plain
+        # rectangles judged by their own bbox (dict entry absent).
+        self.silhouette_m2 = {1: l_area} if multi else l_area
+        self._l_w1 = w1
         return layouts
 
     def _layout_tiled(
@@ -1048,7 +1093,9 @@ class LayoutEngine:
                 asth += r.area_m2
         return north, south
 
-    def _layout_central_hall(self, floor: int, rooms, aspect_factor: float = 1.3):
+    def _layout_central_hall(
+        self, floor: int, rooms, aspect_factor: float = 1.3, max_width: float | None = None
+    ):
         """Central-corridor plan: a full-width hallway band splits the rooms into
         two rows, one above and one below, so EVERY room opens directly off the
         hallway (a real distribution node, not a linear enfilade). Wet zones are
@@ -1147,6 +1194,11 @@ class LayoutEngine:
         if self.params.plot_width_m:
             width = min(width, self.params.plot_width_m)
         width = max(width, 2.0)
+        # Upper floors of the multi-floor L are pinned to wing A's width — an
+        # upper floor wider than the bar it stands on is structural fiction.
+        # Raises past the cap ship as honest shortfalls, never as overhang.
+        if max_width:
+            width = min(width, max_width)
 
         # Garage tambour (a PLACEMENT constraint, not a door swap): the garage is
         # emitted as the last band, so it borders only the `south` band. When that
