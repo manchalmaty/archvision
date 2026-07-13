@@ -41,10 +41,12 @@ RU/KZ/CIS market. Генератор архитектурных эскизов: 
   geo-driven wall/insulation thicknesses), climate-index design temperature,
   boiler sizing with margin, and a heating line in the estimate. The garage
   stays unheated — it is the plan's thermal buffer.
-- **Net (usable) areas** — every room carries both honest figures: the axis
-  w×d and the net area after the geo-driven wall thicknesses («Гостиная
-  20.0 m² в осях ≈ 16.2 m² полезной» on 380 mm Moscow walls). Shown in the
-  hover card and the PDF room table, explicitly labeled.
+- **Usable metres are the product** — «спальня 12 м²» means 12 m² to LIVE in:
+  the engine tiles a draft, measures what the walls eat at each room's actual
+  position, and retiles with grossed axis targets (two deterministic passes).
+  Room figures on the canvas, PDF and DXF are net; the axis figure (walls
+  included) rides next to it, explicitly labeled — and the invariant that
+  checks requested-vs-delivered judges the net figure too.
 - **Cost-Δ variants** — the same program at three deterministic spaciousness
   settings (compact / balanced / roomy) as a decision table sorted by cost:
   each row shows the Δ vs the cheapest and its one causal driver
@@ -63,9 +65,10 @@ RU/KZ/CIS market. Генератор архитектурных эскизов: 
   licensed specialist.
 - **Not a buildable MEP spec.** Slopes, pressure and drain sizing are an
   engineer's job — the draft exists so that conversation starts earlier.
-- The PRIMARY figures are still axis-line (walls not subtracted) — one
-  consistent basis everywhere; the net (usable) figure rides next to it,
-  clearly labeled. Sizing the engine to net targets is on the roadmap.
+- Building-level figures (footprint, штамп, site coverage, cost basis) are
+  axis-line — the real outer envelope. Room-level figures are net (usable).
+  Minimum-dimension checks still judge axis lines until corner-aware sizing
+  lands (roadmap) — documented, not hidden.
 
 ## Quick start
 
@@ -124,7 +127,7 @@ User input → GeoClimate calc (frost depth, seismic zone, wall/insulation)
 ## Tests
 
 ```bash
-cd backend && pytest -q          # 269 tests: engine geometry, invariants, API
+cd backend && pytest -q          # 277 tests: engine geometry, invariants, API
 cd frontend && npx vitest run && npx tsc --noEmit
 ```
 
@@ -133,9 +136,8 @@ cd frontend && npx vitest run && npx tsc --noEmit
 1. **U/T footprints + multi-floor L** — the L landed in v1.5 (one floor,
    ≥2 bedrooms; honest fallback otherwise). U/T need courtyard perimeter
    support in the cost/heating models before they can be honest values.
-2. Engine targets net areas — size rooms so the USABLE area matches the
-   request and judge minimum dimensions on net figures (the display layer
-   already shows both; this flips the primary).
+2. Minimum room dimensions judged on CLEAR (net) figures — needs corner-aware
+   band sizing so thick-wall corner rooms are grown, not just flagged.
 3. 3D viewer polish (currently hidden; code in place).
 
 ## License

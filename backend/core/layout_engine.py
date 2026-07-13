@@ -288,17 +288,74 @@ class LayoutEngine:
         # L). None = rectangle; invariant rule 1 then judges against the bbox.
         self.silhouette_m2: float | None = None
 
+    # Circulation prints its real figure and the garage is sized by physics
+    # (car + gate), so neither participates in net-target grossing.
+    _NO_GROSS = (RoomType.GARAGE, RoomType.HALLWAY)
+
     def generate(self) -> list[RoomLayout]:
-        self.silhouette_m2 = None
         rooms = self._ensure_essentials(list(self.params.rooms))
         rooms = scale_room_areas(rooms, getattr(self.params, "spaciousness", 0.5))
+
+        # Net-target sizing (release 7): tile a draft, measure what the walls
+        # eat at each room's actual position, gross the axis targets per room
+        # and retile — «12 м²» must mean 12 m² to LIVE in. Two fixed passes,
+        # deterministic. area_m2 keeps the USER's request so invariant rule 2
+        # can judge usable-vs-requested honestly.
+        from core.walls import annotate_net_dims
+
+        draft = self._tile(rooms)
+        annotate_net_dims(draft, self.geo)
+        pool = list(draft)
+        grossed: list = []
+        for ri in rooms:
+            match = next(
+                (
+                    l
+                    for l in pool
+                    if l.room_type == ri.room_type and abs(l.area_m2 - ri.area_m2) < 0.01
+                ),
+                None,
+            )
+            factor = 1.0
+            if match is not None:
+                pool.remove(match)
+                if ri.room_type not in self._NO_GROSS and match.net_area:
+                    factor = min(max(match.width * match.depth / match.net_area, 1.0), 1.5)
+            grossed.append(
+                ri
+                if factor <= 1.0 + 1e-9
+                else ri.model_copy(
+                    update={"area_m2": min(round(ri.area_m2 * factor, 2), 200.0)}
+                )
+            )
+
+        layouts = self._tile(grossed)
+        pool = list(layouts)
+        for g, ri in zip(grossed, rooms):
+            match = next(
+                (
+                    l
+                    for l in pool
+                    if l.room_type == g.room_type and abs(l.area_m2 - g.area_m2) < 0.01
+                ),
+                None,
+            )
+            if match is not None:
+                pool.remove(match)
+                match.area_m2 = ri.area_m2
+
+        self._assign_openings(layouts)
+        self._check_plot_fit(layouts)
+        # The two passes may repeat a fallback warning (e.g. the L composer's).
+        self.warnings = list(dict.fromkeys(self.warnings))
+        return layouts
+
+    def _tile(self, rooms) -> list[RoomLayout]:
+        self.silhouette_m2 = None
         rooms_per_floor = self._distribute_floors(rooms)
         layouts = []
         for floor_idx, floor_rooms in enumerate(rooms_per_floor):
-            floor_layouts = self._layout_floor(floor_idx + 1, floor_rooms)
-            layouts.extend(floor_layouts)
-        self._assign_openings(layouts)
-        self._check_plot_fit(layouts)
+            layouts.extend(self._layout_floor(floor_idx + 1, floor_rooms))
         return layouts
 
     def _check_plot_fit(self, layouts: list[RoomLayout]) -> None:

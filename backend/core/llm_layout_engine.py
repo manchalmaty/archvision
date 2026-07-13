@@ -18,6 +18,10 @@ from core.layout_engine import LayoutEngine, scale_room_areas
 from core.plan_validator import PlanRoom, validate_plan
 from models import BuildingParams, GeoClimateData, RoomLayout, RoomType
 
+# Flat wall-loss estimate for LLM prompt targets — the rule engine measures the
+# real per-room figure; here a prompt-side estimate is the honest best we have.
+NET_GROSSUP_EST = 1.15
+
 logger = logging.getLogger(__name__)
 
 MAX_ITER = 5
@@ -289,8 +293,20 @@ class LLMLayoutEngine:
             if not floor_rooms:
                 continue
 
+            # Net-target estimate for the prompt: the rule engine measures wall
+            # losses per room; the LLM gets a flat gross-up so its plans also
+            # deliver the USABLE metres the user asked for. Parsed rooms get
+            # the original request restored below.
+            prompt_rooms = [
+                r
+                if r.room_type in (RoomType.GARAGE, RoomType.HALLWAY)
+                else r.model_copy(
+                    update={"area_m2": min(round(r.area_m2 * NET_GROSSUP_EST, 2), 200.0)}
+                )
+                for r in floor_rooms
+            ]
             result_pair = _layout_floor_llm(
-                client, floor_num, self.params.floors, self.params, floor_rooms, deadline
+                client, floor_num, self.params.floors, self.params, prompt_rooms, deadline
             )
 
             if result_pair is None:
@@ -311,6 +327,13 @@ class LLMLayoutEngine:
                 rule_result = self._rule.generate()
                 self.warnings.extend(self._rule.warnings)
                 return rule_result
+
+            pool = list(layouts)
+            for ri in floor_rooms:
+                m = next((l for l in pool if l.room_type == ri.room_type), None)
+                if m is not None:
+                    pool.remove(m)
+                    m.area_m2 = ri.area_m2
 
             all_layouts.extend(layouts)
 

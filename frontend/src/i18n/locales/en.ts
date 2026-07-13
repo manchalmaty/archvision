@@ -229,7 +229,7 @@ export default {
     window: "Window",
     daylight: "Daylight (room gets sun)",
     mepDraft: "Riser / piping (draft)",
-    netArea: "usable ≈ {{area}} m² (walls excluded)",
+    axisArea: "axis {{area}} m² (incl. walls)",
     clashHigh: "MEP Clash (HIGH)",
     clashMedium: "MEP Clash (MEDIUM)",
     selectedRoom: "Selected Room",

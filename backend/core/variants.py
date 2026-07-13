@@ -13,6 +13,7 @@ from core.cost_estimator import CostEstimator
 from core.layout_engine import LayoutEngine
 from core.plan_invariants import check_invariants
 from core.site_planner import check_site, plan_site
+from core.walls import annotate_net_dims
 from models import BuildingParams, CountryCode, GeoClimateData, PlanVariant
 
 logger = logging.getLogger(__name__)
@@ -36,6 +37,9 @@ def build_variants(
         except Exception:  # a setting that cannot tile is a missing row, not a 500
             logger.warning("variant %r failed to tile — row skipped", label)
             continue
+        # Net annotation first: rule 2 judges usable metres, and a variant row
+        # must count the same flags the main plan would show.
+        annotate_net_dims(rooms, geo)
         red = sum(
             1
             for v in check_invariants(

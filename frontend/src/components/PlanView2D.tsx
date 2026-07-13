@@ -355,7 +355,10 @@ function RoomLabel({
           textAnchor="middle"
           className="font-mono"
         >
-          {(room.width * room.depth).toFixed(1)} m²
+          {/* Usable metres are the primary room figure since the net-target
+              flip — this is the number the user actually asked for. Axis
+              stays in the hover card and the building-level figures. */}
+          {(room.net_area ?? room.width * room.depth).toFixed(1)} m²
         </text>
         {showDims && (
           <text
@@ -958,13 +961,15 @@ export function PlanView2D() {
                 </span>
               </div>
               <div style={{ fontSize: 12, color: "#475569", fontFamily: "monospace" }}>
-                {(hover.room.width * hover.room.depth).toFixed(1)} m²
+                {(hover.room.net_area ?? hover.room.width * hover.room.depth).toFixed(1)} m²
                 <span style={{ color: "#cbd5e1" }}> · </span>
                 {hover.room.width.toFixed(1)} × {hover.room.depth.toFixed(1)} m
               </div>
               {hover.room.net_area != null && (
                 <div style={{ fontSize: 11, color: "#64748b", fontFamily: "monospace", marginTop: 2 }}>
-                  {t("viewer.netArea", { area: hover.room.net_area.toFixed(1) })}
+                  {t("viewer.axisArea", {
+                    area: (hover.room.width * hover.room.depth).toFixed(1),
+                  })}
                 </div>
               )}
               {hover.room.sun && (

@@ -71,8 +71,10 @@ def generate_dxf(result: GenerationResult, lang: str = "en") -> str:
                 close=True,
                 dxfattribs={"layer": "WALLS"},
             )
-            # The same actual-footprint figure every other surface shows.
-            label = f"{_room_label(room, lang)} {room.width * room.depth:.1f} m2"
+            # Usable metres when annotated (экспликация convention) — the same
+            # primary figure the canvas and PDF show since the net flip.
+            area = room.net_area if room.net_area is not None else room.width * room.depth
+            label = f"{_room_label(room, lang)} {area:.1f} m2"
             msp.add_text(
                 label, height=TEXT_H, dxfattribs={"layer": "LABELS"}
             ).set_placement((x + rw / 2, y + rd / 2), align=TextEntityAlignment.MIDDLE_CENTER)

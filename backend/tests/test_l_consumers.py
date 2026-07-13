@@ -57,10 +57,10 @@ def test_site_coverage_counts_built_area_not_bbox():
 def test_notch_facing_wall_is_exterior_in_net_dims():
     layouts = _l_layout()
     annotate_net_dims(layouts, geo)
-    w1 = max(r.x + r.width for r in layouts if r.x < 0.01 or True)  # bbox east
-    # The wing-B corridor: hallway that does NOT start at x=0.
-    corridor = next(
-        r for r in layouts if r.room_type == RoomType.HALLWAY and r.x > 0.1
+    # The wing-B corridor is the EASTERNMOST hallway (the wing-A strip may
+    # itself start past x=0 when the overshoot filler pulls a WC into it).
+    corridor = max(
+        (r for r in layouts if r.room_type == RoomType.HALLWAY), key=lambda r: r.x
     )
     # South face looks into the notch (exterior, full thickness); north face is
     # shared with the bedroom row (partition, half thickness).

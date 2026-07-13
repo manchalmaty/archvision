@@ -160,9 +160,16 @@ def check_invariants(
             if denom > 0 and covered < COVERAGE_MIN * denom:
                 v.append(Violation(1, "gap", f"floor {f} has {denom - covered:.1f}m² of gaps"))
 
-        # Rule 2 — areas respected
+        # Rule 2 — areas respected. Judged on USABLE metres when the net
+        # annotation is present («12 м²» means 12 to live in); axis fallback
+        # keeps old stored results and un-annotated callers on the legacy
+        # behaviour. Hallways are exempt: circulation prints its real figure
+        # by design (its area_m2 may BE the axis figure, not a user request).
         for r in fr:
-            if r.width * r.depth < r.area_m2 * AREA_MIN_FRAC:
+            if r.room_type == RoomType.HALLWAY:
+                continue
+            actual = r.net_area if r.net_area is not None else r.width * r.depth
+            if actual < r.area_m2 * AREA_MIN_FRAC:
                 v.append(
                     Violation(
                         2,

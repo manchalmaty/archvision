@@ -413,7 +413,8 @@ def _floor_plan_drawing(
             String(
                 cx,
                 cy - 7,
-                f"{r.width * r.depth:.1f} m²",
+                # Usable metres — the primary room figure since the net flip.
+                f"{(r.net_area if r.net_area is not None else r.width * r.depth):.1f} m²",
                 textAnchor="middle",
                 fontName=FONT,
                 fontSize=6,
