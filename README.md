@@ -36,6 +36,10 @@ RU/KZ/CIS market. Генератор архитектурных эскизов: 
   geo-driven wall/insulation thicknesses), climate-index design temperature,
   boiler sizing with margin, and a heating line in the estimate. The garage
   stays unheated — it is the plan's thermal buffer.
+- **Net (usable) areas** — every room carries both honest figures: the axis
+  w×d and the net area after the geo-driven wall thicknesses («Гостиная
+  20.0 m² в осях ≈ 16.2 m² полезной» on 380 mm Moscow walls). Shown in the
+  hover card and the PDF room table, explicitly labeled.
 - **Cost-Δ variants** — the same program at three deterministic spaciousness
   settings (compact / balanced / roomy) as a decision table sorted by cost:
   each row shows the Δ vs the cheapest and its one causal driver
@@ -54,8 +58,9 @@ RU/KZ/CIS market. Генератор архитектурных эскизов: 
   licensed specialist.
 - **Not a buildable MEP spec.** Slopes, pressure and drain sizing are an
   engineer's job — the draft exists so that conversation starts earlier.
-- Wall thickness is not yet subtracted from areas (axis-line geometry, one
-  consistent figure everywhere).
+- The PRIMARY figures are still axis-line (walls not subtracted) — one
+  consistent basis everywhere; the net (usable) figure rides next to it,
+  clearly labeled. Sizing the engine to net targets is on the roadmap.
 
 ## Quick start
 
@@ -114,7 +119,7 @@ User input → GeoClimate calc (frost depth, seismic zone, wall/insulation)
 ## Tests
 
 ```bash
-cd backend && pytest -q          # 252 tests: engine geometry, invariants, API
+cd backend && pytest -q          # 258 tests: engine geometry, invariants, API
 cd frontend && npx vitest run && npx tsc --noEmit
 ```
 
@@ -124,7 +129,9 @@ cd frontend && npx vitest run && npx tsc --noEmit
    control today only stretches a central-hall rectangle (honest, but a
    rectangle); a real L/U/T outline and fitting it to the plot are the same
    solver problem as site placement, so they're likely one pass together.
-2. Wall thickness in areas (geometry, PDF, cost, IFC together).
+2. Engine targets net areas — size rooms so the USABLE area matches the
+   request and judge minimum dimensions on net figures (the display layer
+   already shows both; this flips the primary).
 3. 3D viewer polish (currently hidden; code in place).
 
 ## License

@@ -87,6 +87,7 @@ _L = {
         "floor": "Floor",
         "dims": "Dimensions",
         "area": "Area",
+        "net_area": "Net (usable)",
         "cost": "Cost Estimate",
         "total_usd": "Total (USD)",
         "total_local": "Total (local)",
@@ -129,6 +130,7 @@ _L = {
         "floor": "Этаж",
         "dims": "Размеры",
         "area": "Площадь",
+        "net_area": "Полезная",
         "cost": "Смета",
         "total_usd": "Итого (USD)",
         "total_local": "Итого (местная валюта)",
@@ -171,6 +173,7 @@ _L = {
         "floor": "Қабат",
         "dims": "Өлшемдері",
         "area": "Ауданы",
+        "net_area": "Пайдалы",
         "cost": "Смета",
         "total_usd": "Барлығы (USD)",
         "total_local": "Барлығы (жергілікті валюта)",
@@ -501,7 +504,7 @@ def generate_pdf(result: GenerationResult, lang: str = "en") -> bytes:
 
     # Rooms
     story.append(Paragraph(t["rooms"], styles["h2"]))
-    rows = [[t["room"], t["floor"], t["dims"], t["area"]]]
+    rows = [[t["room"], t["floor"], t["dims"], t["area"], t["net_area"]]]
     for r in sorted(result.rooms, key=lambda r: (r.floor, _room_label(r, lang))):
         rows.append(
             [
@@ -509,9 +512,13 @@ def generate_pdf(result: GenerationResult, lang: str = "en") -> bytes:
                 str(r.floor),
                 f"{r.width:.2f} × {r.depth:.2f} m",
                 f"{r.width * r.depth:.1f} m²",
+                # Net figure exists only on post-release-5 results.
+                f"{r.net_area:.1f} m²" if r.net_area is not None else "—",
             ]
         )
-    story.append(Table(rows, colWidths=[70 * mm, 20 * mm, 45 * mm, 25 * mm], style=_TABLE_STYLE))
+    story.append(
+        Table(rows, colWidths=[55 * mm, 15 * mm, 40 * mm, 25 * mm, 25 * mm], style=_TABLE_STYLE)
+    )
 
     # Cost
     c = result.cost_estimate

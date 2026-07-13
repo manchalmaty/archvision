@@ -110,6 +110,13 @@ class RoomLayout(BaseModel):
     # "poor" for habitable rooms, "" for rooms that don't need sun. A sensor
     # annotation — set after layout, never affects placement.
     sun: str = ""
+    # Net (usable) dimensions after wall thicknesses: exterior walls grow inward
+    # from the axis line (the bbox stays the real outer footprint), interior
+    # partitions take half each side. Annotation only — the axis figure stays
+    # the primary single definition. None on pre-release-5 stored results.
+    net_width: float | None = None
+    net_depth: float | None = None
+    net_area: float | None = None
 
 
 class SitePlan(BaseModel):

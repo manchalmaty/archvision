@@ -228,6 +228,7 @@ export default {
     window: "Окно",
     daylight: "Освещённость (солнце в комнате)",
     mepDraft: "Стояк / разводка (черновик)",
+    netArea: "полезная ≈ {{area}} m² (без стен)",
     clashHigh: "Конфликт сетей (выс.)",
     clashMedium: "Конфликт сетей (сред.)",
     selectedRoom: "Выбранная комната",

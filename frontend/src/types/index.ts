@@ -102,6 +102,10 @@ export interface RoomLayout {
   doors: DoorSpec[];
   windows: WindowSpec[];
   sun?: "good" | "ok" | "poor" | "";
+  // Net (usable) dims after wall thicknesses — annotation, axis stays primary.
+  net_width?: number | null;
+  net_depth?: number | null;
+  net_area?: number | null;
 }
 
 export interface MEPConflict {

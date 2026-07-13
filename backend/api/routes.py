@@ -24,6 +24,7 @@ from core.plan_invariants import check_invariants
 from core.ratelimit import limiter
 from core.site_planner import check_site, plan_site
 from core.variants import build_variants
+from core.walls import annotate_net_dims
 from mep.clash_detector import ClashDetector
 from mep.pipe_router import PipeRouter
 from models import (
@@ -125,6 +126,10 @@ async def generate_plan(
 
     # 3b. Daylight sensor — annotate each room's sun rating for the given facing.
     annotate_insolation(rooms, params.facing)
+
+    # 3c. Net (usable) dimensions — after auto-orient, so the wall math sees the
+    # final geometry. Annotation only; the axis figure stays primary.
+    annotate_net_dims(rooms, geo_data)
 
     # 4. MEP routing and clash detection
     pipe_router = PipeRouter(rooms, params.floors, geo_data)

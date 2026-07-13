@@ -228,6 +228,7 @@ export default {
     window: "Терезе",
     daylight: "Жарықтану (бөлмеге күн түседі)",
     mepDraft: "Стояк / тарату (нобай)",
+    netArea: "пайдалы ≈ {{area}} m² (қабырғасыз)",
     clashHigh: "Желі қақтығысы (жоғары)",
     clashMedium: "Желі қақтығысы (орташа)",
     selectedRoom: "Таңдалған бөлме",

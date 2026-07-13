@@ -107,6 +107,10 @@ The room solver stays **blind to sun** (it places by function: wet/social/privat
 - `estimate_heating(rooms, geo)` — U-value envelope method over the REAL geo-driven wall/insulation thicknesses; window fraction = `1 − EXT_SOLID_FRAC` (imports the cost model's constant — single source); vent 0.35 ACH; garage EXCLUDED (unheated buffer, `heated_area_m2` proves it in tests). `GeoClimateData.design_temp_c` is DERIVED from AFI (`−(5+0.45·√AFI)`, fit vs СП 131 anchors, ±5 °C draft — boiler margin ×1.25 absorbs it); None on old stored results, and `GenerationResult.heating` defaults None too.
 - **Heating cost lives INSIDE `CostEstimator.estimate()`** (lazy import to dodge the import cycle; added AFTER labor — installed price, don't double-multiply) → hero, variants, PDF and the breakdown line stay consistent automatically. UI: «Отопление (черновик)» accordion + honest amber note (не СП 50). Tests: `backend/tests/test_heating.py`.
 
+### Net (usable) areas (release 5, DONE 2026-07-13) — `backend/core/walls.py`
+- `annotate_net_dims(rooms, geo)` (route step 3c, AFTER auto-orient): exterior wall grows INWARD from the axis at full `wall_thickness_mm` (bbox stays the real outer footprint — site/cost basis unchanged; insulation is outside, not subtracted), interior partitions ½·`INTERIOR_WALL_T` per side; an edge on the floor bbox = exterior. Sets `RoomLayout.net_width/net_depth/net_area` (None on old stored results — every consumer must handle it).
+- **Axis figure stays the PRIMARY single definition everywhere**; net is the second, explicitly labeled figure: hover card (`viewer.netArea`), PDF room table «Полезная» column (— for None). Do NOT flip the primary piecemeal — flipping means the whole pass (engine sizes to net targets + INV-9 judges net), roadmap #2. Tests: `tests/test_net_areas.py`.
+
 ### DXF export (release 4, DONE 2026-07-13) — `backend/core/dxf_generator.py`
 - `GET /api/v1/dxf/{id}?lang=` → `generate_dxf(result, lang)`: R2010, **mm units** (CIS CAD convention — engine metres ×1000), layers WALLS(7)/DOORS(1)/WINDOWS(5)/LABELS(8), floors side by side in one modelspace with «Этаж N» captions, room labels via the PDF's `_room_label` (single localization source). Openings = one LINE on the host wall per spec (sketch handoff, no swing arcs). Dep: `ezdxf==1.4.4` (MIT) in both requirements files. Tests parse the emitted file BACK with ezdxf (`tests/test_dxf.py`); visual check = ezdxf drawing add-on → matplotlib PNG (matplotlib is dev-venv only, NOT in requirements).
 
@@ -204,6 +208,7 @@ These cost real cycles. Read before touching shell, geometry, or adding UI/metri
 - In bash heredocs, Windows paths with `\` get mangled (`C:\\Program Files` → backslashes stripped → broken path). Use FORWARD slashes for Windows paths in any script written via heredoc — Node and Python accept them.
 - Foreground `sleep` is blocked; never chain `sleep N && cmd`. Use `run_in_background` or Monitor.
 - PowerShell cwd persists between tool calls — re-`cd` into the dir you're already in errors. Check first.
+- Killing a background uvicorn by its port's `OwningProcess` can leave a multiprocessing `spawn_main` CHILD alive holding the socket — the TCP table then shows a DEAD pid as owner ("port free" lies, the ghost serves STALE code). Sweep via `Get-CimInstance Win32_Process` filtering `CommandLine -match "spawn_main|uvicorn"`; verify the running server's code version by probing a route that only the new code has.
 
 ### Browser-driving the app (puppeteer verification)
 - The dev Groq key is free-tier THROTTLED: closed-mode generation hits 429-retry loops and takes ~90–150 s before the rule-engine fallback returns. Browser waits must exceed `LLM_TIME_BUDGET_S`; a 45–90 s wait times out and looks like a frontend bug.

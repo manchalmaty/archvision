@@ -962,6 +962,11 @@ export function PlanView2D() {
                 <span style={{ color: "#cbd5e1" }}> · </span>
                 {hover.room.width.toFixed(1)} × {hover.room.depth.toFixed(1)} m
               </div>
+              {hover.room.net_area != null && (
+                <div style={{ fontSize: 11, color: "#64748b", fontFamily: "monospace", marginTop: 2 }}>
+                  {t("viewer.netArea", { area: hover.room.net_area.toFixed(1) })}
+                </div>
+              )}
               {hover.room.sun && (
                 <div
                   style={{
