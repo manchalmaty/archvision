@@ -1,9 +1,14 @@
 /// <reference types="vitest/config" />
+import path from "node:path";
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 
 export default defineConfig({
   plugins: [react()],
+  resolve: {
+    // shadcn-style import alias: components/ui code imports from "@/lib/utils"
+    alias: { "@": path.resolve(__dirname, "src") },
+  },
   build: {
     rollupOptions: {
       output: {

@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { ParameterForm } from "./components/ParameterForm";
 import { ResultsPanel } from "./components/ResultsPanel";
 import { HistoryMenu } from "./components/HistoryMenu";
+import { BorderTrail } from "@/components/ui/border-trail";
 import { useStore } from "./store/useStore";
 import {
   fetchProject,
@@ -253,7 +254,18 @@ export default function App() {
           )}
           {isGenerating && (
             <div className="absolute inset-0 flex items-center justify-center bg-white/70 backdrop-blur-sm">
-              <div className="text-center">
+              {/* The trail traces the card's border in the brand red while the
+                  engine works — the loading state wears the drawing's accent. */}
+              <div className="relative rounded-xl border border-surface-border bg-surface-card px-10 py-8 text-center shadow-lg">
+                <BorderTrail
+                  className="bg-brand-500"
+                  size={64}
+                  transition={{ repeat: Infinity, duration: 3.2, ease: "linear" }}
+                  style={{
+                    boxShadow:
+                      "0 0 24px 12px rgb(224 38 28 / 40%), 0 0 56px 28px rgb(224 38 28 / 14%)",
+                  }}
+                />
                 <div className="w-12 h-12 border-2 border-brand-500 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
                 <p className="text-sm text-slate-400">{t("app.generating")}</p>
                 <p className="text-xs text-slate-600 mt-1">{t("app.generatingSub")}</p>
