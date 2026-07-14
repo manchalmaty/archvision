@@ -71,6 +71,7 @@ export default {
     rectangular: "Wide",
     square: "Compact",
     l_shape: "L-shaped",
+    t_shape: "T-shaped",
   },
   openness: {
     title: "Layout openness",

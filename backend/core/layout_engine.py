@@ -439,9 +439,17 @@ class LayoutEngine:
             )
 
         # Closed/mixed root at the hallway; open plan has none, so the living
-        # room (the social entry) roots the tree.
+        # room (the social entry) roots the tree. Among several hallway cells
+        # prefer one with an EXTERIOR wall — in the T the central strip is
+        # boxed in by wing corridors on both ends, and the entrance must land
+        # on a real outside wall (a wing corridor's street-nook face).
+        def _has_ext(r: RoomLayout) -> bool:
+            return any(not _adjacent_rooms(r, w, rooms) for w in WALLS)
+
+        halls = [r for r in rooms if r.room_type == RoomType.HALLWAY]
         root = (
-            next((r for r in rooms if r.room_type == RoomType.HALLWAY), None)
+            next((h for h in halls if _has_ext(h)), None)
+            or (halls[0] if halls else None)
             or next((r for r in rooms if r.room_type == RoomType.LIVING_ROOM), None)
             or rooms[0]
         )
@@ -707,12 +715,128 @@ class LayoutEngine:
 
     def _layout_floor(self, floor: int, rooms) -> list[RoomLayout]:
         shape = getattr(self.params, "building_shape", "rectangular")
-        if shape == "l_shape":
+        # Honest degradation chain: T → L → rectangle. Each composer returns
+        # None (with a warning) when the program can't form its silhouette.
+        if shape == "t_shape":
+            out = self._layout_t(floor, rooms)
+            if out is None:
+                out = self._layout_l(floor, rooms)
+            if out is not None:
+                return out
+        elif shape == "l_shape":
             out = self._layout_l(floor, rooms)
             if out is not None:
                 return out
         aspect = self._SHAPE_ASPECT.get(shape, 1.35)
         return self._layout_central_hall(floor, rooms, aspect_factor=aspect)
+
+    def _layout_t(self, floor: int, rooms) -> list[RoomLayout] | None:
+        """T-shape: bedrooms wing WEST + garage/utility wing EAST, both
+        corridors continuing the hallway strip through their seams; the stem
+        faces the street between two entrance nooks.
+
+        A T is monotone along both axes, so its perimeter EQUALS the bbox
+        perimeter — the cost/heating models stay exact by the same theorem
+        that covers the L (`test_t_perimeter_equals_bbox_perimeter`). Returns
+        None to degrade down the honest chain (→ L → rectangle).
+        """
+        if self.params.floors > 1:
+            if floor == 1:
+                self.warnings.append(
+                    "T-образный план пока одноэтажный — использован Г-план "
+                    "(гараж в крыле)."
+                )
+            return None
+        bedrooms = [r for r in rooms if r.room_type == RoomType.BEDROOM]
+        wing_e = [r for r in rooms if r.room_type in (RoomType.GARAGE, RoomType.UTILITY)]
+        if len(bedrooms) < 2 or not wing_e:
+            self.warnings.append(
+                "Для T-плана нужны ≥2 спален и гараж/хозблок (два крыла) — "
+                "использован Г- или прямоугольный план."
+            )
+            return None
+        rest = [r for r in rooms if r not in bedrooms and r not in wing_e]
+
+        wing_a = self._layout_central_hall(floor, rest, aspect_factor=1.0)
+        halls = [r for r in wing_a if r.room_type == RoomType.HALLWAY]
+        w1 = max(r.x + r.width for r in wing_a)
+        depth_a = max(r.y + r.depth for r in wing_a)
+        hall = max(halls, key=lambda r: r.width) if halls else None
+        # Both seams need the strip: a filler WC at the W end would cut the
+        # west corridor off from circulation.
+        if hall is None or hall.x > 1e-6 or hall.x + hall.width < w1 - 1e-6:
+            self.warnings.append(
+                "Коридор не доходит до обоих стыков — использован Г- или "
+                "прямоугольный план."
+            )
+            return None
+        corr_depth = round(max(hall.depth, self._smin(RoomType.HALLWAY)), 3)
+        d_flush = depth_a - (hall.y + hall.depth)
+
+        def wing_dims(members, garage_style):
+            wing_min = max(self._smin(r.room_type) for r in members)
+            d_prop = (
+                math.sqrt(max(r.area_m2 for r in members) / 1.3)
+                if garage_style
+                else math.sqrt((sum(r.area_m2 for r in members) / len(members)) / 1.2)
+            )
+            d = d_flush if abs(d_prop - d_flush) <= 0.5 else d_prop
+            cap = 6.0 if garage_style else 4.2
+            d = round(min(max(d, wing_min), max(cap, wing_min)), 3)
+            widths = [
+                round(max(r.area_m2 / d, self._smin(r.room_type)), 3) for r in members
+            ]
+            return d, widths
+
+        d_w, widths_w = wing_dims(bedrooms, False)
+        d_e, widths_e = wing_dims(wing_e, True)
+        wb_w, wb_e = round(sum(widths_w), 3), round(sum(widths_e), 3)
+
+        # The west wing occupies [0, wb_w] — shift the whole bar east. Safe:
+        # openings are assigned globally after tiling, nothing to carry yet.
+        for r in wing_a:
+            r.x = round(r.x + wb_w, 3)
+        layouts = list(wing_a)
+
+        def emit_wing(x0, wb, d, members, widths):
+            layouts.append(
+                RoomLayout(
+                    room_id=str(uuid.uuid4()),
+                    room_type=RoomType.HALLWAY,
+                    name="Hallway",
+                    x=round(x0, 3),
+                    y=hall.y,
+                    floor=floor,
+                    width=wb,
+                    depth=corr_depth,
+                    area_m2=round(wb * corr_depth, 2),
+                )
+            )
+            x = x0
+            y = round(hall.y + corr_depth, 3)
+            for r, wd in zip(members, widths):
+                layouts.append(
+                    RoomLayout(
+                        room_id=str(uuid.uuid4()),
+                        room_type=r.room_type,
+                        name=r.name or r.room_type.value.replace("_", " ").title(),
+                        x=round(x, 3),
+                        y=y,
+                        floor=floor,
+                        width=wd,
+                        depth=d,
+                        area_m2=r.area_m2,
+                    )
+                )
+                x = round(x + wd, 3)
+
+        emit_wing(0.0, wb_w, d_w, bedrooms, widths_w)
+        emit_wing(round(wb_w + w1, 3), wb_e, d_e, wing_e, widths_e)
+
+        self.silhouette_m2 = round(
+            w1 * depth_a + wb_w * (corr_depth + d_w) + wb_e * (corr_depth + d_e), 2
+        )
+        return layouts
 
     def _layout_l(self, floor: int, rooms) -> list[RoomLayout] | None:
         """Real L-shape: wing A + a wing whose corridor CONTINUES the hallway

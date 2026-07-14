@@ -84,9 +84,11 @@ function loadParams(): BuildingParams {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (raw) {
       const params = { ...DEFAULT_PARAMS, ...JSON.parse(raw) };
-      // Storage may hold u_shape/t_shape from before the honest-shape
-      // contract — the backend rejects those with 422. l_shape is real again.
-      if (!["rectangular", "square", "l_shape"].includes(params.building_shape)) {
+      // Storage may hold u_shape from before the honest-shape contract —
+      // the backend rejects it with 422. l/t are real silhouettes again.
+      if (
+        !["rectangular", "square", "l_shape", "t_shape"].includes(params.building_shape)
+      ) {
         params.building_shape = "rectangular";
       }
       return params;

@@ -93,7 +93,7 @@ const SHAPES: { id: BuildingShape; icon: JSX.Element }[] = [
   },
   {
     // A REAL L since release 6: bedroom wing off the hallway joint, the notch
-    // faces the street. U/T stay out until they truly tile.
+    // faces the street. Two-storey Г since release 10.
     id: "l_shape",
     icon: (
       <svg
@@ -105,6 +105,23 @@ const SHAPES: { id: BuildingShape; icon: JSX.Element }[] = [
         className="w-full h-full"
       >
         <path d="M2 3h9v10h11v8H2z" />
+      </svg>
+    ),
+  },
+  {
+    // A REAL T since release 11: two wings (bedrooms + garage) and the
+    // entrance stem toward the street. U stays out until it truly tiles.
+    id: "t_shape",
+    icon: (
+      <svg
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth={2.5}
+        strokeLinejoin="round"
+        className="w-full h-full"
+      >
+        <path d="M2 3h20v10h-6v8H8v-8H2z" />
       </svg>
     ),
   },

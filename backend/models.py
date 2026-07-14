@@ -39,9 +39,13 @@ class BuildingParams(BaseModel):
     plot_width_m: float | None = Field(default=None, gt=0)
     plot_depth_m: float | None = Field(default=None, gt=0)
     # Honest silhouettes only: rectangular/square proportions of the central-
-    # hall bar, plus a REAL L (two wings, circulation at the joint — release 6).
-    # U/T stay out until they truly tile; they will return as new values then.
-    building_shape: str = Field(default="rectangular", pattern="^(rectangular|square|l_shape)$")
+    # hall bar, a REAL L (release 6, two-storey since release 10) and a REAL T
+    # (release 11: two wings + entrance stem; perimeter == bbox by monotonicity,
+    # so the cost model stays exact). U stays out: its courtyard makes the
+    # exterior LONGER than the bbox, which the cost model cannot price yet.
+    building_shape: str = Field(
+        default="rectangular", pattern="^(rectangular|square|l_shape|t_shape)$"
+    )
     # Openness of the social zone (a preference, not an invariant):
     #   closed — every room walled, kitchen on the wet riser, entrance via hallway
     #   mixed  — kitchen+living open as one volume, bedrooms behind a hallway

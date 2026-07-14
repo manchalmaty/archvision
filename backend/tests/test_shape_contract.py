@@ -1,9 +1,9 @@
 """The building_shape API contract is honest: a value exists only if it tiles.
 
 rectangular|square are proportions of the central-hall bar; l_shape became a
-REAL two-wing silhouette in release 6. u/t remain rejected — they were silent
-aliases for near-identical aspect ratios and will return as honest new values
-only when they truly tile (courtyard perimeter breaks the cost model today).
+REAL silhouette in release 6 (two-storey in 10), t_shape in release 11.
+u_shape remains rejected — the courtyard composer does not exist yet (its
+PRICING blocker fell in release 11: the cost model bills exposed edges now).
 """
 
 import pytest
@@ -17,7 +17,7 @@ from models import BuildingParams, RoomInput, RoomType
 client = TestClient(app)
 
 
-@pytest.mark.parametrize("legacy", ["u_shape", "t_shape"])
+@pytest.mark.parametrize("legacy", ["u_shape"])
 def test_untileable_silhouette_values_rejected(legacy):
     with pytest.raises(ValidationError):
         BuildingParams(
@@ -42,10 +42,11 @@ def test_api_rejects_unknown_shape_with_422():
 
 
 def test_shape_aspect_table_matches_contract():
-    # The aspect table holds the RECTANGLE proportions; l_shape is a composer,
-    # not an aspect. Together they must equal the API pattern exactly.
-    assert set(LayoutEngine._SHAPE_ASPECT) | {"l_shape"} == {
+    # The aspect table holds the RECTANGLE proportions; l_shape and t_shape
+    # are composers, not aspects. Together they must equal the API pattern.
+    assert set(LayoutEngine._SHAPE_ASPECT) | {"l_shape", "t_shape"} == {
         "rectangular",
         "square",
         "l_shape",
+        "t_shape",
     }

@@ -71,6 +71,7 @@ export default {
     rectangular: "Ұзынша",
     square: "Ықшам",
     l_shape: "Г-тәрізді",
+    t_shape: "Т-тәрізді",
   },
   openness: {
     title: "Жоспар ашықтығы",

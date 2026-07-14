@@ -86,10 +86,17 @@ def test_rectangle_net_dims_unchanged_by_neighbour_classification():
 
 
 def test_l_exterior_perimeter_equals_bbox_perimeter():
-    # The theorem the cost & heating models rely on: this composer's L is
-    # staircase-monotone, so its true exterior length IS the bbox perimeter.
+    # This composer's L is staircase-monotone, so its true exterior length IS
+    # the bbox perimeter — and the cost model's exposed-edge sum must agree
+    # with both (release 11 flipped it from the bbox shortcut).
     layouts = _l_layout()
-    ext_bbox, _ = _floor_walls(layouts)
+    ext_model, _ = _floor_walls(layouts)
+    min_x, min_y = min(r.x for r in layouts), min(r.y for r in layouts)
+    ext_bbox = 2 * (
+        (max(r.x + r.width for r in layouts) - min_x)
+        + (max(r.y + r.depth for r in layouts) - min_y)
+    )
+    assert abs(ext_model - ext_bbox) < 0.05
 
     def exposed(r, wall):
         if wall in ("S", "N"):

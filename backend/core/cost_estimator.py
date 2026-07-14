@@ -45,19 +45,45 @@ CURRENCY_INFO = {
 }
 
 
-def _floor_walls(rooms: list[RoomLayout]) -> tuple[float, float]:
-    """Return (exterior perimeter, interior wall length) for one floor.
+_EDGE_EPS = 5e-3  # engine coordinates are rounded to 3 dp
 
-    Interior walls are shared between two rooms, so summing per-room perimeters
-    double-counts them: interior length = (Σ room perimeters − exterior) / 2.
+
+def _exposed(r: RoomLayout, wall: str, rooms: list[RoomLayout]) -> float:
+    """Length of the room's wall with no other room behind it."""
+    if wall in ("S", "N"):
+        edge = r.y if wall == "S" else r.y + r.depth
+        spans = [
+            (max(r.x, o.x), min(r.x + r.width, o.x + o.width))
+            for o in rooms
+            if o is not r
+            and abs((o.y + o.depth if wall == "S" else o.y) - edge) < _EDGE_EPS
+        ]
+        length = r.width
+    else:
+        edge = r.x if wall == "W" else r.x + r.width
+        spans = [
+            (max(r.y, o.y), min(r.y + r.depth, o.y + o.depth))
+            for o in rooms
+            if o is not r
+            and abs((o.x + o.width if wall == "W" else o.x) - edge) < _EDGE_EPS
+        ]
+        length = r.depth
+    return max(0.0, length - sum(max(0.0, b - a) for a, b in spans))
+
+
+def _floor_walls(rooms: list[RoomLayout]) -> tuple[float, float]:
+    """Return (exterior length, interior wall length) for one floor.
+
+    Exterior is the EXPOSED-edge sum — exact for any orthogonal silhouette:
+    a rectangle or an L equals its bbox perimeter (they are staircase-
+    monotone), a stepped T or a courtyard runs honestly longer. The old bbox
+    formula silently under-billed every re-entrant wall. Interior walls are
+    shared between two rooms, so summing per-room perimeters double-counts
+    them: interior length = (Σ room perimeters − exterior) / 2.
     """
     if not rooms:
         return 0.0, 0.0
-    min_x = min(r.x for r in rooms)
-    min_y = min(r.y for r in rooms)
-    max_x = max(r.x + r.width for r in rooms)
-    max_y = max(r.y + r.depth for r in rooms)
-    exterior = 2 * ((max_x - min_x) + (max_y - min_y))
+    exterior = sum(_exposed(r, w, rooms) for r in rooms for w in ("S", "N", "W", "E"))
     room_perims = sum(2 * (r.width + r.depth) for r in rooms)
     interior = max(0.0, (room_perims - exterior) / 2)
     return exterior, interior

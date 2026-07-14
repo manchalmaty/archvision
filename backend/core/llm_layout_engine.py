@@ -263,16 +263,23 @@ class LLMLayoutEngine:
         client = _get_client()
         # Open/mixed planning needs deterministic social-zone geometry (merged
         # kitchen-living, no central hallway) the LLM prompt does not express, so
-        # those modes always use the rule engine. Same for the L silhouette —
+        # those modes always use the rule engine. Same for the L/T silhouettes —
         # the prompt only knows the rectangular central-hall plan.
         open_plan = getattr(self.params, "openness", "closed") != "closed"
-        l_shape = getattr(self.params, "building_shape", "rectangular") == "l_shape"
-        if not client or open_plan or l_shape:
+        winged = getattr(self.params, "building_shape", "rectangular") in (
+            "l_shape",
+            "t_shape",
+        )
+        if not client or open_plan or winged:
             logger.info(
                 "Using rule-based layout (%s)",
                 "no GROQ_API_KEY"
                 if not client
-                else ("l_shape" if l_shape else f"openness={self.params.openness}"),
+                else (
+                    self.params.building_shape
+                    if winged
+                    else f"openness={self.params.openness}"
+                ),
             )
             result = self._rule.generate()
             self.warnings.extend(self._rule.warnings)

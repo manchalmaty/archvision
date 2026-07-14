@@ -19,9 +19,9 @@ export interface RoomInput {
 }
 
 // Honest silhouettes only: rectangle/square proportions of the central-hall
-// bar, plus a REAL L (two wings, circulation at the joint — release 6).
-// U/T stay out until they truly tile.
-export type BuildingShape = "rectangular" | "square" | "l_shape";
+// bar, a REAL L (release 6, two-storey since 10) and a REAL T (release 11).
+// U stays out until its courtyard composer exists.
+export type BuildingShape = "rectangular" | "square" | "l_shape" | "t_shape";
 
 // Social-zone openness (a preference): closed = every room walled; mixed =
 // kitchen+living open as one volume but bedrooms behind a hallway; open = no

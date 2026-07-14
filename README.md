@@ -15,14 +15,15 @@ RU/KZ/CIS market. Генератор архитектурных эскизов: 
   custom room list — deterministic central-hall layout engine, with an optional
   LLM loop (Groq) that is *validated by the same geometry rules and falls back
   to the rule engine*. No API key needed: fully offline by default.
-- **Real L-shape, one or two storeys** — a genuine two-wing silhouette (not a
-  stretched rectangle): the wing's corridor continues the hallway strip
-  through the joint, so circulation is correct by construction. One floor →
-  the bedroom wing; two floors → the classic Г-дом: the garage wing on the
-  ground (person-door through the corridor buffer, gate onto the notch
-  courtyard — the driveway), bedrooms in a rectangle pinned to the main bar's
-  width upstairs. Coverage, invariants and net areas judge the true per-floor
-  outlines. U/T stay out until they truly tile.
+- **Real L and T silhouettes** — genuine wings, not stretched rectangles: each
+  wing's corridor continues the hallway strip through its joint, so
+  circulation is correct by construction. The L: bedroom wing on one floor,
+  the classic two-storey Г-дом with a ground garage wing on two. The T:
+  bedrooms wing west, garage wing east, the living stem facing the street
+  between two entrance nooks. Every model bills the TRUE exterior (exposed
+  edges, not the bbox shortcut) and every check judges the real per-floor
+  outline. U stays out until its courtyard composer exists — its pricing
+  blocker is already gone.
 - **9 deterministic invariants** checked on every plan and shipped as visible
   red flags (never a silent "best effort"): overlaps/coverage, areas, door on
   every room, no transit through bedrooms, shared wet riser, entry buffer
@@ -136,15 +137,14 @@ User input → GeoClimate calc (frost depth, seismic zone, wall/insulation)
 ## Tests
 
 ```bash
-cd backend && pytest -q          # 288 tests: engine geometry, invariants, API
+cd backend && pytest -q          # 294 tests: engine geometry, invariants, API
 cd frontend && npx vitest run && npx tsc --noEmit
 ```
 
 ## Roadmap
 
-1. **U/T footprints** — they need true-perimeter support in the cost/heating
-   models (a courtyard makes the exterior longer than the bbox) before they
-   can be honest values.
+1. **U footprint** — the cost model already bills true exposed-edge
+   perimeters (v1.10), so only the courtyard composer itself remains.
 
 ## License
 
